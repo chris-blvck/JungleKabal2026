@@ -400,14 +400,18 @@ function EndScreen({ winner, playerScore, aiScore, onRestart }) {
 
         <button
           onClick={onRestart}
-          className="w-full py-3.5 font-display text-2xl tracking-widest rounded-xl transition-all hover:brightness-110 active:scale-95"
-          style={{
-            background: '#F5B800',
-            color: '#0D0B08',
-            boxShadow: '0 0 20px rgba(245,184,0,0.4)',
-          }}
+          className="flex justify-center w-full transition-all hover:brightness-110 active:scale-95"
+          style={{ background: 'none', border: 'none', padding: 0 }}
         >
-          REVANCHE
+          <img
+            src={`${import.meta.env.BASE_URL}btn-restart.png`}
+            alt="Revanche"
+            style={{ height: '56px', width: 'auto' }}
+            onError={e => {
+              e.currentTarget.style.display = 'none'
+              e.currentTarget.parentElement.innerHTML = '<span style="display:block;width:100%;padding:14px;background:#F5B800;color:#0D0B08;border-radius:12px;font-size:1.5rem;letter-spacing:0.15em;text-align:center">REVANCHE</span>'
+            }}
+          />
         </button>
       </div>
     </div>
@@ -606,43 +610,59 @@ export default function KnucklebonesGame() {
           </h1>
         </header>
 
-        {/* ── AI section ── */}
-        <section
-          className="rounded-2xl p-3"
-          style={{
-            background: 'rgba(8,6,3,0.78)',
-            border: '1px solid rgba(245,184,0,0.15)',
-            backdropFilter: 'blur(8px)',
-          }}
-        >
-          {/* AI dialogue + score */}
-          <div className="flex items-start justify-between gap-2 mb-3">
-            <AIBubble text={dialog} isThinking={aiThinking} />
-            <div className="flex flex-col items-end flex-shrink-0">
-              <span
-                className="font-display text-4xl leading-none"
-                style={{ color: '#F5B800', textShadow: '0 0 12px rgba(245,184,0,0.4)' }}
-              >
-                {aiScore}
-              </span>
-              <span className="font-body text-xs tracking-widest uppercase" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                Jaguar
-              </span>
-            </div>
+        {/* ── AI dialogue ── */}
+        <div className="flex items-start justify-between gap-2 px-1">
+          <AIBubble text={dialog} isThinking={aiThinking} />
+          <div className="flex items-center gap-1.5 flex-shrink-0 mt-1">
+            <span
+              className="w-2 h-2 rounded-full transition-all"
+              style={{
+                background: phase === PHASE.AI_TURN ? '#F5B800' : 'rgba(255,255,255,0.15)',
+                boxShadow: phase === PHASE.AI_TURN ? '0 0 6px #F5B800' : 'none',
+              }}
+            />
+            <span className="font-body text-xs tracking-widest" style={{ color: 'rgba(255,255,255,0.3)' }}>Jaguar</span>
           </div>
+        </div>
 
-          {/* AI grid */}
-          <div className="flex flex-col items-center gap-1">
-            <KGrid grid={aiGrid} isPlayerGrid={false} canPlace={false} onPlace={() => {}} />
-            <ColumnScores grid={aiGrid} />
+        {/* ── AI board ── */}
+        <section className="relative w-full" style={{ aspectRatio: '3/2' }}>
+          <img
+            src={`${import.meta.env.BASE_URL}board-opponent.png`}
+            alt="Opponent board"
+            className="absolute inset-0 w-full h-full"
+            style={{ objectFit: 'fill' }}
+            onError={e => { e.currentTarget.style.opacity = '0' }}
+          />
+          {/* Score overlay on "Score:" area */}
+          <div
+            className="absolute font-display"
+            style={{ bottom: '9%', left: '57%', transform: 'translateX(-50%)', color: '#F5B800', fontSize: 'clamp(14px, 4vw, 22px)', textShadow: '0 0 8px rgba(245,184,0,0.6)' }}
+          >
+            {aiScore}
+          </div>
+          {/* Dice grid overlay */}
+          <div
+            className="absolute flex items-center justify-center"
+            style={{ top: '12%', left: '13%', right: '13%', bottom: '28%' }}
+          >
+            <div className="flex flex-col items-center gap-1">
+              <KGrid grid={aiGrid} isPlayerGrid={false} canPlace={false} onPlace={() => {}} />
+              <ColumnScores grid={aiGrid} />
+            </div>
           </div>
         </section>
 
-        {/* ── VS separator + central die ── */}
-        <section className="flex items-center gap-3 px-1">
-          <div className="flex-1 h-px" style={{ background: 'linear-gradient(to right, transparent, rgba(245,184,0,0.3))' }} />
+        {/* ── Central section: arrow + die + roll button ── */}
+        <section className="flex items-center gap-2 px-1">
+          <img
+            src={`${import.meta.env.BASE_URL}arrow.png`}
+            alt=""
+            className="flex-1 h-auto"
+            style={{ opacity: 0.7, maxHeight: '32px', objectFit: 'contain' }}
+          />
 
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-2 flex-shrink-0">
             <RollDie value={roll} isRolling={rolling} />
 
             {hint && (
@@ -657,19 +677,23 @@ export default function KnucklebonesGame() {
             {canRoll && (
               <button
                 onClick={handleRoll}
-                className="px-8 py-3 font-display text-2xl tracking-widest rounded-xl transition-all hover:brightness-110 active:scale-95"
-                style={{
-                  background: '#F5B800',
-                  color: '#0D0B08',
-                  boxShadow: '0 0 18px rgba(245,184,0,0.45)',
-                }}
+                className="transition-all hover:brightness-125 active:scale-95"
+                style={{ background: 'none', border: 'none', padding: 0 }}
               >
-                LANCER
+                <img
+                  src={`${import.meta.env.BASE_URL}btn-roll.png`}
+                  alt="Roll a Dice"
+                  style={{ height: 'clamp(44px, 12vw, 56px)', width: 'auto' }}
+                  onError={e => {
+                    e.currentTarget.style.display = 'none'
+                    e.currentTarget.parentElement.innerHTML = '<span style="background:#F5B800;color:#0D0B08;padding:10px 24px;border-radius:10px;font-family:inherit;font-weight:700;font-size:1.2rem;letter-spacing:0.15em">LANCER</span>'
+                  }}
+                />
               </button>
             )}
 
             {phase === PHASE.AI_TURN && (
-              <p className="font-body text-sm tracking-wider animate-pulse" style={{ color: 'rgba(255,255,255,0.4)' }}>
+              <p className="font-body text-xs tracking-wider animate-pulse" style={{ color: 'rgba(255,255,255,0.45)' }}>
                 Tour du Jaguar...
               </p>
             )}
@@ -696,97 +720,126 @@ export default function KnucklebonesGame() {
             </div>
           </div>
 
-          <div className="flex-1 h-px" style={{ background: 'linear-gradient(to left, transparent, rgba(245,184,0,0.3))' }} />
+          <img
+            src={`${import.meta.env.BASE_URL}arrow.png`}
+            alt=""
+            className="flex-1 h-auto"
+            style={{ opacity: 0.7, maxHeight: '32px', objectFit: 'contain', transform: 'scaleX(-1)' }}
+          />
         </section>
 
-        {/* ── Player section ── */}
+        {/* ── Player board ── */}
         <section
-          className="rounded-2xl p-3"
+          className="relative w-full"
           style={{
-            background: 'rgba(8,6,3,0.78)',
-            border: canPlace
-              ? '1px solid rgba(245,184,0,0.4)'
-              : '1px solid rgba(245,184,0,0.15)',
-            backdropFilter: 'blur(8px)',
-            boxShadow: canPlace ? '0 0 20px rgba(245,184,0,0.12)' : 'none',
-            transition: 'border-color 0.3s, box-shadow 0.3s',
+            aspectRatio: '3/2',
+            boxShadow: canPlace ? '0 0 24px rgba(245,184,0,0.25)' : 'none',
+            transition: 'box-shadow 0.3s',
           }}
         >
-          {/* Player grid */}
-          <div className="flex flex-col items-center gap-1 mb-3">
-            <ColumnScores grid={playerGrid} />
-            <KGrid
-              grid={playerGrid}
-              isPlayerGrid={true}
-              canPlace={canPlace}
-              onPlace={handlePlace}
-            />
+          <img
+            src={`${import.meta.env.BASE_URL}board-player.png`}
+            alt="Your board"
+            className="absolute inset-0 w-full h-full"
+            style={{ objectFit: 'fill' }}
+            onError={e => { e.currentTarget.style.opacity = '0' }}
+          />
+          {/* Score overlay */}
+          <div
+            className="absolute font-display"
+            style={{ bottom: '9%', left: '57%', transform: 'translateX(-50%)', color: '#4ADE80', fontSize: 'clamp(14px, 4vw, 22px)', textShadow: '0 0 8px rgba(74,222,128,0.5)' }}
+          >
+            {playerScore}
           </div>
+          {/* Dice grid overlay */}
+          <div
+            className="absolute flex items-center justify-center"
+            style={{ top: '12%', left: '13%', right: '13%', bottom: '28%' }}
+          >
+            <div className="flex flex-col items-center gap-1">
+              <ColumnScores grid={playerGrid} />
+              <KGrid
+                grid={playerGrid}
+                isPlayerGrid={true}
+                canPlace={canPlace}
+                onPlace={handlePlace}
+              />
+            </div>
+          </div>
+          {/* Place hint */}
+          {canPlace && (
+            <div className="absolute left-0 right-0 flex justify-center" style={{ bottom: '27%' }}>
+              <p className="font-body text-xs tracking-widest uppercase animate-pulse" style={{ color: '#F5B800' }}>
+                ↑ Clique une colonne
+              </p>
+            </div>
+          )}
+        </section>
 
-          {/* Player score */}
-          <div className="flex items-center justify-between">
-            <p className="font-body text-xs tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
-              {canPlace ? '↑ Clique sur une colonne pour placer' : 'Ta grille'}
-            </p>
-            <div className="flex flex-col items-end">
+        {/* ── Score banner ── */}
+        {(playerScore + aiScore) > 0 && (
+          <div className="relative w-full">
+            <img
+              src={`${import.meta.env.BASE_URL}score-banner.png`}
+              alt="Score"
+              className="w-full h-auto"
+              style={{ opacity: 0.9 }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center gap-3 px-8">
               <span
-                className="font-display text-4xl leading-none"
-                style={{ color: '#4ADE80', textShadow: '0 0 12px rgba(74,222,128,0.4)' }}
+                className="font-display"
+                style={{ color: '#4ADE80', fontSize: 'clamp(18px, 6vw, 28px)', textShadow: '0 0 10px rgba(74,222,128,0.5)', minWidth: '2.5ch', textAlign: 'right' }}
               >
                 {playerScore}
               </span>
-              <span className="font-body text-xs tracking-widest uppercase" style={{ color: 'rgba(255,255,255,0.3)' }}>Toi</span>
+              <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.4)' }}>
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${(playerScore / (playerScore + aiScore)) * 100}%`,
+                    background: 'linear-gradient(to right, #4ADE80, #F5B800)',
+                  }}
+                />
+              </div>
+              <span
+                className="font-display"
+                style={{ color: '#F5B800', fontSize: 'clamp(18px, 6vw, 28px)', textShadow: '0 0 10px rgba(245,184,0,0.5)', minWidth: '2.5ch', textAlign: 'left' }}
+              >
+                {aiScore}
+              </span>
             </div>
-          </div>
-        </section>
-
-        {/* ── Score bar ── */}
-        {(playerScore + aiScore) > 0 && (
-          <div className="flex items-center gap-2 px-1">
-            <span className="font-display text-xs w-8 text-right" style={{ color: '#4ADE80' }}>{playerScore}</span>
-            <div
-              className="flex-1 h-1.5 rounded-full overflow-hidden"
-              style={{ background: 'rgba(255,255,255,0.08)' }}
-            >
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${(playerScore / (playerScore + aiScore)) * 100}%`,
-                  background: 'linear-gradient(to right, #4ADE80, #F5B800)',
-                }}
-              />
-            </div>
-            <span className="font-display text-xs w-8" style={{ color: '#F5B800' }}>{aiScore}</span>
           </div>
         )}
 
         {/* ── Rules ── */}
-        <details
-          className="rounded-xl overflow-hidden"
-          style={{
-            background: 'rgba(8,6,3,0.7)',
-            border: '1px solid rgba(245,184,0,0.1)',
-            backdropFilter: 'blur(6px)',
-          }}
-        >
-          <summary
-            className="px-4 py-3 font-body text-sm cursor-pointer tracking-wider uppercase"
-            style={{ color: 'rgba(245,184,0,0.5)' }}
-          >
-            Comment jouer ?
+        <details className="group">
+          <summary className="list-none cursor-pointer flex justify-center hover:brightness-110 active:scale-95 transition-all">
+            <img
+              src={`${import.meta.env.BASE_URL}btn-rules.png`}
+              alt="Rules"
+              style={{ height: 'clamp(44px, 12vw, 56px)', width: 'auto' }}
+              onError={e => {
+                e.currentTarget.style.display = 'none'
+                e.currentTarget.parentElement.innerHTML = '<span style="color:rgba(245,184,0,0.5);font-size:0.75rem;letter-spacing:0.2em;text-transform:uppercase">Comment jouer ?</span>'
+              }}
+            />
           </summary>
           <div
-            className="px-4 pb-4 text-sm font-body leading-relaxed space-y-2"
-            style={{ color: 'rgba(255,255,255,0.5)' }}
+            className="mt-2 rounded-xl px-4 py-3 text-sm font-body leading-relaxed space-y-2"
+            style={{
+              background: 'rgba(8,6,3,0.85)',
+              border: '1px solid rgba(245,184,0,0.15)',
+              color: 'rgba(255,255,255,0.5)',
+            }}
           >
             <p>🎲 Lance le de, puis clique sur une colonne pour le placer (max 3 des par colonne).</p>
             <p>
-              <span style={{ color: '#F87171' }}>✖</span> Si tu poses un de de la meme valeur que l&apos;adversaire dans la meme colonne, ses des sont <span style={{ color: '#F87171' }}>supprimes</span>.
+              <span style={{ color: '#F87171' }}>✖</span> Meme valeur dans la meme colonne = des adverses <span style={{ color: '#F87171' }}>supprimes</span>.
             </p>
             <p>
-              <span style={{ color: '#F5B800' }}>✖2</span> Des identiques dans ta colonne <span style={{ color: '#F5B800' }}>multiplient leur valeur</span> : 2x le meme = x2, 3x le meme = x3 !
+              <span style={{ color: '#F5B800' }}>✖2</span> Des identiques dans ta colonne <span style={{ color: '#F5B800' }}>multiplient leur valeur</span> : 2x = ×2, 3x = ×3 !
             </p>
-            <p>🏆 La partie se termine quand une grille est remplie. Le plus grand score gagne.</p>
+            <p>🏆 La partie finit quand une grille est pleine. Meilleur score gagne.</p>
           </div>
         </details>
 
@@ -794,18 +847,18 @@ export default function KnucklebonesGame() {
         {phase !== PHASE.GAME_OVER && (
           <button
             onClick={handleRestart}
-            className="self-center font-body text-xs tracking-widest uppercase transition-colors py-1 border-b border-transparent"
-            style={{ color: 'rgba(255,255,255,0.25)' }}
-            onMouseEnter={e => {
-              e.currentTarget.style.color = '#F87171'
-              e.currentTarget.style.borderBottomColor = 'rgba(248,113,113,0.4)'
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.color = 'rgba(255,255,255,0.25)'
-              e.currentTarget.style.borderBottomColor = 'transparent'
-            }}
+            className="self-center transition-all hover:brightness-110 active:scale-95"
+            style={{ background: 'none', border: 'none', padding: 0 }}
           >
-            ↺ Nouvelle partie
+            <img
+              src={`${import.meta.env.BASE_URL}btn-restart.png`}
+              alt="Restart"
+              style={{ height: 'clamp(40px, 11vw, 52px)', width: 'auto', opacity: 0.7 }}
+              onError={e => {
+                e.currentTarget.style.display = 'none'
+                e.currentTarget.parentElement.innerHTML = '<span style="color:rgba(255,255,255,0.25);font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;border-bottom:1px solid transparent">↺ Nouvelle partie</span>'
+              }}
+            />
           </button>
         )}
       </div>

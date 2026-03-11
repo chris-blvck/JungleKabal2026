@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/knucklebones/assets/:path*", "destination": "/assets/:path*" },
+    { "source": "/knucklebones/dice/:path*", "destination": "/dice/:path*" },
+    { "source": "/knucklebones/:path*", "destination": "/index.html" },
+    { "source": "/knucklebones", "destination": "/index.html" }
+  ]
+}
