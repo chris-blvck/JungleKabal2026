@@ -142,10 +142,11 @@ function DieCell({ value, isNew }) {
   return (
     <div className={`${baseClass} ${isNew ? 'animate-bounce-in' : ''}`}>
       <img
-        src={`/dice/die-${value}.svg`}
+        src={`${import.meta.env.BASE_URL}dice/die-${value}.png`}
         alt={`${value}`}
         className="w-full h-full object-contain"
         draggable={false}
+        onError={e => { e.currentTarget.src = `${import.meta.env.BASE_URL}dice/die-${value}.svg` }}
       />
     </div>
   )
@@ -233,7 +234,7 @@ function AIBubble({ text, isThinking }) {
         style={{ boxShadow: '0 0 10px rgba(245,184,0,0.4)' }}
       >
         <img
-          src="/logo-icon.png"
+          src={`${import.meta.env.BASE_URL}logo-icon.png`}
           alt="Jungle Kabal"
           className="w-full h-full object-cover"
           onError={e => {
@@ -292,10 +293,11 @@ function RollDie({ value, isRolling }) {
     >
       {value ? (
         <img
-          src={`/dice/die-${value}.svg`}
+          src={`${import.meta.env.BASE_URL}dice/die-${value}.png`}
           alt={`${value}`}
           className="w-full h-full object-contain"
           draggable={false}
+          onError={e => { e.currentTarget.src = `${import.meta.env.BASE_URL}dice/die-${value}.svg` }}
         />
       ) : (
         <div
@@ -561,7 +563,7 @@ export default function KnucklebonesGame() {
     <div
       className="min-h-screen flex flex-col items-center px-3 py-5 select-none overflow-x-hidden"
       style={{
-        backgroundImage: 'url("/bg.jpg")',
+        backgroundImage: `url("${import.meta.env.BASE_URL}bg.jpg")`,
         backgroundSize: 'cover',
         backgroundPosition: 'center top',
         backgroundRepeat: 'no-repeat',
@@ -579,7 +581,7 @@ export default function KnucklebonesGame() {
         {/* ── Header / Logo ── */}
         <header className="flex flex-col items-center gap-2 pt-2 pb-1">
           <img
-            src="/logo.png"
+            src={`${import.meta.env.BASE_URL}logo.png`}
             alt="Jungle Kabal"
             className="h-28 w-auto object-contain drop-shadow-lg"
             onError={e => {
