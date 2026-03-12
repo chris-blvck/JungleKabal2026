@@ -398,6 +398,15 @@ const ARTIFACT_POOL = [
     effectText: "Every 3 turns, reset all cooldowns.",
     apply: (player) => ({ ...player, timedResetEvery: 3 }),
   },
+  {
+    id: "kabal-sigil",
+    name: "Kabal Sigil",
+    rarity: "chrome",
+    category: "sigil",
+    tags: ["survival"],
+    effectText: "Gain one revive per floor (revive at 40% HP).",
+    apply: (player) => ({ ...player, reviveOnce: true }),
+  },
 ];
 
 const KILL_WORDS = ["Slashed", "Crushed", "Berserk Mode", "Kabal Style", "Savage", "Annihilated"];
@@ -656,7 +665,7 @@ function resolvePlayerGrid(state) {
 
   if (enemy.firstHitIgnored && totalAttack > 0) {
     enemy.firstHitIgnored = false;
-    totalAttack = Math.max(0, totalAttack - 9999);
+    totalAttack = 0;
     rowBreakdown.unshift(`🪨 Stone Skin ignored the first hit`);
   }
 
@@ -1226,14 +1235,11 @@ export default function DieInTheJungleUpgraded() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Board" right={<div className="text-[9px] text-zinc-300">Hidden route · elites added · no scroll</div>}>
-          <div className="mb-2 grid max-w-[360px] grid-cols-5 gap-1 mx-auto">
-            {game.route.map((enemy, index) => {
-              const state = index < game.room ? "done" : index === game.room ? "current" : "hidden";
-              return <RouteCard key={`${enemy.name}-${index}`} enemy={enemy} state={state} />;
-            })}
-          </div>
 
+
+
+
+        <SectionCard title="Board" right={<div className="text-[9px] text-zinc-300">Place dice on available slots</div>}>
           {activeDieMeta && game.phase === "place" ? (
             <div className="mb-2 flex items-center gap-2 rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-2 py-1.5 text-[11px] text-white">
               <span className="text-lg">{activeDieMeta.emoji}</span>
@@ -1296,11 +1302,18 @@ export default function DieInTheJungleUpgraded() {
           </div>
         </SectionCard>
 
+
         <SectionCard title="Combat log" right={<button onClick={() => setGame((g) => ({ ...g, showAllLogs: !g.showAllLogs }))} className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-bold text-white hover:bg-white/20">{game.showAllLogs ? "▲" : "▼"}</button>}>
           <div className="space-y-1">
             {latestLogs.map((line, i) => (
               <div key={`${line}-${i}`} className="rounded-[12px] border border-white/10 bg-zinc-900/80 px-2.5 py-1.5 text-[11px] md:text-xs">{line}</div>
             ))}
+          </div>
+          <div className="my-2 grid max-w-[360px] grid-cols-5 gap-1">
+            {game.route.map((enemy, index) => {
+              const state = index < game.room ? "done" : index === game.room ? "current" : "hidden";
+              return <RouteCard key={`${enemy.name}-${index}`} enemy={enemy} state={state} />;
+            })}
           </div>
           <AnimatePresence>
             {game.showAllLogs ? (
@@ -1314,6 +1327,7 @@ export default function DieInTheJungleUpgraded() {
             ) : null}
           </AnimatePresence>
         </SectionCard>
+
 
         <AnimatePresence>
           {game.killPopup ? (
