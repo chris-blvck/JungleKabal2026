@@ -398,6 +398,15 @@ const ARTIFACT_POOL = [
     effectText: "Every 3 turns, reset all cooldowns.",
     apply: (player) => ({ ...player, timedResetEvery: 3 }),
   },
+  {
+    id: "kabal-sigil",
+    name: "Kabal Sigil",
+    rarity: "chrome",
+    category: "sigil",
+    tags: ["survival"],
+    effectText: "Gain one revive per floor (revive at 40% HP).",
+    apply: (player) => ({ ...player, reviveOnce: true }),
+  },
 ];
 
 const KILL_WORDS = ["Slashed", "Crushed", "Berserk Mode", "Kabal Style", "Savage", "Annihilated"];
@@ -656,7 +665,7 @@ function resolvePlayerGrid(state) {
 
   if (enemy.firstHitIgnored && totalAttack > 0) {
     enemy.firstHitIgnored = false;
-    totalAttack = Math.max(0, totalAttack - 9999);
+    totalAttack = 0;
     rowBreakdown.unshift(`🪨 Stone Skin ignored the first hit`);
   }
 
