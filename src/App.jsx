@@ -11,6 +11,7 @@ import CRMAngel from './pages/CRMAngel';
 import SprintBoard from './pages/SprintBoard';
 import Arsenal from './pages/Arsenal';
 import DieInTheJungle from './pages/DieInTheJungle';
+import KabalAcademyMVP from './pages/KabalAcademyMVP';
 
 const isTeamSubdomain =
   typeof window !== 'undefined' &&
@@ -41,6 +42,9 @@ export default function App() {
 
           {/* ARSENAL */}
           <Route path="/arsenal"                  element={<Arsenal />} />
+
+          {/* ACADEMY */}
+          <Route path="/academy"                  element={<KabalAcademyMVP />} />
 
           {/* Fallback */}
           <Route path="*"                         element={<TeamHome />} />
