@@ -27,12 +27,21 @@ const DICE_IMAGES = {
 
 const DICE_IMAGES_BY_KIND = {
   attack: {
+<<<<<<< codex/fix-game-build-issue-in-vercel-15yqrh
+    1: "https://i.postimg.cc/mk4Rdw2K/Dice-1.png",
+    2: "https://i.postimg.cc/NFtYN4jq/Dice-2.png",
+    3: "https://i.postimg.cc/4yGZ85xs/Dice-3.png",
+    4: "https://i.postimg.cc/qqr0mLvJ/Dice-4.png",
+    5: "https://i.postimg.cc/x8QYsR1j/Dice-5.png",
+    6: "https://i.postimg.cc/gjpdMD2J/Dice-6.png",
+=======
     1: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
     2: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
     3: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
     4: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
     5: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
     6: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+>>>>>>> main
   },
   heal: {
     1: "https://i.postimg.cc/k4T1QSqL/Dice-health-1.png",
@@ -45,12 +54,22 @@ const DICE_IMAGES_BY_KIND = {
   shield: {
     1: "https://i.postimg.cc/x8qstddp/Dice-shield-1.png",
     2: "https://i.postimg.cc/Zngwgh9P/Dice-Shield-2.png",
+<<<<<<< codex/fix-game-build-issue-in-vercel-15yqrh
+    3: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+=======
+>>>>>>> main
     4: "https://i.postimg.cc/L57x7Mq3/Dice-Shield-4.png",
     5: "https://i.postimg.cc/mkqmqGcp/Dice-Shield-5.png",
     6: "https://i.postimg.cc/90SLSj4K/Dice-Shield-6.png",
   },
 };
 
+<<<<<<< codex/fix-game-build-issue-in-vercel-15yqrh
+const GAME_STATE_STORAGE_KEY = "jungle_kabal_run_state_v1";
+const LEADERBOARD_STORAGE_KEY = "jungle_kabal_leaderboard_v1";
+
+=======
+>>>>>>> main
 const DIE_KIND_ORDER = ["attack", "shield", "heal"];
 
 const TAG_EMOJIS = {
@@ -920,6 +939,55 @@ function makeInitialState() {
   };
 }
 
+function serializeGameState(game) {
+  return {
+    ...game,
+    player: {
+      ...game.player,
+      artifacts: game.player.artifacts.map((artifact) => artifact.id),
+    },
+    artifactsOffered: game.artifactsOffered.map((artifact) => artifact.id),
+  };
+}
+
+function hydrateGameState(rawState) {
+  if (!rawState || typeof rawState !== "object") return null;
+  const safe = { ...rawState };
+  const byId = new Map(ARTIFACT_POOL.map((artifact) => [artifact.id, artifact]));
+  safe.player = {
+    ...safe.player,
+    artifacts: (safe.player?.artifacts || []).map((id) => byId.get(id)).filter(Boolean),
+  };
+  safe.artifactsOffered = (safe.artifactsOffered || []).map((id) => byId.get(id)).filter(Boolean);
+  safe.enemyAttackPulse = 0;
+  safe.damagePopups = [];
+  safe.actionFlash = null;
+  safe.killPopup = null;
+  return safe;
+}
+
+function loadSavedGameState() {
+  try {
+    const raw = localStorage.getItem(GAME_STATE_STORAGE_KEY);
+    if (!raw) return makeInitialState();
+    const parsed = JSON.parse(raw);
+    return hydrateGameState(parsed) || makeInitialState();
+  } catch {
+    return makeInitialState();
+  }
+}
+
+function loadLeaderboard() {
+  try {
+    const raw = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 function SectionCard({ title, children, right }) {
   return (
     <div className="rounded-[20px] border border-white/15 bg-black/45 p-2 shadow-[0_14px_30px_rgba(0,0,0,0.28)] backdrop-blur-md md:p-2.5">
@@ -1021,7 +1089,9 @@ function ArtifactCard({ artifact, onPick }) {
 }
 
 export default function DieInTheJungleUpgraded() {
-  const [game, setGame] = useState(makeInitialState);
+  const [game, setGame] = useState(loadSavedGameState);
+  const [walletAddress, setWalletAddress] = useState("");
+  const [leaderboard, setLeaderboard] = useState(loadLeaderboard);
 
   const activeDieIndex = useMemo(() => {
     if (game.selectedDieIndex !== null && game.dice[game.selectedDieIndex] !== null) return game.selectedDieIndex;
@@ -1041,6 +1111,43 @@ export default function DieInTheJungleUpgraded() {
     }));
   }
 
+<<<<<<< codex/fix-game-build-issue-in-vercel-15yqrh
+  function connectWallet() {
+    const provider = (window as any).solana;
+    if (!provider?.connect) {
+      setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "⚠️ Phantom wallet not found", tone: "rose" } }));
+      return;
+    }
+    provider.connect()
+      .then((response) => {
+        const address = response?.publicKey?.toString?.() || "";
+        setWalletAddress(address);
+        setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "✅ Wallet connected", tone: "emerald" } }));
+      })
+      .catch(() => {
+        setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "❌ Wallet connect failed", tone: "rose" } }));
+      });
+  }
+
+  function submitScoreToLeaderboard() {
+    if (!game.runEnded) return;
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      wallet: walletAddress || "guest",
+      score: game.score,
+      zone: game.floor,
+      at: new Date().toISOString(),
+    };
+    const next = [entry, ...leaderboard]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20);
+    setLeaderboard(next);
+    localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(next));
+    setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "🏁 Score submitted", tone: "emerald" } }));
+  }
+
+=======
+>>>>>>> main
   function pushLog(lines) {
     setGame((g) => ({ ...g, log: [...lines, ...g.log].slice(0, 40) }));
   }
@@ -1390,6 +1497,13 @@ export default function DieInTheJungleUpgraded() {
   }, [game.actionFlash]);
 
   useEffect(() => {
+<<<<<<< codex/fix-game-build-issue-in-vercel-15yqrh
+    localStorage.setItem(GAME_STATE_STORAGE_KEY, JSON.stringify(serializeGameState(game)));
+  }, [game]);
+
+  useEffect(() => {
+=======
+>>>>>>> main
     if (!game.enemyAttackPulse) return;
     const timeout = window.setTimeout(() => {
       setGame((g) => (g.enemyAttackPulse ? { ...g, enemyAttackPulse: 0 } : g));
@@ -1448,6 +1562,9 @@ export default function DieInTheJungleUpgraded() {
                 <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Phase</div>
                 <div className="text-xs font-black uppercase text-amber-300 md:text-sm">{game.phase}</div>
               </div>
+              <Button onClick={connectWallet} className="rounded-xl bg-violet-500/25 px-2.5 py-2 text-white hover:bg-violet-500/40">
+                {walletAddress ? `🟣 ${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : "🟣 Connect Wallet"}
+              </Button>
               <Button onClick={() => setGame((g) => ({ ...g, showHowToPlay: true }))} className="rounded-xl bg-white/10 px-2.5 py-2 text-white hover:bg-white/20">❓</Button>
             </div>
           </div>
@@ -1571,6 +1688,7 @@ export default function DieInTheJungleUpgraded() {
             {(game.phase === "gameover" || game.phase === "victory") ? (
               <>
                 <div className="text-lg font-black md:text-xl">{game.phase === "victory" ? "🏆 YOU WIN" : "💀 YOU DIED"}</div>
+                <Button onClick={submitScoreToLeaderboard} className="rounded-2xl bg-violet-500/30 px-4 py-2.5 text-sm font-black text-white hover:bg-violet-500/45">Submit score</Button>
                 <Button onClick={restart} className="rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-black hover:bg-zinc-200">Restart</Button>
               </>
             ) : null}
@@ -1670,6 +1788,20 @@ export default function DieInTheJungleUpgraded() {
           </AnimatePresence>
         </SectionCard>
 
+<<<<<<< codex/fix-game-build-issue-in-vercel-15yqrh
+        <SectionCard title="Leaderboard">
+          <div className="space-y-1">
+            {leaderboard.length ? leaderboard.slice(0, 5).map((entry, index) => (
+              <div key={entry.id} className="flex items-center justify-between rounded-[12px] border border-white/10 bg-black/35 px-2.5 py-1.5 text-[11px]">
+                <span>#{index + 1} · {entry.wallet === "guest" ? "guest" : `${entry.wallet.slice(0, 4)}...${entry.wallet.slice(-4)}`}</span>
+                <span>🏆 {entry.score} · Zone {entry.zone}</span>
+              </div>
+            )) : <div className="text-[11px] text-zinc-300">No score yet. Finish a run and submit.</div>}
+          </div>
+        </SectionCard>
+
+=======
+>>>>>>> main
 
         <AnimatePresence>
           {game.damagePopups.map((popup) => (
