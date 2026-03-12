@@ -3,6 +3,7 @@
 // team.junglekabal.meme · Accès rapide aux outils du squad
 // ============================================================
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Shell, { JK, Card, StatBox, Badge, Divider, SectionTitle } from "../components/JKShell";
 
 // ─── DATA ───────────────────────────────────────────────────
@@ -17,18 +18,18 @@ const TOOLS = [
     tagColor: "#3B82F6",
     status: "LIVE",
     statusColor: JK.green,
-    href: "#watchlist",
+    href: "/watchlist",
   },
   {
     id: "war-room",
     icon: "⚔️",
     name: "WAR ROOM",
-    desc: "Revenus, coûts & P&L du squad",
+    desc: "PNL Calendar & journal de trades",
     tag: "FINANCES",
     tagColor: JK.red,
     status: "LIVE",
     statusColor: JK.green,
-    href: "#war-room",
+    href: "/finance/pnl-calendar",
   },
   {
     id: "crm-angel",
@@ -39,7 +40,7 @@ const TOOLS = [
     tagColor: "#A855F7",
     status: "LIVE",
     statusColor: JK.green,
-    href: "#crm-angel",
+    href: "/crm-angel",
   },
   {
     id: "risk-manager",
@@ -50,7 +51,7 @@ const TOOLS = [
     tagColor: "#F97316",
     status: "LIVE",
     statusColor: JK.green,
-    href: "#risk-manager",
+    href: "/risk-manager",
   },
   {
     id: "sprint-board",
@@ -61,7 +62,7 @@ const TOOLS = [
     tagColor: JK.gold,
     status: "ACTIVE",
     statusColor: JK.gold,
-    href: "#sprint",
+    href: "/sprint-board",
   },
   {
     id: "arsenal",
@@ -72,7 +73,7 @@ const TOOLS = [
     tagColor: JK.green,
     status: "ACTIVE",
     statusColor: JK.gold,
-    href: "#arsenal",
+    href: "/arsenal",
   },
 ];
 
@@ -88,10 +89,11 @@ const MEMBERS = [
 
 function ToolCard({ tool }) {
   const [hovered, setHovered] = useState(false);
+  const navigate = useNavigate();
   return (
-    <a
-      href={tool.href}
-      style={{ textDecoration: "none", color: "inherit" }}
+    <div
+      onClick={() => navigate(tool.href)}
+      style={{ textDecoration: "none", color: "inherit", cursor: "pointer" }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -167,7 +169,7 @@ function ToolCard({ tool }) {
           </span>
         </div>
       </div>
-    </a>
+    </div>
   );
 }
 
