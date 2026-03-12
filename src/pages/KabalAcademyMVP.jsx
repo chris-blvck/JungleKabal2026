@@ -7,10 +7,13 @@ import {
   BookOpen,
   CheckCircle2,
   Clock3,
+  ImagePlus,
   PlayCircle,
+  Plus,
   Search,
   Sparkles,
   Target,
+  Trash2,
   Wallet,
 } from "lucide-react";
 
@@ -110,6 +113,15 @@ const LESSON_INDEX = ACADEMY.modules.flatMap((module) =>
   })),
 );
 
+function createBlock(type = "text") {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type,
+    content: "",
+    checked: false,
+  };
+}
+
 function MobileTabs({ tab, setTab }) {
   const tabs = [
     ["learn", "Cours", BookOpen],
@@ -146,6 +158,8 @@ export default function KabalAcademyMVP() {
   const [lessonId, setLessonId] = useState(firstLesson.id);
   const [doneByLesson, setDoneByLesson] = useState({});
   const [search, setSearch] = useState("");
+  const [newBlockType, setNewBlockType] = useState("text");
+  const [contentBlocksByLesson, setContentBlocksByLesson] = useState({});
 
   const activeModule = ACADEMY.modules.find((m) => m.id === moduleId) || firstModule;
   const activeLesson = activeModule.lessons.find((l) => l.id === lessonId) || activeModule.lessons[0];
@@ -160,11 +174,44 @@ export default function KabalAcademyMVP() {
     return LESSON_INDEX.filter((l) => l.searchText.includes(query)).slice(0, 8);
   }, [search]);
 
+  const currentChecked = Boolean(doneByLesson[activeLesson.id]);
+  const currentBlocks = contentBlocksByLesson[activeLesson.id] || [];
+
   const setDone = (id, checked) => {
     setDoneByLesson((prev) => ({ ...prev, [id]: checked }));
   };
 
-  const currentChecked = Boolean(doneByLesson[activeLesson.id]);
+  const addBlock = () => {
+    setContentBlocksByLesson((prev) => ({
+      ...prev,
+      [activeLesson.id]: [...(prev[activeLesson.id] || []), createBlock(newBlockType)],
+    }));
+  };
+
+  const updateBlock = (blockId, patch) => {
+    setContentBlocksByLesson((prev) => ({
+      ...prev,
+      [activeLesson.id]: (prev[activeLesson.id] || []).map((block) =>
+        block.id === blockId ? { ...block, ...patch } : block,
+      ),
+    }));
+  };
+
+  const removeBlock = (blockId) => {
+    setContentBlocksByLesson((prev) => ({
+      ...prev,
+      [activeLesson.id]: (prev[activeLesson.id] || []).filter((block) => block.id !== blockId),
+    }));
+  };
+
+  const uploadImageToBlock = (blockId, file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      updateBlock(blockId, { content: String(reader.result || "") });
+    };
+    reader.readAsDataURL(file);
+  };
 
   if (!started) {
     return (
@@ -175,7 +222,7 @@ export default function KabalAcademyMVP() {
               <Sparkles className="h-4 w-4" /> UI/UX simple · mobile + web
             </div>
             <h1 className="mt-4 text-4xl font-black leading-tight sm:text-5xl">Formation memecoins complète, organisée, facile à suivre.</h1>
-            <p className="mt-4 text-zinc-300">Chaque leçon a son bloc vidéo (placeholder), ses points clés et une checkbox de validation.</p>
+            <p className="mt-4 text-zinc-300">Chaque leçon a sa vidéo, ses points clés et son espace de notes en blocs (style Notion).</p>
           </div>
 
           <Card className="rounded-3xl border-white/10 bg-white/5">
@@ -307,6 +354,113 @@ export default function KabalAcademyMVP() {
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-zinc-100">Contenu sous la vidéo (style Notion)</p>
+                    <select
+                      value={newBlockType}
+                      onChange={(e) => setNewBlockType(e.target.value)}
+                      className="h-9 rounded-xl border border-white/15 bg-black/30 px-3 text-sm text-zinc-100"
+                    >
+                      <option value="title">Titre</option>
+                      <option value="text">Texte</option>
+                      <option value="bullet">Liste à puces</option>
+                      <option value="check">Checklist</option>
+                      <option value="image">Image</option>
+                    </select>
+                    <Button onClick={addBlock} className="h-9 rounded-xl bg-amber-400 px-3 text-black hover:bg-amber-300">
+                      <Plus className="mr-1 h-4 w-4" /> Ajouter bloc
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {currentBlocks.length === 0 && (
+                      <p className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-zinc-500">
+                        Aucun bloc pour cette leçon. Ajoute du texte, des checklists, des images, etc.
+                      </p>
+                    )}
+
+                    {currentBlocks.map((block) => (
+                      <div key={block.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <select
+                            value={block.type}
+                            onChange={(e) => updateBlock(block.id, { type: e.target.value })}
+                            className="h-8 rounded-lg border border-white/15 bg-black/30 px-2 text-xs text-zinc-200"
+                          >
+                            <option value="title">Titre</option>
+                            <option value="text">Texte</option>
+                            <option value="bullet">Liste à puces</option>
+                            <option value="check">Checklist</option>
+                            <option value="image">Image</option>
+                          </select>
+                          <button onClick={() => removeBlock(block.id)} className="rounded-md p-1 text-zinc-400 hover:bg-white/10 hover:text-red-300">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        {block.type === "title" && (
+                          <Input
+                            value={block.content}
+                            onChange={(e) => updateBlock(block.id, { content: e.target.value })}
+                            placeholder="Titre de section"
+                            className="h-10 rounded-xl border-white/10 bg-black/30"
+                          />
+                        )}
+
+                        {(block.type === "text" || block.type === "bullet") && (
+                          <Textarea
+                            value={block.content}
+                            onChange={(e) => updateBlock(block.id, { content: e.target.value })}
+                            placeholder={block.type === "bullet" ? "Une ligne = une puce" : "Ton texte ici..."}
+                            className="min-h-[110px] rounded-xl border-white/10 bg-black/30"
+                          />
+                        )}
+
+                        {block.type === "check" && (
+                          <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 p-3 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(block.checked)}
+                              onChange={(e) => updateBlock(block.id, { checked: e.target.checked })}
+                              className="h-4 w-4 accent-amber-400"
+                            />
+                            <Input
+                              value={block.content}
+                              onChange={(e) => updateBlock(block.id, { content: e.target.value })}
+                              placeholder="Tâche / point à cocher"
+                              className="h-9 border-0 bg-transparent p-0"
+                            />
+                          </label>
+                        )}
+
+                        {block.type === "image" && (
+                          <div className="space-y-2">
+                            <Input
+                              value={block.content}
+                              onChange={(e) => updateBlock(block.id, { content: e.target.value })}
+                              placeholder="URL de l'image"
+                              className="h-10 rounded-xl border-white/10 bg-black/30"
+                            />
+                            <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-xs text-zinc-200 hover:bg-white/10">
+                              <ImagePlus className="h-4 w-4" /> Importer image
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => uploadImageToBlock(block.id, e.target.files?.[0])}
+                              />
+                            </label>
+                            {block.content && (
+                              <img src={block.content} alt="Illustration de leçon" className="max-h-64 w-full rounded-xl border border-white/10 object-contain" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
                   <p className="mb-2 text-sm font-semibold text-zinc-100">Points clés</p>
                   <ul className="space-y-2 text-sm text-zinc-300">
                     {activeLesson.bullets.map((b) => (<li key={b}>• {b}</li>))}
@@ -345,11 +499,7 @@ export default function KabalAcademyMVP() {
 
         {tab === "tools" && (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              "Wallet sécurité",
-              "Checklist anti-rug",
-              "Plan entrée/sortie",
-            ].map((title) => (
+            {["Wallet sécurité", "Checklist anti-rug", "Plan entrée/sortie"].map((title) => (
               <Card key={title} className="rounded-3xl border-white/10 bg-white/5">
                 <CardContent className="p-4">
                   <p className="font-semibold">{title}</p>
