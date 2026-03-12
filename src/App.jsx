@@ -52,5 +52,12 @@ export default function App() {
     );
   }
 
-  return <LandingPage />;
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/diejungle" element={<DieInTheJungle />} />
+        <Route path="*"          element={<LandingPage />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
