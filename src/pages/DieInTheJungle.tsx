@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-
 const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
 const LOGO_URL = "https://i.postimg.cc/rwdjP9rb/logo-jaune.png";
 const PLAYER_AVATAR_URL = "https://i.postimg.cc/B6rBLmBt/Kabalian-Face.png";
@@ -19,13 +18,11 @@ const LANE_IMAGES = {
   1: "https://i.postimg.cc/66CdbLhg/Chat-GPT-Image-Mar-12-2026-02-31-00-PM.png",
   2: "https://i.postimg.cc/BvdqdFg9/Chat-GPT-Image-Mar-12-2026-02-24-25-PM.png",
 } as const;
-
 const ROW_INFO = [
   { name: "Top", emoji: "🔥", mult: 3 },
   { name: "Mid", emoji: "✨", mult: 2 },
   { name: "Bot", emoji: "🪨", mult: 1 },
 ] as const;
-
 const ENEMY_POOLS = {
   mob: [
     { tier: "mob", name: "Magic Devil Book", hp: 14, damage: 4, emoji: "📕", mood: "Hex pages", image: "https://i.postimg.cc/XYDpJTQK/Magic-Book-1.png" },
@@ -50,15 +47,12 @@ const ENEMY_POOLS = {
     { tier: "boss", name: "Yeti", hp: 62, damage: 16, emoji: "👹", mood: "Frozen smash", image: "https://i.postimg.cc/Y0gsGK6R/Yeti-1.png" },
   ],
 } as const;
-
 const KILL_WORDS = ["Slashed", "Crushed", "Berserk Mode", "Kabal Style", "Savage", "Annihilated"] as const;
-
 type EnemyTier = keyof typeof ENEMY_POOLS;
 type Cell = number | null;
 type Grid = Cell[][];
 type Cooldowns = number[][];
 type Phase = "roll" | "rolling" | "place" | "resolve" | "gameover" | "victory";
-
 type Enemy = {
   tier: EnemyTier;
   name: string;
@@ -68,7 +62,6 @@ type Enemy = {
   mood: string;
   image: string;
 };
-
 type Player = {
   hp: number;
   maxHp: number;
@@ -77,7 +70,6 @@ type Player = {
   cooldownBase: number;
   cooldownTick: number;
 };
-
 type GameState = {
   room: number;
   phase: Phase;
@@ -90,7 +82,6 @@ type GameState = {
   log: string[];
   winStreak: number;
 };
-
 function emptyGrid(): Grid {
   return [
     [null, null, null],
@@ -98,7 +89,6 @@ function emptyGrid(): Grid {
     [null, null, null],
   ];
 }
-
 function emptyCooldowns(): Cooldowns {
   return [
     [0, 0, 0],
@@ -106,24 +96,19 @@ function emptyCooldowns(): Cooldowns {
     [0, 0, 0],
   ];
 }
-
 function rollDice(): number[] {
   return Array.from({ length: 3 }, () => Math.floor(Math.random() * 6) + 1);
 }
-
 function tickCooldowns(cooldowns: Cooldowns, step: number): Cooldowns {
   return cooldowns.map((row) => row.map((value) => Math.max(0, value - step)));
 }
-
 function nextAvailableDieIndex(dice: Array<number | null>): number | null {
   const i = dice.findIndex((d) => d !== null);
   return i === -1 ? null : i;
 }
-
 function boardIsSaturated(grid: Grid, cooldowns: Cooldowns): boolean {
   return grid.every((row, y) => row.every((cell, x) => cell !== null || cooldowns[y][x] > 0));
 }
-
 function pickUnique<T>(items: readonly T[], count: number): T[] {
   const copy = [...items];
   for (let i = copy.length - 1; i > 0; i -= 1) {
@@ -132,7 +117,6 @@ function pickUnique<T>(items: readonly T[], count: number): T[] {
   }
   return copy.slice(0, count);
 }
-
 function buildRoute(): Enemy[] {
   return [
     ...pickUnique(ENEMY_POOLS.mob, 2),
@@ -140,57 +124,47 @@ function buildRoute(): Enemy[] {
     ...pickUnique(ENEMY_POOLS.boss, 1),
   ].map((enemy) => ({ ...enemy }));
 }
-
 function pickKillWord(streak: number): string {
   if (streak >= 3) return "Kabal Style";
   return KILL_WORDS[Math.floor(Math.random() * KILL_WORDS.length)];
 }
-
 function getDieMeta(value: number) {
   if (value <= 2) return { label: "Shield", emoji: "🛡️", desc: `Gain ${value} shield before row bonus.` };
   if (value <= 4) return { label: "Heal", emoji: "❤️", desc: "Heal 1 before row bonus." };
   return { label: "Attack", emoji: "⚔️", desc: `Deal ${value} damage before row bonus.` };
 }
-
 function resolveGrid(state: GameState) {
   const player = { ...state.player };
   const enemy = { ...state.enemy };
-
   let attack = 0;
   let shield = 0;
   let heal = 0;
   const rowBreakdown: string[] = [];
-
   state.grid.forEach((row, rowIndex) => {
     const mult = ROW_INFO[rowIndex].mult;
     let rowAttack = 0;
     let rowShield = 0;
     let rowHeal = 0;
-
     row.forEach((die) => {
       if (die === null) return;
       if (die <= 2) rowShield += die * mult;
       else if (die <= 4) rowHeal += 1 * mult;
       else rowAttack += die * mult;
     });
-
     attack += rowAttack;
     shield += rowShield;
     heal += rowHeal;
     rowBreakdown.push(`${ROW_INFO[rowIndex].emoji} x${mult}: ⚔️ ${rowAttack} · 🛡️ ${rowShield} · ❤️ ${rowHeal}`);
   });
-
   player.shield += shield;
   player.hp = Math.min(player.maxHp, player.hp + heal);
   enemy.hp -= attack;
-
   const log = [
     ...rowBreakdown,
     `⚔️ Total Attack ${attack}`,
     `🛡️ Total Shield +${shield}`,
     `❤️ Total Heal +${heal}`,
   ];
-
   if (enemy.hp > 0) {
     const blocked = Math.min(player.shield, enemy.damage);
     player.shield -= blocked;
@@ -198,10 +172,8 @@ function resolveGrid(state: GameState) {
     player.hp -= damageTaken;
     log.unshift(`${enemy.emoji} ${enemy.name} hits for ${enemy.damage}`);
   }
-
   return { player, enemy, log };
 }
-
 function makeInitialState(): GameState {
   const route = buildRoute();
   return {
@@ -224,7 +196,6 @@ function makeInitialState(): GameState {
     winStreak: 0,
   };
 }
-
 function SectionCard({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
   return (
     <div className="rounded-[20px] border border-white/15 bg-black/45 p-2 shadow-[0_14px_30px_rgba(0,0,0,0.28)] backdrop-blur-md md:p-2.5">
@@ -236,7 +207,6 @@ function SectionCard({ title, children, right }: { title: string; children: Reac
     </div>
   );
 }
-
 function CompactStat({ label, value, accent = "text-white" }: { label: string; value: string; accent?: string }) {
   return (
     <div className="rounded-[16px] border border-white/10 bg-black/35 p-2 text-center">
@@ -245,7 +215,6 @@ function CompactStat({ label, value, accent = "text-white" }: { label: string; v
     </div>
   );
 }
-
 function LifeBar({ label, current, max, tone }: { label: string; current: number; max: number; tone: "enemy" | "player" }) {
   const pct = Math.max(0, Math.min(100, (current / max) * 100));
   const fill = tone === "enemy" ? "from-red-500 via-orange-400 to-yellow-300" : "from-emerald-500 via-lime-400 to-cyan-300";
@@ -261,7 +230,6 @@ function LifeBar({ label, current, max, tone }: { label: string; current: number
     </div>
   );
 }
-
 function DiceFace({ value, selected = false, rolling = false, onClick }: { value: number; selected?: boolean; rolling?: boolean; onClick?: () => void }) {
   const meta = getDieMeta(value);
   return (
@@ -281,7 +249,6 @@ function DiceFace({ value, selected = false, rolling = false, onClick }: { value
     </motion.button>
   );
 }
-
 function RouteCard({ enemy, state }: { enemy: Enemy; state: "done" | "current" | "hidden" }) {
   const classes = state === "done"
     ? "border-emerald-400/40 bg-emerald-500/10"
@@ -298,7 +265,6 @@ function RouteCard({ enemy, state }: { enemy: Enemy; state: "done" | "current" |
     </div>
   );
 }
-
 export function __testHelpers() {
   return {
     emptyGrid,
@@ -312,7 +278,6 @@ export function __testHelpers() {
     pickKillWord,
   };
 }
-
 export function __testCases() {
   return [
     "tickCooldowns([[3]],1) should become [[2]]",
@@ -322,7 +287,6 @@ export function __testCases() {
     "pickKillWord(3) should return Kabal Style",
   ];
 }
-
 export default function DieInTheJungle() {
   const [game, setGame] = useState<GameState>(makeInitialState);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
@@ -330,7 +294,6 @@ export default function DieInTheJungle() {
   const [rolling, setRolling] = useState(false);
   const [selectedDieIndex, setSelectedDieIndex] = useState<number | null>(null);
   const [killPopup, setKillPopup] = useState<string | null>(null);
-
   const activeDieIndex = useMemo(() => {
     if (selectedDieIndex !== null && game.dice[selectedDieIndex] !== null) return selectedDieIndex;
     return nextAvailableDieIndex(game.dice);
@@ -339,12 +302,10 @@ export default function DieInTheJungle() {
   const activeDieMeta = activeDieValue !== null ? getDieMeta(activeDieValue) : null;
   const latestLogs = game.log.slice(0, 3);
   const currentTier = game.enemy.tier;
-
   function startRoll() {
     if (rolling || game.phase !== "roll") return;
     setRolling(true);
     setGame((g) => ({ ...g, phase: "rolling", dice: [1, 2, 3] }));
-
     window.setTimeout(() => {
       const dice = rollDice();
       setGame((g) => ({
@@ -358,27 +319,22 @@ export default function DieInTheJungle() {
       setRolling(false);
     }, 700);
   }
-
   function placeDie(dieIndex: number, x: number, y: number) {
     if (game.phase !== "place") return;
     if (game.grid[y][x] !== null) return;
     if (game.cooldowns[y][x] > 0) return;
     if (game.dice[dieIndex] === null) return;
-
     const placedValue = game.dice[dieIndex] as number;
     const placedMeta = getDieMeta(placedValue);
     const lane = ROW_INFO[y];
     const newGrid = game.grid.map((row) => [...row]);
     const newCooldowns = game.cooldowns.map((row) => [...row]);
     const newDice = [...game.dice];
-
     newGrid[y][x] = placedValue;
     newCooldowns[y][x] = game.player.cooldownBase;
     newDice[dieIndex] = null;
-
     const nextIndex = nextAvailableDieIndex(newDice);
     const allPlaced = nextIndex === null;
-
     setGame((g) => ({
       ...g,
       dice: newDice,
@@ -387,14 +343,11 @@ export default function DieInTheJungle() {
       phase: allPlaced ? "resolve" : "place",
       log: [`${lane.emoji} Put ${placedMeta.emoji} ${placedValue} in ${lane.name} x${lane.mult}`, ...g.log].slice(0, 30),
     }));
-
     setSelectedDieIndex(nextIndex);
-
     if (allPlaced) {
       window.setTimeout(() => resolveTurn(), 350);
     }
   }
-
   function resolveTurn() {
     setGame((g) => {
       const result = resolveGrid(g);
@@ -402,7 +355,6 @@ export default function DieInTheJungle() {
       const nextCooldowns = saturated ? emptyCooldowns() : tickCooldowns(g.cooldowns, g.player.cooldownTick);
       const enemyDied = result.enemy.hp <= 0;
       const nextStreak = enemyDied ? g.winStreak + 1 : g.winStreak;
-
       let next: GameState = {
         ...g,
         player: result.player,
@@ -414,17 +366,14 @@ export default function DieInTheJungle() {
         winStreak: nextStreak,
         log: [...result.log, ...(saturated ? ["♻️ Board full: all cooldowns reset"] : []), ...g.log].slice(0, 30),
       };
-
       if (enemyDied) {
         const word = pickKillWord(nextStreak);
         setKillPopup(word);
         window.setTimeout(() => setKillPopup(null), 1200);
       }
-
       if (result.player.hp <= 0) {
         return { ...next, phase: "gameover", winStreak: 0 };
       }
-
       if (enemyDied) {
         if (g.room >= g.route.length - 1) {
           return { ...next, phase: "victory" };
@@ -437,11 +386,9 @@ export default function DieInTheJungle() {
           log: [`✅ Next enemy: ${g.route[nextRoom].emoji} ${g.route[nextRoom].name}`, ...next.log].slice(0, 30),
         };
       }
-
       return next;
     });
   }
-
   function restart() {
     setGame(makeInitialState());
     setRolling(false);
@@ -450,7 +397,6 @@ export default function DieInTheJungle() {
     setSelectedDieIndex(null);
     setKillPopup(null);
   }
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -461,7 +407,6 @@ export default function DieInTheJungle() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-
   return (
     <div className="h-screen overflow-hidden bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.76)), url(${BG_URL})` }}>
       <div className="mx-auto flex h-full max-w-5xl flex-col gap-2">
@@ -487,7 +432,6 @@ export default function DieInTheJungle() {
             </div>
           </div>
         </div>
-
         <div className="grid gap-2 md:grid-cols-3 shrink-0">
           <SectionCard title="Enemy portrait">
             <div className="aspect-square max-h-[180px] overflow-hidden rounded-[18px] border border-white/10 bg-zinc-950/55 p-1.5">
@@ -498,7 +442,6 @@ export default function DieInTheJungle() {
               </div>
             </div>
           </SectionCard>
-
           <SectionCard title="Enemy stats">
             <div className="grid grid-cols-2 gap-1.5">
               <CompactStat label="Room" value={`${game.room + 1}/${game.route.length}`} accent="text-amber-300" />
@@ -510,7 +453,6 @@ export default function DieInTheJungle() {
               <CompactStat label="Streak" value={`${game.winStreak}`} accent="text-violet-300" />
             </div>
           </SectionCard>
-
           <SectionCard title="Player HUD">
             <div className="grid grid-cols-2 gap-1.5">
               <div className="col-span-2 flex items-center gap-2 rounded-[16px] border border-white/10 bg-black/35 p-2">
@@ -529,7 +471,6 @@ export default function DieInTheJungle() {
             </div>
           </SectionCard>
         </div>
-
         <SectionCard title="Combat log" right={<button onClick={() => setShowAllLogs((v) => !v)} className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-bold text-white hover:bg-white/20">{showAllLogs ? "▲" : "▼"}</button>}>
           <div className="space-y-1">
             {latestLogs.map((line, i) => (
@@ -548,7 +489,6 @@ export default function DieInTheJungle() {
             ) : null}
           </AnimatePresence>
         </SectionCard>
-
         <SectionCard title="Dice + Action" right={<div className="text-[9px] text-zinc-300">Tap die, then slot</div>}>
           <div className="mb-1 flex flex-wrap gap-1 text-[9px] md:text-[10px]">
             <div className="rounded-xl border border-white/10 bg-black/35 px-2 py-1">🛡️ 1-2</div>
@@ -584,7 +524,6 @@ export default function DieInTheJungle() {
             ) : null}
           </div>
         </SectionCard>
-
         <SectionCard title="Board" right={<div className="text-[9px] text-zinc-300">Future routes hidden · cleared = green</div>}>
           {activeDieMeta && game.phase === "place" ? (
             <div className="mb-1 flex items-center gap-2 rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-2 py-1.5 text-[11px] text-white">
@@ -595,7 +534,6 @@ export default function DieInTheJungle() {
               </div>
             </div>
           ) : null}
-
           <div className="grid grid-cols-[38px_1fr] gap-1 max-w-[440px] mx-auto">
             <div className="space-y-1">
               {ROW_INFO.map((row, i) => (
@@ -605,7 +543,6 @@ export default function DieInTheJungle() {
                 </div>
               ))}
             </div>
-
             <div className="grid grid-cols-3 gap-1">
               {game.grid.map((row, y) =>
                 row.map((cell, x) => {
@@ -613,15 +550,13 @@ export default function DieInTheJungle() {
                   const blocked = cooldown > 0;
                   const canPlace = game.phase === "place" && !blocked && cell === null && activeDieIndex !== null;
                   const meta = cell !== null ? getDieMeta(cell) : null;
-
                   return (
                     <button
                       key={`${x}-${y}`}
                       onClick={() => activeDieIndex !== null && placeDie(activeDieIndex, x, y)}
-                      className={`relative h-[88px] overflow-hidden rounded-[10px] border text-white transition ${canPlace ? "border-amber-300/60 ring-2 ring-amber-300/20" : "border-white/20"}`}
+                      className={`relative aspect-square overflow-hidden rounded-[10px] border text-white transition ${canPlace ? "border-amber-300/60 ring-2 ring-amber-300/20" : "border-white/20"}`}
                     >
-                      <img src={LANE_IMAGES[y as 0 | 1 | 2]} className="absolute inset-0 h-full w-full object-cover" />
-
+                      <img src={LANE_IMAGES[y as 0 | 1 | 2]} className="absolute inset-0 h-full w-full object-contain" />
                       {cell !== null ? (
                         <>
                           <div className="absolute inset-0 bg-black/10" />
@@ -653,7 +588,6 @@ export default function DieInTheJungle() {
             </div>
           </div>
         </SectionCard>
-
         <SectionCard title="Route">
           <div className="grid grid-cols-5 gap-1">
             {game.route.map((enemy, index) => {
@@ -662,7 +596,6 @@ export default function DieInTheJungle() {
             })}
           </div>
         </SectionCard>
-
         <AnimatePresence>
           {killPopup ? (
             <motion.div
@@ -675,7 +608,6 @@ export default function DieInTheJungle() {
             </motion.div>
           ) : null}
         </AnimatePresence>
-
         <AnimatePresence>
           {showHowToPlay ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
