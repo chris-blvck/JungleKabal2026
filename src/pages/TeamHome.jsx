@@ -197,25 +197,6 @@ const SECTIONS = [
       },
     ],
   },
-  {
-    id: "games",
-    label: "GAMES",
-    color: "#C084FC",
-    icon: "🎲",
-    tools: [
-      {
-        id: "die-in-the-jungle",
-        icon: "🎲",
-        name: "DIE IN THE JUNGLE",
-        desc: "Dice roguelite · Clear your head after a bad trade",
-        tag: "GAME",
-        tagColor: "#C084FC",
-        status: "LIVE",
-        statusColor: JK.green,
-        href: "/games/die-in-the-jungle",
-      },
-    ],
-  },
 ];
 
 const MEMBERS = [

@@ -42,9 +42,6 @@ export default function App() {
           {/* ARSENAL */}
           <Route path="/arsenal"                  element={<Arsenal />} />
 
-          {/* GAMES */}
-          <Route path="/games/die-in-the-jungle"  element={<DieInTheJungle />} />
-
           {/* Fallback */}
           <Route path="*"                         element={<TeamHome />} />
         </Routes>
