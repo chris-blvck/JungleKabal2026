@@ -5,6 +5,14 @@ import { Button } from "@/components/ui/button";
 const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
 const LOGO_URL = "https://i.postimg.cc/rwdjP9rb/logo-jaune.png";
 const PLAYER_AVATAR_URL = "https://i.postimg.cc/B6rBLmBt/Kabalian-Face.png";
+const PLAYER_EMOTION_URLS = {
+  focus: PLAYER_AVATAR_URL,
+  fierce: PLAYER_AVATAR_URL,
+  guard: PLAYER_AVATAR_URL,
+  joy: PLAYER_AVATAR_URL,
+  hurt: PLAYER_AVATAR_URL,
+  victory: PLAYER_AVATAR_URL,
+};
 
 const DICE_IMAGES = {
   1: "https://i.postimg.cc/mk4Rdw2K/Dice-1.png",
@@ -398,6 +406,15 @@ const ARTIFACT_POOL = [
     effectText: "Every 3 turns, reset all cooldowns.",
     apply: (player) => ({ ...player, timedResetEvery: 3 }),
   },
+  {
+    id: "kabal-sigil",
+    name: "Kabal Sigil",
+    rarity: "chrome",
+    category: "sigil",
+    tags: ["survival"],
+    effectText: "Gain one revive per floor (revive at 40% HP).",
+    apply: (player) => ({ ...player, reviveOnce: true }),
+  },
 ];
 
 const KILL_WORDS = ["Slashed", "Crushed", "Berserk Mode", "Kabal Style", "Savage", "Annihilated"];
@@ -656,7 +673,7 @@ function resolvePlayerGrid(state) {
 
   if (enemy.firstHitIgnored && totalAttack > 0) {
     enemy.firstHitIgnored = false;
-    totalAttack = Math.max(0, totalAttack - 9999);
+    totalAttack = 0;
     rowBreakdown.unshift(`🪨 Stone Skin ignored the first hit`);
   }
 
@@ -685,6 +702,11 @@ function resolvePlayerGrid(state) {
   return {
     player,
     enemy,
+    totals: {
+      attack: Math.max(0, totalAttack),
+      shield: Math.max(0, totalShield),
+      heal: Math.max(0, totalHeal),
+    },
     log: [
       ...rowBreakdown,
       `⚔️ Total Attack ${Math.max(0, totalAttack)}`,
@@ -754,6 +776,8 @@ function makeInitialState() {
     combatRewardPending: false,
     score: 0,
     runEnded: false,
+    avatarMood: "focus",
+    actionFlash: null,
   };
 }
 
@@ -885,6 +909,7 @@ export default function DieInTheJungleUpgraded() {
         player,
         rolling: true,
         phase: "rolling",
+        avatarMood: player.selfBleed > 0 ? "hurt" : "focus",
         dice: Array.from({ length: player.dicePerTurn }, (_, i) => (i % 6) + 1),
         selectedDieIndex: null,
         log: [...lines, ...g.log].slice(0, 40),
@@ -901,6 +926,8 @@ export default function DieInTheJungleUpgraded() {
           phase: g.player.hp <= 0 ? "gameover" : "place",
           rolling: false,
           selectedDieIndex: 0,
+          avatarMood: "focus",
+          actionFlash: { id: Date.now(), text: `🎲 ${dice.join(" · ")}`, tone: "amber" },
           log: [`🎲 Rolled: ${dice.join(" - ")}`, ...g.log].slice(0, 40),
         };
       });
@@ -921,6 +948,8 @@ export default function DieInTheJungleUpgraded() {
       return {
         ...g,
         dice,
+        avatarMood: "focus",
+        actionFlash: { id: Date.now(), text: `🔁 ${oldValue} → ${next}`, tone: "sky" },
         player: { ...g.player, rerollsLeft: g.player.rerollsLeft - 1 },
         log: [`🎯 Reroll: ${oldValue} → ${next}`, ...g.log].slice(0, 40),
       };
@@ -954,6 +983,7 @@ export default function DieInTheJungleUpgraded() {
       cooldowns: newCooldowns,
       phase: allPlaced ? "resolve" : "place",
       selectedDieIndex: nextIndex,
+      avatarMood: placedMeta.kind === "attack" ? "fierce" : placedMeta.kind === "heal" ? "joy" : "guard",
       log: [`${lane.emoji} Put ${placedMeta.emoji} ${placedValue} in ${lane.name} x${rowMultiplier(g.player, y)}`, ...g.log].slice(0, 40),
     }));
 
@@ -967,6 +997,7 @@ export default function DieInTheJungleUpgraded() {
       const playerResult = resolvePlayerGrid({ ...g, grid: gridRef, enemy: g.enemy, player: g.player });
       let enemy = playerResult.enemy;
       let player = playerResult.player;
+      const totals = playerResult.totals;
       let log = [...playerResult.log];
       const enemyDied = enemy.hp <= 0;
       let nextCooldowns = cooldownRef;
@@ -1003,6 +1034,22 @@ export default function DieInTheJungleUpgraded() {
       let combatRewardPending = false;
       let artifactsOffered = [];
       let killPopup = null;
+      const playerTookDamage = player.hp < g.player.hp;
+      const playerRecovered = player.hp > g.player.hp;
+      let avatarMood = enemyDied ? "victory" : playerTookDamage ? "hurt" : playerRecovered ? "joy" : totals.shield > 0 ? "guard" : "focus";
+      let actionFlash = null;
+
+      if (totals.attack > 0) {
+        actionFlash = { id: Date.now(), text: `⚔️ ${totals.attack} DMG`, tone: "rose" };
+      } else if (totals.shield > 0) {
+        actionFlash = { id: Date.now(), text: `🛡️ +${totals.shield} Shield`, tone: "cyan" };
+      } else if (totals.heal > 0) {
+        actionFlash = { id: Date.now(), text: `❤️ +${totals.heal} Heal`, tone: "emerald" };
+      }
+
+      if (!enemyDied && playerTookDamage) {
+        actionFlash = { id: Date.now() + 1, text: `💥 -${g.player.hp - player.hp} HP`, tone: "rose" };
+      }
 
       if (enemyDied) {
         killPopup = pickKillWord(winStreak);
@@ -1023,6 +1070,7 @@ export default function DieInTheJungleUpgraded() {
           player.shield = player.combatStartShield;
           log.unshift(`✅ Next enemy: ${nextEnemy.emoji} ${nextEnemy.name}`);
           enemy = nextEnemy;
+          avatarMood = "focus";
         }
       }
 
@@ -1045,6 +1093,8 @@ export default function DieInTheJungleUpgraded() {
         killPopup,
         log: [...log, ...g.log].slice(0, 40),
         runEnded: phase === "gameover" || phase === "victory",
+        avatarMood,
+        actionFlash,
       };
     });
 
@@ -1076,6 +1126,8 @@ export default function DieInTheJungleUpgraded() {
           grid: emptyGrid(),
           dice: [],
           selectedDieIndex: null,
+          avatarMood: "victory",
+          actionFlash: { id: Date.now(), text: `🏆 ${artifact.name}`, tone: "amber" },
           log: [`🏆 Chose ${artifact.name}`, `🌴 Floor ${nextFloor} begins`, ...g.log].slice(0, 40),
         };
       }
@@ -1088,6 +1140,8 @@ export default function DieInTheJungleUpgraded() {
         room: nextRoom,
         enemy: nextEnemy,
         phase: "roll",
+        avatarMood: "focus",
+        actionFlash: { id: Date.now(), text: `🏆 ${artifact.name}`, tone: "amber" },
         artifactsOffered: [],
         combatRewardPending: false,
         log: [`🏆 Chose ${artifact.name}`, `✅ Next enemy: ${nextEnemy.emoji} ${nextEnemy.name}`, ...g.log].slice(0, 40),
@@ -1109,7 +1163,31 @@ export default function DieInTheJungleUpgraded() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  useEffect(() => {
+    if (!game.actionFlash) return;
+    const timeout = window.setTimeout(() => {
+      setGame((g) => (g.actionFlash ? { ...g, actionFlash: null } : g));
+    }, 900);
+    return () => window.clearTimeout(timeout);
+  }, [game.actionFlash]);
+
   const totalArtifacts = game.player.artifacts.length;
+  const avatarUrl = PLAYER_EMOTION_URLS[game.avatarMood] || PLAYER_AVATAR_URL;
+  const avatarRing = game.avatarMood === "hurt"
+    ? "ring-2 ring-rose-400/70"
+    : game.avatarMood === "victory"
+      ? "ring-2 ring-amber-300/75"
+      : game.avatarMood === "fierce"
+        ? "ring-2 ring-orange-400/70"
+        : "";
+
+  const flashTone = {
+    rose: "border-rose-300/50 bg-rose-500/20 text-rose-100",
+    cyan: "border-cyan-300/50 bg-cyan-500/20 text-cyan-100",
+    emerald: "border-emerald-300/50 bg-emerald-500/20 text-emerald-100",
+    amber: "border-amber-300/50 bg-amber-500/20 text-amber-100",
+    sky: "border-sky-300/50 bg-sky-500/20 text-sky-100",
+  };
 
   return (
     <div className="h-screen overflow-hidden bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.78)), url(${BG_URL})` }}>
@@ -1141,7 +1219,13 @@ export default function DieInTheJungleUpgraded() {
           <SectionCard title="Enemy portrait">
             <div className="aspect-square max-h-[180px] overflow-hidden rounded-[18px] border border-white/10 bg-zinc-950/55 p-1.5">
               <div className="flex h-full flex-col items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-amber-300/25 bg-black/20 p-1.5 text-center">
-                <img src={game.enemy.image} alt={game.enemy.name} className="max-h-[74%] w-full object-contain drop-shadow-[0_10px_18px_rgba(0,0,0,0.45)]" />
+                <motion.img
+                  src={game.enemy.image}
+                  alt={game.enemy.name}
+                  animate={intent.type === "attack" ? { scale: [1, 1.03, 1], x: [0, -2, 2, 0] } : { scale: 1, x: 0 }}
+                  transition={{ duration: 0.45 }}
+                  className="max-h-[74%] w-full object-contain drop-shadow-[0_10px_18px_rgba(0,0,0,0.45)]"
+                />
                 <div className="text-xs font-black md:text-sm">{game.enemy.emoji} {game.enemy.name}</div>
                 <div className="text-[9px] text-zinc-300">{game.enemy.mood}</div>
                 <div className="rounded-full border border-white/10 bg-black/45 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-zinc-200">
@@ -1168,10 +1252,16 @@ export default function DieInTheJungleUpgraded() {
           <SectionCard title="Player HUD">
             <div className="grid grid-cols-2 gap-1.5">
               <div className="col-span-2 flex items-center gap-2 rounded-[16px] border border-white/10 bg-black/35 p-2">
-                <img src={game.player.avatar} alt="Kabalian" className="h-12 w-12 rounded-2xl border border-white/10 bg-black/40 object-cover" />
+                <motion.img
+                  src={avatarUrl}
+                  alt="Kabalian"
+                  animate={game.avatarMood === "hurt" ? { x: [0, -2, 2, -2, 0] } : game.avatarMood === "victory" ? { y: [0, -3, 0] } : { x: 0, y: 0 }}
+                  transition={{ duration: 0.45 }}
+                  className={`h-12 w-12 rounded-2xl border border-white/10 bg-black/40 object-cover ${avatarRing}`}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="font-black">Kabalian</div>
-                  <div className="text-[10px] text-zinc-300">CD {game.player.cooldownBase} · Tick {game.player.cooldownTick} · Artifacts {totalArtifacts}</div>
+                  <div className="text-[10px] text-zinc-300">Mood {game.avatarMood} · CD {game.player.cooldownBase} · Tick {game.player.cooldownTick} · Artifacts {totalArtifacts}</div>
                 </div>
                 <img src={LOGO_URL} alt="Kabal logo" className="h-8 w-8 object-contain opacity-90" />
               </div>
@@ -1226,14 +1316,11 @@ export default function DieInTheJungleUpgraded() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Board" right={<div className="text-[9px] text-zinc-300">Hidden route · elites added · no scroll</div>}>
-          <div className="mb-2 grid max-w-[360px] grid-cols-5 gap-1 mx-auto">
-            {game.route.map((enemy, index) => {
-              const state = index < game.room ? "done" : index === game.room ? "current" : "hidden";
-              return <RouteCard key={`${enemy.name}-${index}`} enemy={enemy} state={state} />;
-            })}
-          </div>
 
+
+
+
+        <SectionCard title="Board" right={<div className="text-[9px] text-zinc-300">Place dice on available slots</div>}>
           {activeDieMeta && game.phase === "place" ? (
             <div className="mb-2 flex items-center gap-2 rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-2 py-1.5 text-[11px] text-white">
               <span className="text-lg">{activeDieMeta.emoji}</span>
@@ -1296,11 +1383,18 @@ export default function DieInTheJungleUpgraded() {
           </div>
         </SectionCard>
 
+
         <SectionCard title="Combat log" right={<button onClick={() => setGame((g) => ({ ...g, showAllLogs: !g.showAllLogs }))} className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-bold text-white hover:bg-white/20">{game.showAllLogs ? "▲" : "▼"}</button>}>
           <div className="space-y-1">
             {latestLogs.map((line, i) => (
               <div key={`${line}-${i}`} className="rounded-[12px] border border-white/10 bg-zinc-900/80 px-2.5 py-1.5 text-[11px] md:text-xs">{line}</div>
             ))}
+          </div>
+          <div className="my-2 grid max-w-[360px] grid-cols-5 gap-1">
+            {game.route.map((enemy, index) => {
+              const state = index < game.room ? "done" : index === game.room ? "current" : "hidden";
+              return <RouteCard key={`${enemy.name}-${index}`} enemy={enemy} state={state} />;
+            })}
           </div>
           <AnimatePresence>
             {game.showAllLogs ? (
@@ -1314,6 +1408,21 @@ export default function DieInTheJungleUpgraded() {
             ) : null}
           </AnimatePresence>
         </SectionCard>
+
+
+        <AnimatePresence>
+          {game.actionFlash ? (
+            <motion.div
+              key={game.actionFlash.id}
+              initial={{ opacity: 0, y: -10, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -16, scale: 0.9 }}
+              className={`pointer-events-none fixed left-1/2 top-16 z-40 -translate-x-1/2 rounded-xl border px-3 py-1.5 text-sm font-black shadow-[0_18px_45px_rgba(0,0,0,0.4)] ${flashTone[game.actionFlash.tone] || flashTone.amber}`}
+            >
+              {game.actionFlash.text}
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
 
         <AnimatePresence>
           {game.killPopup ? (
