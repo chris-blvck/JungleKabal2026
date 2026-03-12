@@ -1,0 +1,465 @@
+Parfait. Tu as besoin d’un **Game Balance Framework**.
+Un document que tu peux donner à **n’importe quelle AI** pour générer :
+
+* artifacts
+* enemies
+* modifiers
+* dice upgrades
+* bosses
+
+tout en restant **équilibré et scalable**.
+
+Je te fais un **document clair + règles mathématiques simples**.
+
+---
+
+# Jungle Kabal – Game Balance System
+
+### Design rules for scalable content generation
+
+---
+
+# 1. Core Combat Economy
+
+Le jeu repose sur **3 ressources principales** :
+
+| Resource | Source      | Purpose       |
+| -------- | ----------- | ------------- |
+| Attack   | attack dice | damage enemy  |
+| Shield   | shield dice | absorb damage |
+| Heal     | heal dice   | recover HP    |
+
+---
+
+# 2. Dice System
+
+Player rolls **3 dice per turn**.
+
+Each die has a **type**.
+
+| Die Type   | Base Range | Purpose        |
+| ---------- | ---------- | -------------- |
+| Attack Die | 1–6        | primary damage |
+| Heal Die   | 1–4        | sustain        |
+| Shield Die | 1–4        | defense        |
+
+Important rule:
+
+```
+Attack = high variance
+Heal = stable sustain
+Shield = stable defense
+```
+
+---
+
+# 3. Row Multipliers
+
+Board has **3 rows**.
+
+| Row    | Multiplier | Passive   |
+| ------ | ---------- | --------- |
+| Top    | x3         | +1 attack |
+| Mid    | x2         | +1 heal   |
+| Bottom | x1         | +1 shield |
+
+Formula:
+
+```
+Final Value = (Dice Value + Player Bonuses) × Row Multiplier
+```
+
+---
+
+# 4. Player Base Stats
+
+Initial player values.
+
+```
+HP: 28
+Shield: 0
+Dice per turn: 3
+Reroll per turn: 1
+Cooldown base: 3 turns
+Cooldown tick: 1 per turn
+```
+
+---
+
+# 5. Enemy Power Scaling
+
+Each floor increases enemy stats.
+
+Scaling formula:
+
+```
+Enemy HP += floor × 3
+Enemy Damage += floor × 1
+```
+
+Elite enemies:
+
+```
+HP × 1.25
+Damage +2
+```
+
+Boss enemies:
+
+```
+HP × 2
+Damage × 2
+```
+
+---
+
+# 6. Enemy Intent System
+
+Enemies follow **intent patterns**.
+
+Example:
+
+```
+Turn 1: Charge
+Turn 2: Attack
+Turn 3: Shield
+```
+
+Intent types allowed:
+
+```
+attack
+charge
+shield
+heal
+curse
+```
+
+---
+
+# 7. Enemy Damage Budget
+
+Enemies must respect these limits.
+
+| Tier  | Attack Damage |
+| ----- | ------------- |
+| Mob   | 4–8           |
+| Elite | 8–14          |
+| Boss  | 12–20         |
+
+Charge abilities can exceed this.
+
+Example:
+
+```
+Charge 2
+Attack 14
+```
+
+---
+
+# 8. Artifact Power Budget
+
+Artifacts follow a **power budget system**.
+
+Each artifact effect costs **power points**.
+
+Budget by rarity:
+
+| Rarity | Power Budget |
+| ------ | ------------ |
+| Gray   | 1            |
+| Gold   | 2            |
+| Chrome | 3–4          |
+
+---
+
+# 9. Artifact Power Values
+
+Each effect has a cost.
+
+| Effect                | Cost |
+| --------------------- | ---- |
+| +1 attack damage      | 1    |
+| +1 heal value         | 1    |
+| +1 shield value       | 1    |
+| +1 max HP             | 0.3  |
+| +1 starting shield    | 0.5  |
+| +1 dice per turn      | 3    |
+| reroll +1             | 2    |
+| top row multiplier +1 | 3    |
+| cooldown tick +1      | 2    |
+| double shield         | 3    |
+
+Example:
+
+```
+Attack +1 damage
+Cost = 1
+Gray artifact
+```
+
+Example:
+
+```
+Roll 4 dice per turn
+Cost = 3
+Chrome artifact
+```
+
+---
+
+# 10. Curse Budget
+
+Artifacts can include **negative effects**.
+
+Negative effects give extra budget.
+
+| Curse              | Budget |
+| ------------------ | ------ |
+| Lose 1 HP per turn | +1     |
+| Lose 3 max HP      | +1     |
+| Cooldown +1        | +1     |
+| Lose reroll        | +2     |
+
+Example:
+
+```
+Attack +2
+Lose 3 max HP
+```
+
+Cost:
+
+```
++2 attack = 2
+Curse = +1
+Total = 3
+Gold artifact
+```
+
+---
+
+# 11. Dice Upgrade Rules
+
+Dice modifications must respect ranges.
+
+Allowed modifications:
+
+```
+Attack dice: 2–6
+Attack dice: 3–6
+Heal dice: 2–6
+Shield dice: 2–6
+```
+
+Forbidden:
+
+```
+Attack dice 5–6 early game
+```
+
+---
+
+# 12. Combo System
+
+Combo triggers when:
+
+```
+3 attack dice placed in same turn
+```
+
+Effect:
+
+```
++5 bonus damage
+```
+
+Combo must never exceed **25% of total damage output**.
+
+---
+
+# 13. Enemy Modifier Rules
+
+Enemy modifiers are **small but dangerous**.
+
+| Modifier   | Effect                |
+| ---------- | --------------------- |
+| Berserk    | +2 attack             |
+| Stone Skin | ignore first hit      |
+| Thorns     | player takes 1 damage |
+| Swift      | first intent +2       |
+| Venom      | extra poison damage   |
+| Regen      | +2 heal per turn      |
+
+Rule:
+
+```
+Enemy can have only ONE modifier
+```
+
+---
+
+# 14. Combat Length Target
+
+Average combat should last:
+
+```
+3–5 turns
+```
+
+Never exceed:
+
+```
+7 turns
+```
+
+If fights exceed 7 turns:
+
+```
+reduce enemy HP
+```
+
+---
+
+# 15. Damage Expectation
+
+Expected player damage per turn:
+
+```
+8–14
+```
+
+Maximum burst:
+
+```
+25
+```
+
+Enemy HP should match:
+
+```
+Mob: 15–22
+Elite: 25–35
+Boss: 50–70
+```
+
+---
+
+# 16. Artifact Distribution
+
+Per run:
+
+```
+1 artifact every boss
+```
+
+Rare chance:
+
+```
+Elite enemy → 30% artifact
+```
+
+---
+
+# 17. Run Difficulty Curve
+
+Run structure:
+
+```
+mob
+elite
+mob
+elite
+boss
+```
+
+Next floor:
+
+```
+enemyHP +25%
+enemyDamage +1
+```
+
+---
+
+# 18. AI Content Generation Rules
+
+When generating content:
+
+### Artifacts
+
+AI must follow:
+
+```
+power budget
+rarity rules
+no duplicate effects
+```
+
+Example prompt:
+
+```
+Generate 10 artifacts using the Jungle Kabal balance system.
+Respect power budgets.
+Mix positive and cursed effects.
+```
+
+---
+
+### Enemies
+
+AI must follow:
+
+```
+3 intent patterns
+max damage rules
+1 modifier
+hp scaling
+```
+
+---
+
+# 19. Forbidden Designs
+
+Never create:
+
+```
+infinite healing
+infinite shield
+permanent invulnerability
+dice >6
+```
+
+---
+
+# 20. Design Philosophy
+
+Game must feel:
+
+```
+fast
+tactical
+swingy
+build-driven
+```
+
+Combat must reward:
+
+```
+good placement
+artifact synergy
+risk builds
+```
+
+---
+
+# If you want I can also generate
+
+**50 balanced artifacts**
+**30 enemies**
+**10 bosses**
+**20 modifiers**
+**10 dice evolutions**
+
+directly following this system so the game becomes **a real roguelite content machine**.
