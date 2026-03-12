@@ -27,12 +27,21 @@ const DICE_IMAGES = {
 
 const DICE_IMAGES_BY_KIND = {
   attack: {
+<<<<<<< codex/fix-game-build-issue-in-vercel-15yqrh
     1: "https://i.postimg.cc/mk4Rdw2K/Dice-1.png",
     2: "https://i.postimg.cc/NFtYN4jq/Dice-2.png",
     3: "https://i.postimg.cc/4yGZ85xs/Dice-3.png",
     4: "https://i.postimg.cc/qqr0mLvJ/Dice-4.png",
     5: "https://i.postimg.cc/x8QYsR1j/Dice-5.png",
     6: "https://i.postimg.cc/gjpdMD2J/Dice-6.png",
+=======
+    1: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+    2: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+    3: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+    4: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+    5: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+    6: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+>>>>>>> main
   },
   heal: {
     1: "https://i.postimg.cc/k4T1QSqL/Dice-health-1.png",
@@ -45,16 +54,22 @@ const DICE_IMAGES_BY_KIND = {
   shield: {
     1: "https://i.postimg.cc/x8qstddp/Dice-shield-1.png",
     2: "https://i.postimg.cc/Zngwgh9P/Dice-Shield-2.png",
+<<<<<<< codex/fix-game-build-issue-in-vercel-15yqrh
     3: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+=======
+>>>>>>> main
     4: "https://i.postimg.cc/L57x7Mq3/Dice-Shield-4.png",
     5: "https://i.postimg.cc/mkqmqGcp/Dice-Shield-5.png",
     6: "https://i.postimg.cc/90SLSj4K/Dice-Shield-6.png",
   },
 };
 
+<<<<<<< codex/fix-game-build-issue-in-vercel-15yqrh
 const GAME_STATE_STORAGE_KEY = "jungle_kabal_run_state_v1";
 const LEADERBOARD_STORAGE_KEY = "jungle_kabal_leaderboard_v1";
 
+=======
+>>>>>>> main
 const DIE_KIND_ORDER = ["attack", "shield", "heal"];
 
 const TAG_EMOJIS = {
@@ -1096,6 +1111,7 @@ export default function DieInTheJungleUpgraded() {
     }));
   }
 
+<<<<<<< codex/fix-game-build-issue-in-vercel-15yqrh
   function connectWallet() {
     const provider = (window as any).solana;
     if (!provider?.connect) {
@@ -1130,6 +1146,8 @@ export default function DieInTheJungleUpgraded() {
     setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "🏁 Score submitted", tone: "emerald" } }));
   }
 
+=======
+>>>>>>> main
   function pushLog(lines) {
     setGame((g) => ({ ...g, log: [...lines, ...g.log].slice(0, 40) }));
   }
@@ -1479,10 +1497,13 @@ export default function DieInTheJungleUpgraded() {
   }, [game.actionFlash]);
 
   useEffect(() => {
+<<<<<<< codex/fix-game-build-issue-in-vercel-15yqrh
     localStorage.setItem(GAME_STATE_STORAGE_KEY, JSON.stringify(serializeGameState(game)));
   }, [game]);
 
   useEffect(() => {
+=======
+>>>>>>> main
     if (!game.enemyAttackPulse) return;
     const timeout = window.setTimeout(() => {
       setGame((g) => (g.enemyAttackPulse ? { ...g, enemyAttackPulse: 0 } : g));
@@ -1767,6 +1788,7 @@ export default function DieInTheJungleUpgraded() {
           </AnimatePresence>
         </SectionCard>
 
+<<<<<<< codex/fix-game-build-issue-in-vercel-15yqrh
         <SectionCard title="Leaderboard">
           <div className="space-y-1">
             {leaderboard.length ? leaderboard.slice(0, 5).map((entry, index) => (
@@ -1778,6 +1800,8 @@ export default function DieInTheJungleUpgraded() {
           </div>
         </SectionCard>
 
+=======
+>>>>>>> main
 
         <AnimatePresence>
           {game.damagePopups.map((popup) => (

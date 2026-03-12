@@ -59,6 +59,17 @@ const SECTIONS = [
         statusColor: JK.gold,
         href: "/trading/kredo",
       },
+      {
+        id: "kabal-academy",
+        icon: "🎓",
+        name: "KABAL ACADEMY",
+        desc: "Training modules · Quizzes · Exercises",
+        tag: "LEARN",
+        tagColor: "#60A5FA",
+        status: "LIVE",
+        statusColor: JK.green,
+        href: "/academy",
+      },
     ],
   },
   {
@@ -306,7 +317,7 @@ export default function TeamHome() {
         <StatBox value="90"   label="Sprint days"    color="gold" />
         <StatBox value="5"    label="Active members" color="gold" />
         <StatBox value="$31K" label="Sprint target"  color="green" />
-        <StatBox value="8"    label="Live tools"     color="gold" badge="↑ LIVE" />
+        <StatBox value="9"    label="Live tools"     color="gold" badge="↑ LIVE" />
       </div>
 
       <Card style={{ marginBottom: 20 }}>
