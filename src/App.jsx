@@ -3,11 +3,14 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import LandingPage from './LandingPage';
 import TeamHome from './pages/TeamHome';
 import PNLCalendar from './pages/PNLCalendar';
-import Watchlist from './pages/Watchlist';
+import NarrativeBoard from './pages/NarrativeBoard';
 import RiskManager from './pages/RiskManager';
+import KabalKredo from './pages/KabalKredo';
+import WarRoom from './pages/WarRoom';
+import CRMAngel from './pages/CRMAngel';
 import SprintBoard from './pages/SprintBoard';
 import Arsenal from './pages/Arsenal';
-import CRMAngel from './pages/CRMAngel';
+import DieInTheJungle from './pages/DieInTheJungle';
 
 const isTeamSubdomain =
   typeof window !== 'undefined' &&
@@ -18,14 +21,32 @@ export default function App() {
     return (
       <BrowserRouter>
         <Routes>
-          <Route path="/"                      element={<TeamHome />} />
-          <Route path="/finance/pnl-calendar"  element={<PNLCalendar />} />
-          <Route path="/watchlist"             element={<Watchlist />} />
-          <Route path="/risk-manager"          element={<RiskManager />} />
-          <Route path="/sprint-board"          element={<SprintBoard />} />
-          <Route path="/arsenal"               element={<Arsenal />} />
-          <Route path="/crm-angel"             element={<CRMAngel />} />
-          <Route path="*"                      element={<TeamHome />} />
+          {/* Home */}
+          <Route path="/"                         element={<TeamHome />} />
+
+          {/* TRADING */}
+          <Route path="/finance/pnl-calendar"     element={<PNLCalendar />} />
+          <Route path="/narrative-board"          element={<NarrativeBoard />} />
+          <Route path="/risk-manager"             element={<RiskManager />} />
+          <Route path="/trading/kredo"            element={<KabalKredo />} />
+
+          {/* FINANCES */}
+          <Route path="/war-room"                 element={<WarRoom />} />
+
+          {/* SALES */}
+          <Route path="/crm-angel"                element={<CRMAngel />} />
+
+          {/* INTERNAL */}
+          <Route path="/sprint-board"             element={<SprintBoard />} />
+
+          {/* ARSENAL */}
+          <Route path="/arsenal"                  element={<Arsenal />} />
+
+          {/* GAMES */}
+          <Route path="/games/die-in-the-jungle"  element={<DieInTheJungle />} />
+
+          {/* Fallback */}
+          <Route path="*"                         element={<TeamHome />} />
         </Routes>
       </BrowserRouter>
     );
