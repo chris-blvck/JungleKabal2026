@@ -25,7 +25,42 @@ const DICE_IMAGES = {
   6: "https://i.postimg.cc/gjpdMD2J/Dice-6.png",
 };
 
+const DICE_IMAGES_BY_KIND = {
+  attack: {
+    1: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+    2: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+    3: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+    4: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+    5: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+    6: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+  },
+  heal: {
+    1: "https://i.postimg.cc/k4T1QSqL/Dice-health-1.png",
+    2: "https://i.postimg.cc/hvhCpGGd/Dice-Health-2.png",
+    3: "https://i.postimg.cc/BbthMvv1/Dice-Health-3.png",
+    4: "https://i.postimg.cc/QCV60MM1/Dice-Health-4.png",
+    5: "https://i.postimg.cc/brd63vv3/Dice-Helath-5.png",
+    6: "https://i.postimg.cc/mkhd8rr1/Dice-Health-6.png",
+  },
+  shield: {
+    1: "https://i.postimg.cc/x8qstddp/Dice-shield-1.png",
+    2: "https://i.postimg.cc/Zngwgh9P/Dice-Shield-2.png",
+    4: "https://i.postimg.cc/L57x7Mq3/Dice-Shield-4.png",
+    5: "https://i.postimg.cc/mkqmqGcp/Dice-Shield-5.png",
+    6: "https://i.postimg.cc/90SLSj4K/Dice-Shield-6.png",
+  },
+};
+
 const DIE_KIND_ORDER = ["attack", "shield", "heal"];
+
+const TAG_EMOJIS = {
+  attack: "⚔️",
+  shield: "🛡️",
+  heal: "❤️",
+  survival: "🧬",
+  tempo: "⏱️",
+  curse: "☠️",
+};
 
 const LANE_IMAGES = {
   0: "https://i.postimg.cc/xdqv6wsH/Chat-GPT-Image-Mar-12-2026-02-29-33-PM.png",
@@ -305,7 +340,8 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "relic",
     tags: ["survival"],
-    effectText: "+6 max HP and heal 6.",
+    image: "https://i.postimg.cc/0jTsM1zb/Chat-GPT-Image-Mar-12-2026-03-01-43-PM.png",
+    effectText: "🧬 +6 Max HP · ❤️ Heal 6.",
     apply: (player) => ({ ...player, maxHp: player.maxHp + 6, hp: Math.min(player.maxHp + 6, player.hp + 6) }),
   },
   {
@@ -314,7 +350,8 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "charm",
     tags: ["attack"],
-    effectText: "Attack dice deal +1 damage.",
+    image: "https://i.postimg.cc/T2WJnvSy/Chat-GPT-Image-Mar-12-2026-02-49-28-PM.png",
+    effectText: "⚔️ Attack dice deal +1 damage.",
     apply: (player) => ({ ...player, attackBonus: player.attackBonus + 1 }),
   },
   {
@@ -323,7 +360,8 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "idol",
     tags: ["heal"],
-    effectText: "Heal dice restore +1 extra heal.",
+    image: "https://i.postimg.cc/vTRq5Yt6/Chat-GPT-Image-Mar-12-2026-02-58-04-PM.png",
+    effectText: "❤️ Heal dice restore +1 extra heal.",
     apply: (player) => ({ ...player, healBonus: player.healBonus + 1 }),
   },
   {
@@ -332,7 +370,8 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "totem",
     tags: ["shield"],
-    effectText: "Start each combat with 4 shield.",
+    image: "https://i.postimg.cc/prwZnRKp/Chat-GPT-Image-Mar-12-2026-03-09-00-PM.png",
+    effectText: "🛡️ Start each combat with 4 shield.",
     apply: (player) => ({ ...player, combatStartShield: player.combatStartShield + 4 }),
   },
   {
@@ -341,7 +380,8 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "relic",
     tags: ["tempo"],
-    effectText: "Cooldowns tick +1 faster.",
+    image: "https://i.postimg.cc/fy6sDpt3/Chat-GPT-Image-Mar-12-2026-03-17-32-PM.png",
+    effectText: "⏱️ Cooldowns tick +1 faster.",
     apply: (player) => ({ ...player, cooldownTick: player.cooldownTick + 1 }),
   },
   {
@@ -350,7 +390,8 @@ const ARTIFACT_POOL = [
     rarity: "gray",
     category: "fang",
     tags: ["attack", "curse"],
-    effectText: "Attack dice +2 damage, but lose 3 max HP.",
+    image: "https://i.postimg.cc/MpxGd1Gc/Chat-GPT-Image-Mar-12-2026-03-04-39-PM.png",
+    effectText: "⚔️ +2 attack damage · ☠️ lose 3 max HP.",
     apply: (player) => {
       const nextMaxHp = Math.max(8, player.maxHp - 3);
       return { ...player, attackBonus: player.attackBonus + 2, maxHp: nextMaxHp, hp: Math.min(nextMaxHp, player.hp) };
@@ -362,7 +403,8 @@ const ARTIFACT_POOL = [
     rarity: "gray",
     category: "totem",
     tags: ["shield", "curse"],
-    effectText: "Start combats with 3 shield, but slot cooldown base +1.",
+    image: "https://i.postimg.cc/d1RHmMNs/Chat-GPT-Image-Mar-12-2026-03-05-52-PM.png",
+    effectText: "🛡️ Start with 3 shield · ☠️ cooldown base +1.",
     apply: (player) => ({ ...player, combatStartShield: player.combatStartShield + 3, cooldownBase: player.cooldownBase + 1 }),
   },
   {
@@ -371,7 +413,8 @@ const ARTIFACT_POOL = [
     rarity: "gray",
     category: "charm",
     tags: ["attack", "curse"],
-    effectText: "Attack dice +1 value, but lose 1 HP at turn start.",
+    image: "https://i.postimg.cc/HsyHBYRw/Chat-GPT-Image-Mar-12-2026-03-25-24-PM.png",
+    effectText: "⚔️ Attack dice +1 value · ☠️ lose 1 HP at turn start.",
     apply: (player) => ({ ...player, attackDieValueBonus: player.attackDieValueBonus + 1, selfBleed: player.selfBleed + 1 }),
   },
   {
@@ -380,7 +423,8 @@ const ARTIFACT_POOL = [
     rarity: "chrome",
     category: "crown",
     tags: ["attack", "tempo"],
-    effectText: "Top row multiplier +1.",
+    image: "https://i.postimg.cc/fy6sDpt3/Chat-GPT-Image-Mar-12-2026-03-17-32-PM.png",
+    effectText: "🔥 Top row multiplier +1.",
     apply: (player) => ({ ...player, topRowBonus: player.topRowBonus + 1 }),
   },
   {
@@ -389,7 +433,8 @@ const ARTIFACT_POOL = [
     rarity: "chrome",
     category: "relic",
     tags: ["tempo"],
-    effectText: "Roll 4 dice each turn instead of 3.",
+    image: "https://i.postimg.cc/CKFghj12/Chat-GPT-Image-Mar-12-2026-03-01-26-PM.png",
+    effectText: "🎲 Roll 4 dice each turn instead of 3.",
     apply: (player) => ({ ...player, dicePerTurn: Math.min(4, player.dicePerTurn + 1) }),
   },
   {
@@ -398,7 +443,8 @@ const ARTIFACT_POOL = [
     rarity: "chrome",
     category: "totem",
     tags: ["shield"],
-    effectText: "All shield gained is doubled.",
+    image: "https://i.postimg.cc/bJ5c9WTX/Chat-GPT-Image-Mar-12-2026-04-15-09-PM.png",
+    effectText: "🛡️ All shield gained is doubled.",
     apply: (player) => ({ ...player, shieldMultiplier: player.shieldMultiplier * 2 }),
   },
   {
@@ -407,7 +453,8 @@ const ARTIFACT_POOL = [
     rarity: "chrome",
     category: "sigil",
     tags: ["tempo"],
-    effectText: "Every 3 turns, reset all cooldowns.",
+    image: "https://i.postimg.cc/LsXbp0sn/Chat-GPT-Image-Mar-12-2026-02-59-23-PM.png",
+    effectText: "♻️ Every 3 turns, reset all cooldowns.",
     apply: (player) => ({ ...player, timedResetEvery: 3 }),
   },
   {
@@ -416,9 +463,41 @@ const ARTIFACT_POOL = [
     rarity: "chrome",
     category: "sigil",
     tags: ["survival"],
-    effectText: "Gain one revive per floor (revive at 40% HP).",
+    image: "https://i.postimg.cc/Dy4GtQFd/Chat-GPT-Image-Mar-12-2026-03-09-46-PM.png",
+    effectText: "✨ Gain one revive per zone (revive at 40% HP).",
     apply: (player) => ({ ...player, reviveOnce: true }),
   },
+  {
+    id: "golden-coin",
+    name: "Golden Coin",
+    rarity: "gold",
+    category: "coin",
+    tags: ["survival", "tempo"],
+    image: "https://i.postimg.cc/0jTsM1zb/Chat-GPT-Image-Mar-12-2026-03-01-43-PM.png",
+    effectText: "🧬 +3 max HP · 🔁 +1 reroll per turn.",
+    apply: (player) => ({ ...player, maxHp: player.maxHp + 3, hp: player.hp + 3, rerollsPerTurn: player.rerollsPerTurn + 1, rerollsLeft: player.rerollsLeft + 1 }),
+  },
+  {
+    id: "frozen-trinket",
+    name: "Frozen Trinket",
+    rarity: "gray",
+    category: "trinket",
+    tags: ["shield", "tempo"],
+    image: "https://i.postimg.cc/CKFghj12/Chat-GPT-Image-Mar-12-2026-03-01-26-PM.png",
+    effectText: "🛡️ +2 combat start shield · ⏱️ cooldown tick +1.",
+    apply: (player) => ({ ...player, combatStartShield: player.combatStartShield + 2, cooldownTick: player.cooldownTick + 1 }),
+  },
+  {
+    id: "eye-bracelet",
+    name: "Eye Bracelet",
+    rarity: "gold",
+    category: "bracelet",
+    tags: ["heal", "tempo"],
+    image: "https://i.postimg.cc/bJ5c9WTX/Chat-GPT-Image-Mar-12-2026-04-15-09-PM.png",
+    effectText: "❤️ +2 heal bonus · 🔁 +1 reroll each turn.",
+    apply: (player) => ({ ...player, healBonus: player.healBonus + 2, rerollsPerTurn: player.rerollsPerTurn + 1, rerollsLeft: player.rerollsLeft + 1 }),
+  },
+
 ];
 
 const KILL_WORDS = ["Slashed", "Crushed", "Berserk Mode", "Kabal Style", "Savage", "Annihilated"];
@@ -511,6 +590,20 @@ function getDieMeta(die) {
   if (die.kind === "shield") return { kind: "shield", label: "Shield", emoji: "🛡️", desc: `Gain ${die.value} shield before row multiplier.` };
   if (die.kind === "heal") return { kind: "heal", label: "Health", emoji: "❤️", desc: `Heal ${die.value} before row multiplier.` };
   return { kind: "attack", label: "Attack", emoji: "⚔️", desc: `Deal ${die.value} damage before row multiplier.` };
+}
+
+function getDieImage(die) {
+  if (!die) return DICE_IMAGES[1];
+  return DICE_IMAGES_BY_KIND[die.kind]?.[die.value] || DICE_IMAGES[die.value];
+}
+
+function cycleDieIndex(dice, startIndex, direction) {
+  const available = dice.map((die, i) => (die !== null ? i : null)).filter((i) => i !== null);
+  if (!available.length) return null;
+  const current = startIndex !== null && available.includes(startIndex) ? startIndex : available[0];
+  const pos = available.indexOf(current);
+  const nextPos = (pos + direction + available.length) % available.length;
+  return available[nextPos];
 }
 
 function dieStyleByKind(kind) {
@@ -874,7 +967,7 @@ function DiceFace({ value, selected = false, rolling = false, onClick, disabled 
       onClick={disabled ? undefined : onClick}
       className={`relative h-16 w-16 overflow-hidden rounded-[18px] border bg-gradient-to-br ${palette.shell} md:h-[74px] md:w-[74px] ${selected ? "border-amber-300 shadow-[0_0_0_3px_rgba(252,211,77,0.25)]" : ""} ${disabled ? "opacity-60" : ""}`}
     >
-      <img src={DICE_IMAGES[value.value]} alt={`${meta.label} die ${value.value}`} className="absolute inset-0 h-full w-full object-contain p-1" />
+      <img src={getDieImage(value)} alt={`${meta.label} die ${value.value}`} className="absolute inset-0 h-full w-full object-contain p-1" />
       <div className={`absolute bottom-0.5 left-0.5 right-0.5 flex items-center justify-center gap-1 rounded-lg px-1 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] ${palette.tag}`}>
         <span>{meta.emoji}</span>
         <span>{meta.kind}</span>
@@ -911,7 +1004,14 @@ function ArtifactCard({ artifact, onPick }) {
           <div className="text-[10px] uppercase tracking-[0.2em] opacity-80">{artifact.rarity} {artifact.category}</div>
           <div className="text-sm font-black md:text-base">{artifact.name}</div>
         </div>
-        <div className="rounded-full border border-current/30 px-2 py-1 text-[9px] uppercase tracking-[0.18em]">{artifact.tags.join(" · ")}</div>
+        {artifact.image ? <img src={artifact.image} alt={artifact.name} className="h-10 w-10 rounded-lg border border-white/20 bg-black/40 object-cover" /> : null}
+      </div>
+      <div className="mb-2 flex flex-wrap gap-1">
+        {artifact.tags.map((tag) => (
+          <div key={`${artifact.id}-${tag}`} className="rounded-full border border-current/30 px-2 py-0.5 text-[9px] uppercase tracking-[0.14em]">
+            {(TAG_EMOJIS[tag] || "✨")} {tag}
+          </div>
+        ))}
       </div>
       <div className="text-xs md:text-sm">{artifact.effectText}</div>
     </button>
@@ -930,6 +1030,14 @@ export default function DieInTheJungleUpgraded() {
   const activeDieMeta = activeDieValue !== null ? getDieMeta(activeDieValue) : null;
   const latestLogs = game.log.slice(0, 3);
   const intent = getIntentPreview(game.enemy);
+
+  function shiftSelectedDie(direction) {
+    if (game.phase !== "place") return;
+    setGame((g) => ({
+      ...g,
+      selectedDieIndex: cycleDieIndex(g.dice, activeDieIndex, direction),
+    }));
+  }
 
   function pushLog(lines) {
     setGame((g) => ({ ...g, log: [...lines, ...g.log].slice(0, 40) }));
@@ -977,7 +1085,7 @@ export default function DieInTheJungleUpgraded() {
           rolling: false,
           selectedDieIndex: 0,
           avatarMood: "focus",
-          actionFlash: { id: Date.now(), text: `🎲 ${dice.map((d) => `${d.emoji || getDieMeta(d).emoji}${d.value}`).join(" · ")}`, tone: "amber" },
+          actionFlash: { id: Date.now(), text: `🎲 ${dice.map((d) => `${getDieMeta(d).emoji}${d.value}`).join(" · ")}`, tone: "amber" },
           log: [`🎲 Rolled: ${dice.map((d) => `${getDieMeta(d).label} ${d.value}`).join(" - ")}`, ...g.log].slice(0, 40),
         };
       });
@@ -1115,6 +1223,7 @@ export default function DieInTheJungleUpgraded() {
 
       if (enemyDied) {
         killPopup = pickKillWord(winStreak);
+        log.unshift(`☠️ ${g.enemy.name} defeated · ${killPopup}`);
         if (g.enemy.tier === "boss") score += 500;
         if (g.enemy.elite) score += 150;
 
@@ -1206,7 +1315,7 @@ export default function DieInTheJungleUpgraded() {
           selectedDieIndex: null,
           avatarMood: "victory",
           actionFlash: { id: Date.now(), text: `🏆 ${artifact.name}`, tone: "amber" },
-          log: [`🏆 Chose ${artifact.name}`, `🌴 Floor ${nextFloor} begins`, ...g.log].slice(0, 40),
+          log: [`🏆 Chose ${artifact.name}`, `🌴 Zone ${nextFloor} begins`, ...g.log].slice(0, 40),
         };
       }
 
@@ -1281,12 +1390,12 @@ export default function DieInTheJungleUpgraded() {
               <img src={LOGO_URL} alt="Kabal logo" className="h-9 w-9 object-contain" />
               <div>
                 <h1 className="font-serif text-lg italic tracking-wide text-amber-300 md:text-2xl">Die in the Jungle</h1>
-                <p className="text-[10px] text-zinc-100 md:text-xs">Roguelite run · intents · reroll · artifacts · endless floors</p>
+                <p className="text-[10px] text-zinc-100 md:text-xs">Roguelite run · intents · reroll · artifacts · endless zones</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <div className="rounded-xl border border-white/10 bg-black/40 px-2 py-1.5 text-right">
-                <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Floor</div>
+                <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Zone</div>
                 <div className="text-xs font-black text-amber-300 md:text-sm">{game.floor}</div>
               </div>
               <div className="rounded-xl border border-white/10 bg-black/40 px-2 py-1.5 text-right">
@@ -1338,19 +1447,19 @@ export default function DieInTheJungleUpgraded() {
           <SectionCard title="Kabalian panel">
             <div className="rounded-[18px] border border-cyan-300/30 bg-gradient-to-b from-cyan-950/40 to-black/85 p-2">
               <div className="grid grid-cols-2 gap-1.5 rounded-[14px] border border-cyan-300/30 bg-black/35 p-2">
-                <div className="col-span-2 flex items-center gap-2 rounded-[16px] border border-white/10 bg-black/35 p-2">
+                <div className="col-span-2 flex flex-col items-center gap-2 rounded-[16px] border border-white/10 bg-black/35 p-2 text-center">
                 <motion.img
                   src={avatarUrl}
                   alt="Kabalian"
                   animate={game.avatarMood === "hurt" ? { x: [0, -2, 2, -2, 0] } : game.avatarMood === "victory" ? { y: [0, -3, 0] } : { x: 0, y: 0 }}
                   transition={{ duration: 0.45 }}
-                  className={`h-24 w-24 rounded-2xl border border-white/10 bg-black/40 object-cover ${avatarRing}`}
+                  className={`h-[175px] w-full rounded-2xl border border-white/10 bg-black/40 object-contain ${avatarRing}`}
                 />
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0">
                   <div className="font-black">Kabalian</div>
                   <div className="text-[10px] text-zinc-300">Mood {game.avatarMood} · CD {game.player.cooldownBase} · Tick {game.player.cooldownTick} · Artifacts {totalArtifacts}</div>
                 </div>
-                <img src={LOGO_URL} alt="Kabal logo" className="h-8 w-8 object-contain opacity-90" />
+                <img src={LOGO_URL} alt="Kabal logo" className="h-7 w-7 object-contain opacity-90" />
               </div>
                 <div className="col-span-2">
                   <LifeBar label="Player HP" current={game.player.hp} max={game.player.maxHp} tone="player" />
@@ -1369,7 +1478,11 @@ export default function DieInTheJungleUpgraded() {
             <div className="rounded-xl border border-white/50 bg-white/15 px-2 py-1">🛡️ Dé Shield 1-6</div>
             <div className="rounded-xl border border-white/10 bg-black/35 px-2 py-1">🔥 Combo = 3 attack dice</div>
           </div>
-          <div className="flex min-h-[56px] flex-wrap items-start justify-center gap-1.5">
+          <div className="flex min-h-[56px] items-center justify-center gap-2">
+            {game.phase === "place" ? (
+              <Button onClick={() => shiftSelectedDie(-1)} className="h-9 rounded-xl bg-white/10 px-3 text-white hover:bg-white/20">⬅️</Button>
+            ) : null}
+            <div className="flex min-h-[56px] flex-wrap items-start justify-center gap-1.5">
             {game.dice.some((d) => d !== null) ? (
               game.dice.map((die, i) => die !== null ? (
                 <DiceFace
@@ -1383,6 +1496,10 @@ export default function DieInTheJungleUpgraded() {
             ) : (
               <div className="text-[11px] text-zinc-100">🎲 No dice yet. Press <span className="font-black text-amber-300">ROLL</span>.</div>
             )}
+            </div>
+            {game.phase === "place" ? (
+              <Button onClick={() => shiftSelectedDie(1)} className="h-9 rounded-xl bg-white/10 px-3 text-white hover:bg-white/20">➡️</Button>
+            ) : null}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2">
             {(game.phase === "roll" || game.phase === "rolling") ? (
@@ -1442,7 +1559,7 @@ export default function DieInTheJungleUpgraded() {
                       {cell !== null ? (
                         <>
                           <div className="absolute inset-0 bg-black/10" />
-                          <img src={DICE_IMAGES[cell.value]} className="absolute inset-0 h-full w-full object-contain" />
+                          <img src={getDieImage(cell)} className="absolute inset-0 h-full w-full object-contain" />
                           <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 rounded bg-black/60 px-1 text-[9px] font-black">
                             {meta?.emoji} {cell.value}
                           </div>
@@ -1529,10 +1646,10 @@ export default function DieInTheJungleUpgraded() {
                     <img src={LOGO_URL} alt="Kabal logo" className="h-10 w-10 object-contain" />
                     <div>
                       <div className="font-serif text-xl italic text-amber-300 md:text-2xl">Choose 1 Artifact</div>
-                      <div className="text-sm text-zinc-300">Boss down. Build your run.</div>
+                      <div className="text-sm text-zinc-300">{game.startRewardPending ? "Start your run with one trinket." : "Boss down. Build your run."}</div>
                     </div>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-zinc-300">Floor {game.floor}</div>
+                  <div className="rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-zinc-300">Zone {game.floor}</div>
                 </div>
                 <div className="grid gap-3 md:grid-cols-3">
                   {game.artifactsOffered.map((artifact) => (
@@ -1566,7 +1683,7 @@ export default function DieInTheJungleUpgraded() {
                   <div>5️⃣ Used slots gain cooldown</div>
                   <div>6️⃣ If the board saturates, all cooldowns reset</div>
                   <div>7️⃣ Enemies have visible intents and combat modifiers</div>
-                  <div>8️⃣ Beat elites and bosses, pick artifacts, continue to higher floors</div>
+                  <div>8️⃣ Beat elites and bosses, pick artifacts, continue to higher zones</div>
                 </div>
               </div>
             </motion.div>
