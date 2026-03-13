@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
 const LOGO_URL = "https://i.postimg.cc/rwdjP9rb/logo-jaune.png";
 const PLAYER_AVATAR_URL = "https://i.postimg.cc/B6rBLmBt/Kabalian-Face.png";
+const KKM_AVATAR_URL = "https://i.postimg.cc/Kv8zygVk/KKM-Mascot-2.png";
 const PLAYER_EMOTION_URLS = {
   focus: "https://i.postimg.cc/K8xhZnpB/Chat-GPT-Image-Mar-12-2026-03-09-30-PM.png",
   fierce: "https://i.postimg.cc/K8xhZnpB/Chat-GPT-Image-Mar-12-2026-03-09-30-PM.png",
@@ -14,6 +15,23 @@ const PLAYER_EMOTION_URLS = {
   almostDead: "https://i.postimg.cc/Df4T5fbm/Chat-GPT-Image-Mar-12-2026-03-00-52-PM.png",
   shocked: "https://i.postimg.cc/FKCMgwrc/Chat-GPT-Image-Mar-12-2026-03-06-38-PM.png",
   victory: PLAYER_AVATAR_URL,
+};
+
+const PLAYER_CHARACTERS = {
+  kabalian: {
+    id: "kabalian",
+    name: "Kabalian",
+    avatar: PLAYER_AVATAR_URL,
+    subtitle: "Balanced · 28 HP · Stable control",
+    stats: { maxHp: 28, attackBonus: 0, rerollsPerTurn: 1 },
+  },
+  kkm: {
+    id: "kkm",
+    name: "KKM",
+    avatar: KKM_AVATAR_URL,
+    subtitle: "Aggro · 24 HP · +1 ATK · 2 rerolls",
+    stats: { maxHp: 24, attackBonus: 1, rerollsPerTurn: 2 },
+  },
 };
 
 const DICE_IMAGES = {
@@ -930,18 +948,20 @@ function applyArtifactToPlayer(player, artifact) {
   };
 }
 
-function makeInitialPlayer() {
+function makeInitialPlayer(characterId = "kabalian") {
+  const selected = PLAYER_CHARACTERS[characterId] || PLAYER_CHARACTERS.kabalian;
   return {
-    hp: 28,
-    maxHp: 28,
+    hp: selected.stats.maxHp,
+    maxHp: selected.stats.maxHp,
     shield: 0,
-    avatar: PLAYER_AVATAR_URL,
+    avatar: selected.avatar,
+    characterId: selected.id,
     cooldownBase: 3,
     cooldownTick: 1,
     dicePerTurn: 3,
-    rerollsPerTurn: 1,
-    rerollsLeft: 1,
-    attackBonus: 0,
+    rerollsPerTurn: selected.stats.rerollsPerTurn,
+    rerollsLeft: selected.stats.rerollsPerTurn,
+    attackBonus: selected.stats.attackBonus,
     attackDieValueBonus: 0,
     healBonus: 0,
     shieldMultiplier: 1,
@@ -981,6 +1001,7 @@ function makeInitialState() {
     artifactsOffered: buildStarterArtifactChoices(player),
     combatRewardPending: true,
     startRewardPending: true,
+    characterSelectPending: true,
     score: 0,
     runEnded: false,
     avatarMood: "focus",
@@ -1008,6 +1029,8 @@ function hydrateGameState(rawState) {
   const byId = new Map(ARTIFACT_POOL.map((artifact) => [artifact.id, artifact]));
   safe.player = {
     ...safe.player,
+    characterId: safe.player?.characterId || "kabalian",
+    avatar: safe.player?.avatar || PLAYER_CHARACTERS.kabalian.avatar,
     artifacts: (safe.player?.artifacts || []).map((id) => byId.get(id)).filter(Boolean),
   };
   safe.artifactsOffered = (safe.artifactsOffered || []).map((id) => byId.get(id)).filter(Boolean);
@@ -1016,6 +1039,7 @@ function hydrateGameState(rawState) {
   safe.actionFlash = null;
   safe.killPopup = null;
   safe.lastOutcome = null;
+  safe.characterSelectPending = Boolean(safe.characterSelectPending);
   return safe;
 }
 
@@ -1162,7 +1186,7 @@ export default function DieInTheJungleUpgraded() {
   const expectedOutcome = estimatePlayerOutcome(game.grid, game.player);
 
   function shiftSelectedDie(direction) {
-    if (game.phase !== "place") return;
+    if (game.characterSelectPending || game.phase !== "place") return;
     setGame((g) => ({
       ...g,
       selectedDieIndex: cycleDieIndex(g.dice, activeDieIndex, direction),
@@ -1207,8 +1231,32 @@ export default function DieInTheJungleUpgraded() {
     setGame((g) => ({ ...g, log: [...lines, ...g.log].slice(0, 40) }));
   }
 
+  function pickCharacter(characterId) {
+    const selected = PLAYER_CHARACTERS[characterId] || PLAYER_CHARACTERS.kabalian;
+    setGame((g) => {
+      const nextPlayer = {
+        ...g.player,
+        characterId: selected.id,
+        avatar: selected.avatar,
+        maxHp: selected.stats.maxHp,
+        hp: Math.min(selected.stats.maxHp, g.player.hp),
+        attackBonus: selected.stats.attackBonus,
+        rerollsPerTurn: selected.stats.rerollsPerTurn,
+        rerollsLeft: selected.stats.rerollsPerTurn,
+      };
+      return {
+        ...g,
+        player: nextPlayer,
+        characterSelectPending: false,
+        avatarMood: "focus",
+        actionFlash: { id: Date.now(), text: `🧭 ${selected.name} selected`, tone: "sky" },
+        log: [`🧭 Character selected: ${selected.name}`, ...g.log].slice(0, 40),
+      };
+    });
+  }
+
   function startRoll() {
-    if (game.rolling || game.phase !== "roll" || game.combatRewardPending) return;
+    if (game.characterSelectPending || game.rolling || game.phase !== "roll" || game.combatRewardPending) return;
 
     setGame((g) => {
       const player = { ...g.player };
@@ -1279,7 +1327,7 @@ export default function DieInTheJungleUpgraded() {
   }
 
   function placeDie(dieIndex, x, y) {
-    if (game.phase !== "place") return;
+    if (game.characterSelectPending || game.phase !== "place") return;
     if (game.grid[y][x] !== null) return;
     if (game.cooldowns[y][x] > 0) return;
     if (game.dice[dieIndex] === null) return;
@@ -1589,7 +1637,7 @@ export default function DieInTheJungleUpgraded() {
   }, [game.lastOutcome]);
 
   const totalArtifacts = game.player.artifacts.length;
-  const avatarUrl = PLAYER_EMOTION_URLS[game.avatarMood] || PLAYER_AVATAR_URL;
+  const avatarUrl = game.player.characterId === "kkm" ? game.player.avatar : (PLAYER_EMOTION_URLS[game.avatarMood] || game.player.avatar || PLAYER_AVATAR_URL);
   const avatarRing = game.avatarMood === "hurt"
     ? "ring-2 ring-rose-400/70"
     : game.avatarMood === "almostDead"
@@ -1697,7 +1745,7 @@ export default function DieInTheJungleUpgraded() {
             </div>
           </SectionCard>
 
-          <SectionCard title="Kabalian panel">
+          <SectionCard title="Player panel">
             <div className="rounded-[18px] border border-cyan-300/30 bg-gradient-to-b from-cyan-950/40 to-black/85 p-2">
               <div className="grid grid-cols-2 gap-1.5 rounded-[14px] border border-cyan-300/30 bg-black/35 p-2">
                 <div className="col-span-2 flex flex-col items-center gap-2 rounded-[16px] border border-white/10 bg-black/35 p-2 text-center">
@@ -1709,7 +1757,7 @@ export default function DieInTheJungleUpgraded() {
                   className={`h-[128px] w-full rounded-2xl border border-white/10 bg-black/40 object-contain md:h-[175px] ${avatarRing}`}
                 />
                 <div className="min-w-0">
-                  <div className="font-black">Kabalian</div>
+                  <div className="font-black">{game.player.characterId === "kkm" ? "KKM" : "Kabalian"}</div>
                   <div className="text-[10px] text-zinc-300">CD {game.player.cooldownBase} · Tick {game.player.cooldownTick} · Artifacts {totalArtifacts}</div>
                 </div>
                 <img src={LOGO_URL} alt="Kabal logo" className="h-7 w-7 object-contain opacity-90" />
@@ -1948,8 +1996,35 @@ export default function DieInTheJungleUpgraded() {
           ) : null}
         </AnimatePresence>
 
+
         <AnimatePresence>
-          {game.phase === "reward" ? (
+          {game.characterSelectPending ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-3xl rounded-[28px] border border-cyan-300/25 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
+                <div className="mb-4 text-center">
+                  <div className="font-serif text-2xl italic text-amber-300">Choose your character</div>
+                  <div className="text-sm text-zinc-300">Pick your run style before selecting the first artifact.</div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {Object.values(PLAYER_CHARACTERS).map((character) => (
+                    <button
+                      key={character.id}
+                      onClick={() => pickCharacter(character.id)}
+                      className="rounded-2xl border border-white/15 bg-black/45 p-3 text-left transition hover:border-amber-300/60 hover:bg-black/70"
+                    >
+                      <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
+                      <div className="font-black text-lg text-amber-200">{character.name}</div>
+                      <div className="text-xs text-zinc-300">{character.subtitle}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {game.phase === "reward" && !game.characterSelectPending ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
               <div className="w-full max-w-4xl rounded-[28px] border border-amber-300/20 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
                 <div className="mb-4 flex items-center justify-between gap-4">
