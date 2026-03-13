@@ -664,6 +664,12 @@ function pickKillWord(streak) {
   return randFrom(KILL_WORDS);
 }
 
+function getNoHitMultiplier(noHitTurns) {
+  if (noHitTurns >= 6) return 2;
+  if (noHitTurns >= 3) return 1.5;
+  return 1;
+}
+
 function buildArtifactChoices(player) {
   const weights = { gray: 4, gold: 3, chrome: 1 };
   const pool = shuffle(ARTIFACT_POOL).filter((a) => !player.artifacts.find((owned) => owned.id === a.id));
@@ -1003,6 +1009,7 @@ function makeInitialState() {
     startRewardPending: true,
     characterSelectPending: true,
     score: 0,
+    noHitTurns: 0,
     runEnded: false,
     avatarMood: "focus",
     actionFlash: null,
@@ -1039,6 +1046,7 @@ function hydrateGameState(rawState) {
   safe.actionFlash = null;
   safe.killPopup = null;
   safe.lastOutcome = null;
+  safe.noHitTurns = Number.isFinite(safe.noHitTurns) ? safe.noHitTurns : 0;
   safe.characterSelectPending = Boolean(safe.characterSelectPending);
   return safe;
 }
@@ -1184,6 +1192,7 @@ export default function DieInTheJungleUpgraded() {
   const intent = getIntentPreview(game.enemy);
   const intentTimeline = getIntentTimeline(game.enemy, 3);
   const expectedOutcome = estimatePlayerOutcome(game.grid, game.player);
+  const streakMultiplier = getNoHitMultiplier(game.noHitTurns);
 
   function shiftSelectedDie(direction) {
     if (game.characterSelectPending || game.phase !== "place") return;
@@ -1377,6 +1386,7 @@ export default function DieInTheJungleUpgraded() {
       const nextTurn = g.turn + 1;
       const damagePopups = [];
       let enemyAttackPulse = 0;
+      let hpDamageTaken = 0;
       const randomPos = (target) => ({
         left: target === "enemy" ? `${12 + Math.floor(Math.random() * 24)}%` : `${58 + Math.floor(Math.random() * 24)}%`,
         top: `${20 + Math.floor(Math.random() * 30)}%`,
@@ -1400,6 +1410,7 @@ export default function DieInTheJungleUpgraded() {
         if (intentNow.type === "attack") {
           enemyAttackPulse = Date.now();
           const hpLoss = Math.max(0, preRetaliationHp - player.hp);
+          hpDamageTaken = hpLoss;
           const shieldBlocked = Math.max(0, preRetaliationShield - player.shield - hpLoss);
           if (hpLoss > 0) {
             damagePopups.push({ id: `${Date.now()}-player-hit`, target: "player", tone: "damage", text: `-${hpLoss}`, ...randomPos("player") });
@@ -1426,7 +1437,32 @@ export default function DieInTheJungleUpgraded() {
         log.unshift(`✨ Kabal Sigil revives you at ${player.hp} HP`);
       }
 
-      let score = g.score + (enemyDied ? 100 : 10);
+      const nextNoHitTurns = hpDamageTaken > 0 ? 0 : g.noHitTurns + 1;
+      const streakMult = getNoHitMultiplier(nextNoHitTurns);
+      const zoneMult = Math.min(2.5, 1 + (g.floor - 1) * 0.2);
+      const scoreTags = [];
+      let scoreGain = enemyDied ? 120 : 20;
+      if (enemyDied) scoreTags.push(`Kill +${scoreGain}`);
+      const overkillAmount = enemyDied ? Math.max(0, -enemy.hp) : 0;
+      if (overkillAmount > 0) {
+        const overkillBonus = overkillAmount * 5;
+        scoreGain += overkillBonus;
+        scoreTags.push(`Overkill +${overkillBonus}`);
+      }
+      const oneShot = enemyDied && g.enemy.intentIndex === 0;
+      if (oneShot) {
+        scoreGain += 100;
+        scoreTags.push('ONE SHOT +100');
+      }
+      const perfectFight = enemyDied && hpDamageTaken === 0;
+      if (perfectFight) {
+        scoreGain += 150;
+        scoreTags.push('PERFECT +150');
+      }
+      const scoreAfterMult = Math.round(scoreGain * streakMult * zoneMult);
+      if (streakMult > 1) scoreTags.push(`No-hit x${streakMult.toFixed(1)}`);
+      if (zoneMult > 1) scoreTags.push(`Zone x${zoneMult.toFixed(1)}`);
+      let score = g.score + scoreAfterMult;
       let winStreak = enemyDied ? g.winStreak + 1 : 0;
       let phase = player.hp <= 0 ? "gameover" : "roll";
       let room = g.room;
@@ -1458,6 +1494,7 @@ export default function DieInTheJungleUpgraded() {
       } else if (totals.heal > 0) {
         actionFlash = { id: Date.now(), text: `❤️ +${totals.heal} Heal`, tone: "emerald" };
       }
+      log.unshift(`🏆 Score +${scoreAfterMult}${scoreTags.length ? ` · ${scoreTags.join(' · ')}` : ''}`);
 
       if (!enemyDied && playerTookDamage) {
         actionFlash = { id: Date.now() + 1, text: `💥 -${g.player.hp - player.hp} HP`, tone: "rose" };
@@ -1469,6 +1506,7 @@ export default function DieInTheJungleUpgraded() {
         log.unshift(`☠️ ${g.enemy.name} defeated · ${killPopup}`);
         if (g.enemy.tier === "boss") score += 500;
         if (g.enemy.elite) score += 150;
+        actionFlash = { id: Date.now() + 2, text: `🏆 +${scoreAfterMult} SCORE`, tone: "amber" };
 
         if (g.enemy.tier === "boss") {
           combatRewardPending = true;
@@ -1491,6 +1529,7 @@ export default function DieInTheJungleUpgraded() {
       return {
         ...g,
         score,
+        noHitTurns: nextNoHitTurns,
         turn: nextTurn,
         room,
         route,
@@ -1726,6 +1765,7 @@ export default function DieInTheJungleUpgraded() {
               <CompactStat label="Value" value={`${intent.value}`} accent="text-rose-300" />
               <CompactStat label="Modifier" value={intent.mod.badge} accent={modifierClass(game.enemy.modifier)} />
               <CompactStat label="Streak" value={`${game.winStreak}`} accent="text-emerald-300" />
+              <CompactStat label="No-hit" value={`${game.noHitTurns}T · x${streakMultiplier.toFixed(1)}`} accent="text-lime-300" />
               <CompactStat label="Enemy Shield" value={`${game.enemy.shield || 0}`} accent="text-rose-200" />
               <div className="rounded-[16px] border border-white/10 bg-black/35 p-2 text-center">
                 <div className="text-[9px] uppercase tracking-[0.16em] text-zinc-300">Outcome</div>
