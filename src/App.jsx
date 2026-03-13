@@ -11,6 +11,8 @@ import CRMAngel from './pages/CRMAngel';
 import SprintBoard from './pages/SprintBoard';
 import Arsenal from './pages/Arsenal';
 import DieInTheJungle from './pages/DieInTheJungle';
+import KabalAcademyMVP from './pages/KabalAcademyMVP';
+import KabalAcademyAdmin from './pages/KabalAcademyAdmin';
 
 const isTeamSubdomain =
   typeof window !== 'undefined' &&
@@ -26,6 +28,7 @@ export default function App() {
 
           {/* TRADING */}
           <Route path="/finance/pnl-calendar"     element={<PNLCalendar />} />
+          <Route path="/finance/track-record"     element={<TrackRecord />} />
           <Route path="/narrative-board"          element={<NarrativeBoard />} />
           <Route path="/risk-manager"             element={<RiskManager />} />
           <Route path="/trading/kredo"            element={<KabalKredo />} />
@@ -41,6 +44,10 @@ export default function App() {
 
           {/* ARSENAL */}
           <Route path="/arsenal"                  element={<Arsenal />} />
+
+          {/* ACADEMY */}
+          <Route path="/academy"                  element={<KabalAcademyMVP />} />
+          <Route path="/academy/admin"            element={<KabalAcademyAdmin />} />
 
           {/* Fallback */}
           <Route path="*"                         element={<TeamHome />} />

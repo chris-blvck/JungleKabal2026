@@ -1115,7 +1115,7 @@ function makeInitialState() {
   return {
     floor,
     room: 0,
-    phase: "roll",
+    phase: "reward",
     route,
     enemy: { ...route[0] },
     dice: [],
@@ -1147,6 +1147,12 @@ function makeInitialState() {
     comboPopup: null,
     lastOutcome: null,
   };
+  safe.artifactsOffered = (safe.artifactsOffered || []).map((id) => byId.get(id)).filter(Boolean);
+  safe.enemyAttackPulse = 0;
+  safe.damagePopups = [];
+  safe.actionFlash = null;
+  safe.killPopup = null;
+  return safe;
 }
 
 function serializeGameState(game) {
