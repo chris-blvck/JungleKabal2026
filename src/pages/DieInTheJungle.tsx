@@ -72,8 +72,6 @@ const DICE_IMAGES_BY_KIND = {
   },
 };
 
-const GAME_STATE_STORAGE_KEY = "jungle_kabal_run_state_v1";
-const LEADERBOARD_STORAGE_KEY = "jungle_kabal_leaderboard_v1";
 
 const GAME_STATE_STORAGE_KEY = "jungle_kabal_run_state_v1";
 const LEADERBOARD_STORAGE_KEY = "jungle_kabal_leaderboard_v1";
@@ -1114,27 +1112,6 @@ function hydrateGameState(rawState) {
   return safe;
 }
 
-function loadSavedGameState() {
-  try {
-    const raw = localStorage.getItem(GAME_STATE_STORAGE_KEY);
-    if (!raw) return makeInitialState();
-    const parsed = JSON.parse(raw);
-    return hydrateGameState(parsed) || makeInitialState();
-  } catch {
-    return makeInitialState();
-  }
-}
-
-function loadLeaderboard() {
-  try {
-    const raw = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
 
 function SectionCard({ title, children, right, className = "" }) {
   return (
