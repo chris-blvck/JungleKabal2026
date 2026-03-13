@@ -37,3 +37,19 @@ cluster (e.g. devnet or testnet).
 
 This repository only contains the front‑end code. To integrate Solana functionality, you can add the [`@solana/web3.js`](https://github.com/solana-labs/solana-web3.js/) library and connect to a wallet using tools such as [`@solana/wallet-adapter`](https://github.com/solana-labs/wallet-adapter). After installing the packages, you can interact with on‑chain programs from your React components.
 
+
+## Academy Admin + API
+
+- Start API (persists editable academy content):
+  ```bash
+  npm run api
+  ```
+- Start web app:
+  ```bash
+  npm run dev
+  ```
+
+Admin route (team subdomain): `/academy/admin`
+User route: `/academy`
+
+API endpoint used by admin/user pages: `GET/PUT /api/academy/content` (default `http://localhost:8787`).
