@@ -22,15 +22,15 @@ const PLAYER_CHARACTERS = {
     id: "kabalian",
     name: "Kabalian",
     avatar: PLAYER_AVATAR_URL,
-    subtitle: "Balanced · 28 HP · Stable control",
-    stats: { maxHp: 28, attackBonus: 0, rerollsPerTurn: 1 },
+    subtitle: "Aggro · 24 HP · +1 ATK · 2 rerolls",
+    stats: { maxHp: 24, attackBonus: 1, rerollsPerTurn: 2, combatStartShield: 0 },
   },
   kkm: {
     id: "kkm",
     name: "KKM",
     avatar: KKM_AVATAR_URL,
-    subtitle: "Aggro · 24 HP · +1 ATK · 2 rerolls",
-    stats: { maxHp: 24, attackBonus: 1, rerollsPerTurn: 2 },
+    subtitle: "Tank · 34 HP · +4 start shield",
+    stats: { maxHp: 34, attackBonus: 0, rerollsPerTurn: 1, combatStartShield: 4 },
   },
 };
 
@@ -567,6 +567,10 @@ function shuffle(arr) {
   return copy;
 }
 
+function generateRunSeed() {
+  return Math.floor(10000 + Math.random() * 90000).toString();
+}
+
 function pickUnique(items, count) {
   return shuffle(items).slice(0, count);
 }
@@ -973,7 +977,7 @@ function makeInitialPlayer(characterId = "kabalian") {
     shieldMultiplier: 1,
     topRowBonus: 0,
     timedResetEvery: 0,
-    combatStartShield: 0,
+    combatStartShield: selected.stats.combatStartShield || 0,
     selfBleed: 0,
     curseNextTurn: 0,
     artifacts: [],
@@ -989,7 +993,7 @@ function makeInitialState() {
   return {
     floor,
     room: 0,
-    phase: "reward",
+    phase: "roll",
     route,
     enemy: { ...route[0] },
     dice: [],
@@ -1004,17 +1008,21 @@ function makeInitialState() {
     showHowToPlay: false,
     showAllLogs: false,
     rolling: false,
-    artifactsOffered: buildStarterArtifactChoices(player),
-    combatRewardPending: true,
+    artifactsOffered: [],
+    combatRewardPending: false,
     startRewardPending: true,
     characterSelectPending: true,
     score: 0,
     noHitTurns: 0,
+    runSeed: generateRunSeed(),
     runEnded: false,
     avatarMood: "focus",
     actionFlash: null,
     enemyAttackPulse: 0,
+    enemyHitPulse: 0,
     damagePopups: [],
+    scorePopups: [],
+    comboPopup: null,
     lastOutcome: null,
   };
 }
@@ -1042,11 +1050,15 @@ function hydrateGameState(rawState) {
   };
   safe.artifactsOffered = (safe.artifactsOffered || []).map((id) => byId.get(id)).filter(Boolean);
   safe.enemyAttackPulse = 0;
+  safe.enemyHitPulse = 0;
   safe.damagePopups = [];
+  safe.scorePopups = [];
+  safe.comboPopup = null;
   safe.actionFlash = null;
   safe.killPopup = null;
   safe.lastOutcome = null;
   safe.noHitTurns = Number.isFinite(safe.noHitTurns) ? safe.noHitTurns : 0;
+  safe.runSeed = safe.runSeed || generateRunSeed();
   safe.characterSelectPending = Boolean(safe.characterSelectPending);
   return safe;
 }
@@ -1236,6 +1248,12 @@ export default function DieInTheJungleUpgraded() {
     setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "🏁 Score submitted", tone: "emerald" } }));
   }
 
+  function shareRun() {
+    const characterName = game.player.characterId === "kkm" ? "KKM" : "Kabalian";
+    const text = `Reached Zone ${game.floor} in Die in the Jungle%0AScore: ${game.score}%0ACharacter: ${characterName}%0ASeed: ${game.runSeed}%0A%23KabalBlessing`;
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank", "noopener,noreferrer");
+  }
+
   function pushLog(lines) {
     setGame((g) => ({ ...g, log: [...lines, ...g.log].slice(0, 40) }));
   }
@@ -1250,6 +1268,8 @@ export default function DieInTheJungleUpgraded() {
         maxHp: selected.stats.maxHp,
         hp: Math.min(selected.stats.maxHp, g.player.hp),
         attackBonus: selected.stats.attackBonus,
+        combatStartShield: selected.stats.combatStartShield || 0,
+        shield: selected.stats.combatStartShield || 0,
         rerollsPerTurn: selected.stats.rerollsPerTurn,
         rerollsLeft: selected.stats.rerollsPerTurn,
       };
@@ -1385,7 +1405,10 @@ export default function DieInTheJungleUpgraded() {
       const saturated = boardIsSaturated(gridRef, cooldownRef);
       const nextTurn = g.turn + 1;
       const damagePopups = [];
+      const scorePopups = [];
       let enemyAttackPulse = 0;
+      let enemyHitPulse = 0;
+      let comboPopup = null;
       let hpDamageTaken = 0;
       const randomPos = (target) => ({
         left: target === "enemy" ? `${12 + Math.floor(Math.random() * 24)}%` : `${58 + Math.floor(Math.random() * 24)}%`,
@@ -1393,6 +1416,7 @@ export default function DieInTheJungleUpgraded() {
       });
 
       if (totals.attack > 0) {
+        enemyHitPulse = Date.now();
         damagePopups.push({ id: `${Date.now()}-enemy-hit`, target: "enemy", tone: "damage", text: `-${totals.attack}`, ...randomPos("enemy") });
       }
       if (totals.heal > 0) {
@@ -1495,6 +1519,11 @@ export default function DieInTheJungleUpgraded() {
         actionFlash = { id: Date.now(), text: `❤️ +${totals.heal} Heal`, tone: "emerald" };
       }
       log.unshift(`🏆 Score +${scoreAfterMult}${scoreTags.length ? ` · ${scoreTags.join(' · ')}` : ''}`);
+      scorePopups.push({ id: `${Date.now()}-score-main`, tone: "amber", text: `+${scoreAfterMult}` });
+      if (scoreTags.some((tag) => tag.includes("Overkill"))) scorePopups.push({ id: `${Date.now()}-score-overkill`, tone: "rose", text: "OVERKILL" });
+      if (scoreTags.some((tag) => tag.includes("ONE SHOT"))) scorePopups.push({ id: `${Date.now()}-score-oneshot`, tone: "violet", text: "ONE SHOT" });
+      if (scoreTags.some((tag) => tag.includes("PERFECT"))) scorePopups.push({ id: `${Date.now()}-score-perfect`, tone: "emerald", text: "PERFECT" });
+      if (scoreTags.length >= 3) comboPopup = `COMBO BONUS +${scoreAfterMult}`;
 
       if (!enemyDied && playerTookDamage) {
         actionFlash = { id: Date.now() + 1, text: `💥 -${g.player.hp - player.hp} HP`, tone: "rose" };
@@ -1504,11 +1533,20 @@ export default function DieInTheJungleUpgraded() {
       if (enemyDied) {
         killPopup = `💀 ${pickKillWord(winStreak)} 💀`;
         log.unshift(`☠️ ${g.enemy.name} defeated · ${killPopup}`);
-        if (g.enemy.tier === "boss") score += 500;
-        if (g.enemy.elite) score += 150;
-        actionFlash = { id: Date.now() + 2, text: `🏆 +${scoreAfterMult} SCORE`, tone: "amber" };
-
         if (g.enemy.tier === "boss") {
+          score += 500;
+          comboPopup = "👑 BOSS DESTROYED";
+          actionFlash = { id: Date.now() + 2, text: `👑 BOSS DESTROYED · +${scoreAfterMult + 500} SCORE`, tone: "amber" };
+        } else {
+          actionFlash = { id: Date.now() + 2, text: `🏆 +${scoreAfterMult} SCORE`, tone: "amber" };
+        }
+        if (g.enemy.elite) score += 150;
+
+        if (g.startRewardPending) {
+          combatRewardPending = true;
+          artifactsOffered = buildStarterArtifactChoices(player);
+          phase = "reward";
+        } else if (g.enemy.tier === "boss") {
           combatRewardPending = true;
           artifactsOffered = buildArtifactChoices(player);
           phase = "reward";
@@ -1543,14 +1581,17 @@ export default function DieInTheJungleUpgraded() {
         winStreak,
         artifactsOffered,
         combatRewardPending,
-        startRewardPending: false,
+        startRewardPending: g.startRewardPending && phase !== "reward" ? true : false,
         killPopup,
         log: [...log, ...g.log].slice(0, 40),
         runEnded: phase === "gameover" || phase === "victory",
         avatarMood,
         actionFlash,
         enemyAttackPulse,
+        enemyHitPulse,
         damagePopups,
+        scorePopups,
+        comboPopup,
         lastOutcome,
       };
     });
@@ -1660,12 +1701,28 @@ export default function DieInTheJungleUpgraded() {
   }, [game.enemyAttackPulse]);
 
   useEffect(() => {
+    if (!game.enemyHitPulse) return;
+    const timeout = window.setTimeout(() => {
+      setGame((g) => (g.enemyHitPulse ? { ...g, enemyHitPulse: 0 } : g));
+    }, 260);
+    return () => window.clearTimeout(timeout);
+  }, [game.enemyHitPulse]);
+
+  useEffect(() => {
     if (!game.damagePopups.length) return;
     const timeout = window.setTimeout(() => {
       setGame((g) => ({ ...g, damagePopups: [] }));
     }, 900);
     return () => window.clearTimeout(timeout);
   }, [game.damagePopups]);
+
+  useEffect(() => {
+    if (!game.scorePopups.length) return;
+    const timeout = window.setTimeout(() => {
+      setGame((g) => ({ ...g, scorePopups: [], comboPopup: null }));
+    }, 1400);
+    return () => window.clearTimeout(timeout);
+  }, [game.scorePopups]);
 
   useEffect(() => {
     if (!game.lastOutcome) return;
@@ -1728,6 +1785,10 @@ export default function DieInTheJungleUpgraded() {
                 <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Phase</div>
                 <div className="text-xs font-black uppercase text-amber-300 md:text-sm">{game.phase}</div>
               </div>
+              <div className="rounded-xl border border-white/10 bg-black/40 px-2 py-1.5 text-right">
+                <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Seed</div>
+                <div className="text-xs font-black text-cyan-200 md:text-sm">#{game.runSeed}</div>
+              </div>
               <Button onClick={connectWallet} className="rounded-xl bg-violet-500/25 px-2.5 py-2 text-white hover:bg-violet-500/40">
                 {walletAddress ? `🟣 ${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : "🟣 Connect Wallet"}
               </Button>
@@ -1743,7 +1804,7 @@ export default function DieInTheJungleUpgraded() {
                 <motion.img
                   src={game.enemy.image}
                   alt={game.enemy.name}
-                  animate={game.enemyAttackPulse ? { x: [0, -10, 10, -8, 8, 0], scale: [1, 1.06, 1] } : intent.type === "attack" ? { scale: [1, 1.03, 1], x: [0, -2, 2, 0] } : { scale: 1, x: 0 }}
+                  animate={game.enemyHitPulse ? { scale: [1, 1.12, 0.96, 1], filter: ["brightness(1)", "brightness(1.55)", "brightness(1)"] } : game.enemyAttackPulse ? { x: [0, -10, 10, -8, 8, 0], scale: [1, 1.06, 1] } : intent.type === "attack" ? { scale: [1, 1.03, 1], x: [0, -2, 2, 0] } : { scale: 1, x: 0 }}
                   transition={{ duration: 0.45 }}
                   className="h-[128px] w-full object-contain contrast-110 saturate-110 drop-shadow-[0_14px_24px_rgba(0,0,0,0.6)] md:h-[175px]"
                 />
@@ -1880,7 +1941,8 @@ export default function DieInTheJungleUpgraded() {
               <>
                 <div className="text-lg font-black md:text-xl">{game.phase === "victory" ? "🏆 YOU WIN" : "💀 YOU DIED"}</div>
                 <Button onClick={submitScoreToLeaderboard} className="rounded-2xl bg-violet-500/30 px-4 py-2.5 text-sm font-black text-white hover:bg-violet-500/45">Submit score</Button>
-                <Button onClick={restart} className="rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-black hover:bg-zinc-200">Restart</Button>
+                <Button onClick={shareRun} className="rounded-2xl bg-sky-500/35 px-4 py-2.5 text-sm font-black text-white hover:bg-sky-500/50">Share run</Button>
+                <Button onClick={restart} className="rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-black hover:bg-zinc-200">Play again</Button>
               </>
             ) : null}
           </div>
@@ -2043,7 +2105,7 @@ export default function DieInTheJungleUpgraded() {
               <div className="w-full max-w-3xl rounded-[28px] border border-cyan-300/25 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
                 <div className="mb-4 text-center">
                   <div className="font-serif text-2xl italic text-amber-300">Choose your character</div>
-                  <div className="text-sm text-zinc-300">Pick your run style before selecting the first artifact.</div>
+                  <div className="text-sm text-zinc-300">Choose your character before first fight. First artifact arrives after the first win.</div>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   {Object.values(PLAYER_CHARACTERS).map((character) => (
@@ -2057,6 +2119,50 @@ export default function DieInTheJungleUpgraded() {
                       <div className="text-xs text-zinc-300">{character.subtitle}</div>
                     </button>
                   ))}
+                </div>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {game.scorePopups.map((popup, i) => (
+            <motion.div
+              key={popup.id}
+              initial={{ opacity: 0, y: 16, scale: 0.75 }}
+              animate={{ opacity: 1, y: -8 - i * 10, scale: 1.05 }}
+              exit={{ opacity: 0, y: -30, scale: 0.8 }}
+              className={`pointer-events-none fixed left-1/2 top-1/3 z-40 -translate-x-1/2 rounded-xl border px-4 py-2 text-lg font-black shadow-[0_20px_60px_rgba(0,0,0,0.45)] ${popup.tone === "rose" ? "border-rose-300/60 bg-rose-500/30 text-rose-100" : popup.tone === "emerald" ? "border-emerald-300/60 bg-emerald-500/25 text-emerald-100" : popup.tone === "violet" ? "border-violet-300/60 bg-violet-500/25 text-violet-100" : "border-amber-300/60 bg-amber-500/25 text-amber-100"}`}
+            >
+              {popup.text}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {game.comboPopup ? (
+            <motion.div initial={{ opacity: 0, scale: 0.82 }} animate={{ opacity: 1, scale: 1.05 }} exit={{ opacity: 0, scale: 0.9 }} className="pointer-events-none fixed left-1/2 top-44 z-40 -translate-x-1/2 rounded-2xl border border-amber-300/45 bg-black/85 px-6 py-3 text-2xl font-black text-amber-200 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+              {game.comboPopup}
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {(game.phase === "gameover" || game.phase === "victory") ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-xl rounded-[28px] border border-amber-300/25 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
+                <div className="mb-3 text-center font-serif text-2xl italic text-amber-300">{game.phase === "victory" ? "RUN SUMMARY · KABAL BLESSING" : "RUN SUMMARY · LIQUIDATED"}</div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">Character: <span className="font-black">{game.player.characterId === "kkm" ? "KKM" : "Kabalian"}</span></div>
+                  <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">Zone: <span className="font-black">{game.floor}</span></div>
+                  <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">Score: <span className="font-black">{game.score}</span></div>
+                  <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">No-hit: <span className="font-black">{game.noHitTurns}T</span></div>
+                  <div className="col-span-2 rounded-xl border border-white/10 bg-black/35 px-3 py-2">Seed: <span className="font-black text-cyan-200">#{game.runSeed}</span></div>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                  <Button onClick={submitScoreToLeaderboard} className="rounded-xl bg-violet-500/30 px-4 py-2 text-white hover:bg-violet-500/45">Submit score</Button>
+                  <Button onClick={shareRun} className="rounded-xl bg-sky-500/35 px-4 py-2 text-white hover:bg-sky-500/50">Share run</Button>
+                  <Button onClick={restart} className="rounded-xl bg-white px-4 py-2 text-black hover:bg-zinc-200">Play again</Button>
                 </div>
               </div>
             </motion.div>
