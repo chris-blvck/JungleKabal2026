@@ -12,6 +12,7 @@ import SprintBoard from './pages/SprintBoard';
 import Arsenal from './pages/Arsenal';
 import DieInTheJungle from './pages/DieInTheJungle';
 import KabalAcademyMVP from './pages/KabalAcademyMVP';
+import KabalAcademyAdmin from './pages/KabalAcademyAdmin';
 
 const isTeamSubdomain =
   typeof window !== 'undefined' &&
@@ -45,6 +46,7 @@ export default function App() {
 
           {/* ACADEMY */}
           <Route path="/academy"                  element={<KabalAcademyMVP />} />
+          <Route path="/academy/admin"            element={<KabalAcademyAdmin />} />
 
           {/* Fallback */}
           <Route path="*"                         element={<TeamHome />} />
