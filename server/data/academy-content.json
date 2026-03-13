@@ -1,0 +1,573 @@
+{
+  "version": 1,
+  "updatedAt": "2026-03-13T11:12:15.782Z",
+  "modules": [
+    {
+      "id": "m1",
+      "title": "Module 1 · Foundations of Memecoin Trading",
+      "description": "Extrait du guide compact.",
+      "lessons": [
+        {
+          "id": "l-1-1",
+          "title": "1.1 · What Memecoins Really Are",
+          "duration": "7 min",
+          "content": "# What Memecoins Really Are\n## Core Idea\nMemecoins are attention markets.\nNot technology.\nNot fundamentals.\nNot utility.\n## The 4 Drivers of Memecoin Value\n- Community\n- Viral Potential\n- Emotional Reaction\n- Accessibility\n## Action Exercise\nOpen Dexscreener. Look at 3 new tokens.\n## Quick Quiz\nWhat drives memecoin price the most? C — attention.\n---",
+          "bullets": [
+            "Community",
+            "Viral Potential",
+            "Emotional Reaction",
+            "Accessibility",
+            "--"
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-1-2",
+          "title": "1.2 · Why Solana Is the Best Chain for Memecoins",
+          "duration": "7 min",
+          "content": "# Why Solana Is the Best Chain for Memecoins\n- Extremely Low Fees\n- Lightning Fast Transactions\n- Strong Memecoin Ecosystem\n- High Liquidity\n## Quick Quiz\nWhy is Solana ideal? B — cheaper fees.\n---",
+          "bullets": [
+            "Extremely Low Fees",
+            "Lightning Fast Transactions",
+            "Strong Memecoin Ecosystem",
+            "High Liquidity",
+            "--"
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-1-3",
+          "title": "1.3 · The Memecoin Lifecycle",
+          "duration": "7 min",
+          "content": "# The Memecoin Lifecycle\n- Phase 1: Launch\n- Phase 2: Hype\n- Phase 3: Pump\n- Phase 4: Dump\nKey strategy: best entry is usually Hype.\n---",
+          "bullets": [
+            "Phase 1: Launch",
+            "Phase 2: Hype",
+            "Phase 3: Pump",
+            "Phase 4: Dump",
+            "--"
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-1-4",
+          "title": "1.4 · Memecoin Narratives",
+          "duration": "7 min",
+          "content": "# Memecoin Narratives\n- Animal & Cult Memes\n- News & Politics\n- Internet Culture\n- AI Memes\n- Influencer / TikTok Memes\n- Beta Plays\n---",
+          "bullets": [
+            "Animal & Cult Memes",
+            "News & Politics",
+            "Internet Culture",
+            "AI Memes",
+            "Influencer / TikTok Memes",
+            "Beta Plays",
+            "--"
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-1-5",
+          "title": "1.5 · Realistic Expectations",
+          "duration": "7 min",
+          "content": "# Realistic Expectations\n- 70–80% failures\n- 15–20% small winners\n- 3–5% big winners\n- <1% massive winners\nRule: never risk more than 1–2% per trade.\n---",
+          "bullets": [
+            "70–80% failures",
+            "15–20% small winners",
+            "3–5% big winners",
+            "<1% massive winners",
+            "--"
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-1-6",
+          "title": "1.6 · Crypto Market Cycles",
+          "duration": "7 min",
+          "content": "# Crypto Market Cycles\n- Bear Market\n- Pre-Bull\n- Bull Market\n- Euphoria\n---",
+          "bullets": [
+            "Bear Market",
+            "Pre-Bull",
+            "Bull Market",
+            "Euphoria",
+            "--"
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-1-7",
+          "title": "1.7 · Choose Your Trading Style",
+          "duration": "7 min",
+          "content": "# Choose Your Trading Style\n- Hardcore Trencher\n- Opportunity Enjoyer\n- Hybrid Warrior\n---",
+          "bullets": [
+            "Hardcore Trencher",
+            "Opportunity Enjoyer",
+            "Hybrid Warrior",
+            "--"
+          ],
+          "blocks": []
+        }
+      ]
+    },
+    {
+      "id": "m2",
+      "title": "Module 2 · Essential Setup",
+      "description": "Extrait du guide compact.",
+      "lessons": [
+        {
+          "id": "l-2-1",
+          "title": "2.1 · The Trading Command Center",
+          "duration": "7 min",
+          "content": "# The Trading Command Center\nEssential bookmarks:\n- Dexscreener\n- Twitter/X\n- Axiom\n- Telegram\n- CoinGecko memecoin category",
+          "bullets": [
+            "Dexscreener",
+            "Twitter/X",
+            "Axiom",
+            "Telegram",
+            "CoinGecko memecoin category"
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-2-2",
+          "title": "2.2 · Critical Trading Tools",
+          "duration": "7 min",
+          "content": "# Critical Trading Tools\n- Axiom Pro\n- BullX (optional)\n- Phantom Wallet\n- Hardware Wallet (advanced)",
+          "bullets": [
+            "Axiom Pro",
+            "BullX (optional)",
+            "Phantom Wallet",
+            "Hardware Wallet (advanced)"
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-2-3",
+          "title": "2.3 · Market Discovery Tools",
+          "duration": "7 min",
+          "content": "# Market Discovery Tools\n- Dexscreener\n- CoinGecko category\n- GMGN smart money tracking",
+          "bullets": [
+            "Dexscreener",
+            "CoinGecko category",
+            "GMGN smart money tracking"
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-2-4",
+          "title": "2.4 · Telegram & Alert Systems",
+          "duration": "7 min",
+          "content": "# Telegram & Alert Systems\n- DexTools Alert Bot\n- Whale Alert\n- New Pair Scanner\n- Vector\n- KOL Scan",
+          "bullets": [
+            "DexTools Alert Bot",
+            "Whale Alert",
+            "New Pair Scanner",
+            "Vector",
+            "KOL Scan"
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-2-5",
+          "title": "2.5 · Security Tools",
+          "duration": "7 min",
+          "content": "# Security Tools\n- RugCheck\n- LunarCrush\n- SOL Incinerator",
+          "bullets": [
+            "RugCheck",
+            "LunarCrush",
+            "SOL Incinerator"
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-2-6",
+          "title": "2.6 · Funding Your Wallet",
+          "duration": "7 min",
+          "content": "# Funding Your Wallet\nMethod 1: Buy SOL in Phantom.\nMethod 2: Send SOL from exchange on Solana network.\n---",
+          "bullets": [
+            "--"
+          ],
+          "blocks": []
+        }
+      ]
+    },
+    {
+      "id": "m3",
+      "title": "Module 3 · Opportunity Discovery",
+      "description": "Extrait du guide compact.",
+      "lessons": [
+        {
+          "id": "l-3-1",
+          "title": "3.1 · The Memecoin Sweet Spot",
+          "duration": "7 min",
+          "content": "# The Memecoin Sweet Spot\n- Market cap: $10K–$5M\n- Age: 1–14 days\n- Liquidity: min $5K",
+          "bullets": [
+            "Market cap: $10K–$5M",
+            "Age: 1–14 days",
+            "Liquidity: min $5K"
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-3-2",
+          "title": "3.2 · Scanner Filtering Strategy",
+          "duration": "7 min",
+          "content": "# Scanner Filtering Strategy\nUse filters:\n- market cap\n- age\n- liquidity\n- at least one social",
+          "bullets": [
+            "market cap",
+            "age",
+            "liquidity",
+            "at least one social"
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-3-3",
+          "title": "3.3 · Smart Money Tracking",
+          "duration": "7 min",
+          "content": "# Smart Money Tracking\nTrack profitable wallets (Axiom / BullX / GMGN).\nStrong signal: multiple smart wallets buying same coin.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-3-4",
+          "title": "3.4 · Narrative Detection",
+          "duration": "7 min",
+          "content": "# Narrative Detection\nNarratives drive valuation: AI, politics, viral memes, etc.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-3-5",
+          "title": "3.5 · Fast Opportunity Evaluation",
+          "duration": "7 min",
+          "content": "# Fast Opportunity Evaluation\nChecklist:\n1. meme clear\n2. market cap sweet spot\n3. active community\n4. smart wallets buying\n---",
+          "bullets": [
+            "--"
+          ],
+          "blocks": []
+        }
+      ]
+    },
+    {
+      "id": "m4",
+      "title": "Module 4 · Coin Analysis Masterclass",
+      "description": "Extrait du guide compact.",
+      "lessons": [
+        {
+          "id": "l-4-1",
+          "title": "4.1 · The 30-Second Scam Check",
+          "duration": "7 min",
+          "content": "# The 30-Second Scam Check\nCheck:\n- insiders\n- snipers\n- top holders\n- volume quality\n- holders count\n- pro trader participation",
+          "bullets": [
+            "insiders",
+            "snipers",
+            "top holders",
+            "volume quality",
+            "holders count",
+            "pro trader participation"
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-4-2",
+          "title": "4.2 · Insider Wallets",
+          "duration": "7 min",
+          "content": "# Insider Wallets\nToo much insider allocation = dump risk.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-4-3",
+          "title": "4.3 · Sniper Bots",
+          "duration": "7 min",
+          "content": "# Sniper Bots\nToo many snipers can crash a launch.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-4-4",
+          "title": "4.4 · Holder Distribution",
+          "duration": "7 min",
+          "content": "# Holder Distribution\nHealthy = many holders, low concentration.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-4-5",
+          "title": "4.5 · Real vs Fake Volume",
+          "duration": "7 min",
+          "content": "# Real vs Fake Volume\nFake volume signs: repeated identical trades.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-4-6",
+          "title": "4.6 · Holder Growth",
+          "duration": "7 min",
+          "content": "# Holder Growth\nSteady holder growth = stronger network effect.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-4-7",
+          "title": "4.7 · Pro Trader Participation",
+          "duration": "7 min",
+          "content": "# Pro Trader Participation\nUseful signal when combined with other checks.\n---",
+          "bullets": [
+            "--"
+          ],
+          "blocks": []
+        }
+      ]
+    },
+    {
+      "id": "m5",
+      "title": "Module 5 · Entry & Exit Strategies",
+      "description": "Extrait du guide compact.",
+      "lessons": [
+        {
+          "id": "l-5-1",
+          "title": "5.1 · The Entry Timing Problem",
+          "duration": "7 min",
+          "content": "# The Entry Timing Problem\nAvoid buying huge spikes; prefer pullbacks.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-5-2",
+          "title": "5.2 · Fibonacci Retracement",
+          "duration": "7 min",
+          "content": "# Fibonacci Retracement\nKey levels: 0.5 / 0.618 / 0.786.\nGolden pocket: 0.618–0.65.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-5-3",
+          "title": "5.3 · Volume Confirmation",
+          "duration": "7 min",
+          "content": "# Volume Confirmation\nRising price with rising volume = stronger move.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-5-4",
+          "title": "5.4 · Profit Taking Strategy",
+          "duration": "7 min",
+          "content": "# Profit Taking Strategy\nUse staged exits (example 25% at each target).",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-5-5",
+          "title": "5.5 · Position Sizing",
+          "duration": "7 min",
+          "content": "# Position Sizing\nNever risk more than 2% per trade.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-5-6",
+          "title": "5.6 · Recognizing Topping Signals",
+          "duration": "7 min",
+          "content": "# Recognizing Topping Signals\nWatch double tops, exhaustion candles, falling volume.\n---",
+          "bullets": [
+            "--"
+          ],
+          "blocks": []
+        }
+      ]
+    },
+    {
+      "id": "m6",
+      "title": "Module 6 · Risk Management",
+      "description": "Extrait du guide compact.",
+      "lessons": [
+        {
+          "id": "l-6-1",
+          "title": "6.1 · The Multi-Wallet System",
+          "duration": "7 min",
+          "content": "# The Multi-Wallet System\n- Trench Wallet\n- Long-Term Wallet\n- Vault Wallet",
+          "bullets": [
+            "Trench Wallet",
+            "Long-Term Wallet",
+            "Vault Wallet"
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-6-2",
+          "title": "6.2 · Trading With Profit Instead of Capital",
+          "duration": "7 min",
+          "content": "# Trading With Profit Instead of Capital\nUse profits for risk, protect core capital.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-6-3",
+          "title": "6.3 · Capital Allocation Strategy",
+          "duration": "7 min",
+          "content": "# Capital Allocation Strategy\nExample:\n- 70% protected\n- 20% medium risk\n- 10% trench",
+          "bullets": [
+            "70% protected",
+            "20% medium risk",
+            "10% trench"
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-6-4",
+          "title": "6.4 · Emotional Discipline",
+          "duration": "7 min",
+          "content": "# Emotional Discipline\nAvoid greed, FOMO, revenge trading.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-6-5",
+          "title": "6.5 · Long-Term Survival Strategy",
+          "duration": "7 min",
+          "content": "# Long-Term Survival Strategy\nGoal: survive long enough to catch multiple winners.\n---",
+          "bullets": [
+            "--"
+          ],
+          "blocks": []
+        }
+      ]
+    },
+    {
+      "id": "m7",
+      "title": "Module 7 · Trading Psychology",
+      "description": "Extrait du guide compact.",
+      "lessons": [
+        {
+          "id": "l-7-1",
+          "title": "7.1 · The Emotional Rollercoaster",
+          "duration": "7 min",
+          "content": "# The Emotional Rollercoaster\nSeparate emotion from decisions.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-7-2",
+          "title": "7.2 · FOMO",
+          "duration": "7 min",
+          "content": "# FOMO\nEnter on plan, not social pressure.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-7-3",
+          "title": "7.3 · Greed",
+          "duration": "7 min",
+          "content": "# Greed\nTake profits with predefined targets.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-7-4",
+          "title": "7.4 · Revenge Trading",
+          "duration": "7 min",
+          "content": "# Revenge Trading\nPause and reset after losses.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-7-5",
+          "title": "7.5 · Discipline",
+          "duration": "7 min",
+          "content": "# Discipline\nRules separate traders from gamblers.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        },
+        {
+          "id": "l-7-6",
+          "title": "7.6 · Long-Term Mindset",
+          "duration": "7 min",
+          "content": "# Long-Term Mindset\nThink probabilities over many trades.",
+          "bullets": [
+            "Lire la leçon complète.",
+            "Appliquer l'exercice recommandé.",
+            "Valider la progression."
+          ],
+          "blocks": []
+        }
+      ]
+    }
+  ]
+}
