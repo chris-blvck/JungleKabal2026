@@ -231,6 +231,34 @@ const MEMBERS = [
 
 const AGENT_PIPELINE = ["Scout", "OnChain", "Narrative", "Heat Engine", "Risk", "Trader"];
 
+const UTILITY_COLORS = {
+  TRADING: "#22C55E",
+  ANALYTICS: "#3B82F6",
+  MARKETING: "#EC4899",
+  OPS: "#F59E0B",
+  SECURITY: "#EF4444",
+};
+
+const AGENT_META = {
+  "kabalian-scout": { utility: "TRADING", costUsd: 3200, avatar: "/avatars/agent-hood.svg" },
+  "kabalian-onchain-analyst": { utility: "ANALYTICS", costUsd: 2900, avatar: "/avatars/agent-blade.svg" },
+  "meme-heat-engine": { utility: "TRADING", costUsd: 2600, avatar: "/avatars/agent-fire.svg" },
+  "risk-manager-agent": { utility: "SECURITY", costUsd: 2400, avatar: "/avatars/agent-dizzy.svg" },
+  "kkm-sentinel": { utility: "ANALYTICS", costUsd: 2100, avatar: "/avatars/agent-hood.svg" },
+  "trader-execution": { utility: "TRADING", costUsd: 3500, avatar: "/avatars/agent-fire.svg" },
+  "smart-money-hunter": { utility: "ANALYTICS", costUsd: 1900, avatar: "/avatars/agent-love.svg" },
+  "pump-detection-engine": { utility: "ANALYTICS", costUsd: 1800, avatar: "/avatars/agent-fire.svg" },
+  "narrative-tracker": { utility: "MARKETING", costUsd: 1700, avatar: "/avatars/agent-love.svg" },
+  "content-ghostwriter": { utility: "MARKETING", costUsd: 1400, avatar: "/avatars/agent-love.svg" },
+  "distribution-pilot": { utility: "MARKETING", costUsd: 1550, avatar: "/avatars/agent-fire.svg" },
+  "ops-scheduler": { utility: "OPS", costUsd: 1200, avatar: "/avatars/agent-dizzy.svg" },
+  "incident-warden": { utility: "SECURITY", costUsd: 1650, avatar: "/avatars/agent-blade.svg" },
+  "crm-closer": { utility: "OPS", costUsd: 1300, avatar: "/avatars/agent-hood.svg" },
+  "whale-watcher": { utility: "ANALYTICS", costUsd: 900, avatar: "/avatars/agent-hood.svg" },
+  "marketing-forge": { utility: "MARKETING", costUsd: 950, avatar: "/avatars/agent-love.svg" },
+  "ops-orchestrator": { utility: "OPS", costUsd: 850, avatar: "/avatars/agent-dizzy.svg" },
+};
+
 const AGENT_SECTIONS = [
   {
     id: "active",
@@ -346,6 +374,18 @@ const AGENT_SECTIONS = [
     ],
   },
   {
+    id: "next-wave",
+    label: "NEXT WAVE AGENTS",
+    color: "#A78BFA",
+    agents: [
+      { id: "content-ghostwriter", name: "Content Ghostwriter", role: "Thread + Hook Crafter", mission: "Generate on-brand X threads, hooks and CTA variants for launches.", status: "🟡 Maintenance", version: "v0.1", owner: "Content Desk" },
+      { id: "distribution-pilot", name: "Distribution Pilot", role: "Publishing Coordinator", mission: "Schedule and route content drops across channels for max timing impact.", status: "🟡 Maintenance", version: "v0.1", owner: "Marketing Ops" },
+      { id: "ops-scheduler", name: "Ops Scheduler", role: "Sprint Automation", mission: "Automate recurring standups, alerts and delivery reminders.", status: "🟡 Maintenance", version: "v0.2", owner: "Ops" },
+      { id: "incident-warden", name: "Incident Warden", role: "Log Guardian", mission: "Detect platform incidents fast and route to the right owner with context.", status: "🟡 Maintenance", version: "v0.1", owner: "Core Infra" },
+      { id: "crm-closer", name: "CRM Closer", role: "Lead Follow-up Agent", mission: "Prioritize inbound leads and push follow-up sequences automatically.", status: "🟡 Maintenance", version: "v0.1", owner: "Sales Ops" },
+    ],
+  },
+  {
     id: "disabled",
     label: "DISABLED AGENTS",
     color: "#EF4444",
@@ -401,7 +441,7 @@ function ToolCard({ tool }) {
             <span style={{ width: 5, height: 5, borderRadius: "50%", background: tool.statusColor, display: "inline-block", boxShadow: tool.status === "LIVE" ? `0 0 5px ${tool.statusColor}` : "none" }} />
             <span style={{ fontSize: 9, fontWeight: 700, color: tool.statusColor, letterSpacing: 1 }}>{tool.status}</span>
           </div>
-          {!disabled && <span style={{ fontSize: 9, color: JK.gold, fontFamily: "'Cinzel', serif", letterSpacing: 1, opacity: hovered ? 1 : 0, transition: "opacity 0.2s" }}>OPEN →</span>}
+          {!disabled && <span style={{ fontSize: 9, color: "#FFD037", fontFamily: "'Cinzel', serif", letterSpacing: 1, opacity: hovered ? 1 : 0, transition: "opacity 0.2s" }}>OPEN →</span>}
         </div>
       </div>
     </div>
@@ -436,7 +476,7 @@ function MemberChip({ member }) {
       </div>
       <div>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#e8d5a0" }}>{member.name}</div>
-        <div style={{ fontSize: 10, color: JK.muted }}>{member.role}</div>
+        <div style={{ fontSize: 11, color: "#D7D7D7" }}>{member.role}</div>
       </div>
       <span style={{ width: 6, height: 6, borderRadius: "50%", marginLeft: "auto", background: member.online ? JK.green : "rgba(255,255,255,0.12)", boxShadow: member.online ? `0 0 6px ${JK.green}` : "none", flexShrink: 0 }} />
     </div>
@@ -447,10 +487,10 @@ function AgentDetailBlock({ title, items }) {
   if (!items?.length) return null;
   return (
     <div>
-      <div style={{ fontSize: 9, letterSpacing: 1.2, color: JK.gold, marginBottom: 5 }}>{title}</div>
+      <div style={{ fontSize: 9, letterSpacing: 1.2, color: "#FFD037", marginBottom: 6 }}>{title}</div>
       <ul style={{ margin: 0, paddingLeft: 16, display: "grid", gap: 3 }}>
         {items.map(item => (
-          <li key={item} style={{ fontSize: 10, color: JK.muted, lineHeight: 1.4 }}>{item}</li>
+          <li key={item} style={{ fontSize: 11, color: "#D7D7D7", lineHeight: 1.4 }}>{item}</li>
         ))}
       </ul>
     </div>
@@ -458,41 +498,50 @@ function AgentDetailBlock({ title, items }) {
 }
 
 function AgentCard({ agent, expanded, onClick }) {
+  const meta = AGENT_META[agent.id] || {};
+  const status = agent.status || "🟡 Maintenance";
+  const utility = meta.utility || "OPS";
+  const utilityColor = UTILITY_COLORS[utility] || JK.gold;
+  const costUsd = meta.costUsd ?? 0;
+  const avatar = meta.avatar || "/avatars/agent-hood.svg";
+
   return (
     <div
       onClick={onClick}
       style={{
-        background: expanded ? "rgba(245,166,35,0.08)" : JK.card,
-        border: `1px solid ${expanded ? JK.border2 : JK.border}`,
+        background: expanded ? "rgba(245,166,35,0.16)" : "rgba(255,255,255,0.03)",
+        border: `1px solid ${expanded ? JK.gold : "rgba(245,166,35,0.22)"}`,
         borderRadius: 14,
-        padding: "14px 16px",
+        padding: "16px 16px",
         cursor: "pointer",
         transition: "all 0.2s",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-        <div style={{ width: 34, height: 34, borderRadius: "50%", border: `1px solid ${JK.border2}`, display: "grid", placeItems: "center", background: "rgba(245,166,35,0.10)", fontSize: 16 }}>
-          🐆
+        <div style={{ width: 36, height: 36, borderRadius: "50%", border: `1px solid ${JK.border2}`, overflow: "hidden", background: "rgba(245,166,35,0.10)", flexShrink: 0 }}>
+          <img src={avatar} alt={agent.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: "'Cinzel', serif", fontSize: 12, letterSpacing: 1, color: "#e8d5a0" }}>{agent.name}</div>
-          <div style={{ fontSize: 10, color: JK.muted }}>{agent.role}</div>
+          <div style={{ fontSize: 11, color: "#D7D7D7" }}>{agent.role}</div>
         </div>
-        <span style={{ fontSize: 9, color: JK.gold }}>{expanded ? "HIDE" : "VIEW"}</span>
+        <span style={{ fontSize: 9, color: "#FFD037" }}>{expanded ? "HIDE" : "VIEW"}</span>
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-        <Badge color={JK.green}>{agent.status}</Badge>
+        <Badge color={status.includes("🔴") ? JK.red : status.includes("🟡") ? JK.gold : JK.green}>{status}</Badge>
         <Badge>{agent.version}</Badge>
         <Badge>{agent.owner}</Badge>
+        <Badge color={utilityColor}>{utility}</Badge>
+        <Badge>${costUsd}/mo</Badge>
       </div>
 
-      <div style={{ fontSize: 10, color: JK.muted, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 11, color: "#D7D7D7", lineHeight: 1.5 }}>
         <span style={{ color: JK.gold }}>Mission:</span> {agent.mission}
       </div>
 
       {expanded && (
-        <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+        <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
           <AgentDetailBlock title="DATA SOURCES" items={agent.dataSources} />
           <AgentDetailBlock title="OUTPUTS" items={agent.outputs} />
           <AgentDetailBlock title="RULES" items={agent.rules} />
@@ -530,7 +579,7 @@ function AgentSection({ section, expandedId, setExpandedId }) {
 // ─── PAGE ────────────────────────────────────────────────────
 
 export default function TeamHome() {
-  const [expandedAgentId, setExpandedAgentId] = useState(null);
+  const [expandedAgentId, setExpandedAgentId] = useState("kabalian-scout");
 
   return (
     <Shell
@@ -552,10 +601,10 @@ export default function TeamHome() {
         {SECTIONS.map(section => <SectionRow key={section.id} section={section} />)}
       </Card>
 
-      <Card style={{ marginBottom: 20 }}>
+      <Card style={{ marginBottom: 20, background: "rgba(28,28,28,0.95)" }}>
         <SectionTitle>Agent <span style={{ color: JK.gold }}>AI</span></SectionTitle>
-        <div style={{ fontSize: 11, color: JK.muted, marginBottom: 12 }}>
-          Multi-agent stack with trading, marketing/content and ops placeholders. Click an agent card to inspect its identity, mission, inputs, outputs, commands, logs and permissions.
+        <div style={{ fontSize: 12, color: "#DADADA", marginBottom: 12, lineHeight: 1.6 }}>
+          Overview of trading, marketing/content and ops agents. Each card now shows utility tags (color-coded) and monthly cost in USD. Click a card to open the full profile.
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
           {AGENT_PIPELINE.map((step, index) => (
