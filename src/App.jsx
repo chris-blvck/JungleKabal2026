@@ -13,6 +13,8 @@ import Arsenal from './pages/Arsenal';
 import DieInTheJungle from './pages/DieInTheJungle';
 import KabalAcademyMVP from './pages/KabalAcademyMVP';
 import KabalAcademyAdmin from './pages/KabalAcademyAdmin';
+import TrackRecord from './pages/TrackRecord';
+import TrophyRoom from './pages/TrophyRoom';
 
 const isTeamSubdomain =
   typeof window !== 'undefined' &&
@@ -60,6 +62,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/diejungle" element={<DieInTheJungle />} />
+        <Route path="/trophy-room" element={<TrophyRoom />} />
         <Route path="*"          element={<LandingPage />} />
       </Routes>
     </BrowserRouter>
