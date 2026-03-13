@@ -1041,9 +1041,9 @@ function loadLeaderboard() {
   }
 }
 
-function SectionCard({ title, children, right }) {
+function SectionCard({ title, children, right, className = "" }) {
   return (
-    <div className="rounded-[20px] border border-white/15 bg-black/45 p-2 shadow-[0_14px_30px_rgba(0,0,0,0.28)] backdrop-blur-md md:p-2.5">
+    <div className={`rounded-[20px] border border-white/15 bg-black/45 p-1.5 shadow-[0_14px_30px_rgba(0,0,0,0.28)] backdrop-blur-md md:p-2.5 ${className}`}>
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="font-serif text-[11px] italic uppercase tracking-[0.22em] text-amber-300">{title}</div>
         {right ? <div>{right}</div> : null}
@@ -1622,17 +1622,17 @@ export default function DieInTheJungleUpgraded() {
 
   return (
     <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.78)), url(${BG_URL})` }}>
-      <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-2 pb-3">
-        <div className="rounded-[22px] border border-amber-300/20 bg-black/35 p-2 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md">
+      <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-1.5 pb-3 md:gap-2">
+        <div className="rounded-[22px] border border-amber-300/20 bg-black/35 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md md:p-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <img src={LOGO_URL} alt="Kabal logo" className="h-9 w-9 object-contain" />
               <div>
-                <h1 className="font-serif text-lg italic tracking-wide text-amber-300 md:text-2xl">Die in the Jungle</h1>
+                <h1 className="font-serif text-base italic tracking-wide text-amber-300 md:text-2xl">Die in the Jungle</h1>
                 <p className="text-[10px] text-zinc-100 md:text-xs">Roguelite run · intents · reroll · artifacts · endless zones</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 md:gap-2">
               <div className="rounded-xl border border-white/10 bg-black/40 px-2 py-1.5 text-right">
                 <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Zone</div>
                 <div className="text-xs font-black text-amber-300 md:text-sm">{game.floor}</div>
@@ -1649,7 +1649,7 @@ export default function DieInTheJungleUpgraded() {
           </div>
         </div>
 
-        <div className="grid shrink-0 gap-2 md:grid-cols-[1.15fr_1fr_1.15fr]">
+        <div className="grid shrink-0 gap-1.5 md:gap-2 md:grid-cols-[1.15fr_1fr_1.15fr]">
           <SectionCard title="Enemy panel">
             <div className="rounded-[18px] border border-rose-300/30 bg-gradient-to-b from-rose-950/45 to-black/85 p-2">
               <div className="flex h-full flex-col items-center justify-center gap-2 rounded-[14px] border border-rose-300/40 bg-black/35 p-2 text-center">
@@ -1658,7 +1658,7 @@ export default function DieInTheJungleUpgraded() {
                   alt={game.enemy.name}
                   animate={game.enemyAttackPulse ? { x: [0, -10, 10, -8, 8, 0], scale: [1, 1.06, 1] } : intent.type === "attack" ? { scale: [1, 1.03, 1], x: [0, -2, 2, 0] } : { scale: 1, x: 0 }}
                   transition={{ duration: 0.45 }}
-                  className="h-[175px] w-full object-contain contrast-110 saturate-110 drop-shadow-[0_14px_24px_rgba(0,0,0,0.6)]"
+                  className="h-[128px] w-full object-contain contrast-110 saturate-110 drop-shadow-[0_14px_24px_rgba(0,0,0,0.6)] md:h-[175px]"
                 />
                 <div className="text-xs font-black md:text-sm">{game.enemy.emoji} {game.enemy.name}</div>
                 <div className="text-[9px] text-zinc-300">{game.enemy.mood}</div>
@@ -1706,7 +1706,7 @@ export default function DieInTheJungleUpgraded() {
                   alt="Kabalian"
                   animate={game.avatarMood === "hurt" ? { x: [0, -2, 2, -2, 0] } : game.avatarMood === "victory" ? { y: [0, -3, 0] } : { x: 0, y: 0 }}
                   transition={{ duration: 0.45 }}
-                  className={`h-[175px] w-full rounded-2xl border border-white/10 bg-black/40 object-contain ${avatarRing}`}
+                  className={`h-[128px] w-full rounded-2xl border border-white/10 bg-black/40 object-contain md:h-[175px] ${avatarRing}`}
                 />
                 <div className="min-w-0">
                   <div className="font-black">Kabalian</div>
@@ -1737,7 +1737,7 @@ export default function DieInTheJungleUpgraded() {
           </SectionCard>
         </div>
 
-        <SectionCard title="Dice + Action" right={<div className="text-[9px] text-zinc-300">Tap die, then slot</div>}>
+        <SectionCard title="Dice + Action" className="order-1" right={<div className="text-[9px] text-zinc-300">Tap die, then slot</div>}>
           <div className="mb-1 flex flex-wrap justify-center gap-1 text-[9px] md:text-[10px]">
             <div className="rounded-xl border border-zinc-300/30 bg-zinc-900/70 px-2 py-1">🎲 Dice 1-6 (black)</div>
             <div className="rounded-xl border border-pink-200/35 bg-pink-500/20 px-2 py-1">❤️ Dé Health 1-6</div>
@@ -1802,7 +1802,7 @@ export default function DieInTheJungleUpgraded() {
 
 
 
-        <SectionCard title="Board" right={<div className="text-[9px] text-zinc-300">Place dice on available slots</div>}>
+        <SectionCard title="Board" className="order-3 md:order-none" right={<div className="text-[9px] text-zinc-300">Place dice on available slots</div>}>
           {activeDieMeta && game.phase === "place" ? (
             <div className="mb-2 flex items-center gap-2 rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-2 py-1.5 text-[11px] text-white">
               <span className="text-lg">{activeDieMeta.emoji}</span>
@@ -1813,10 +1813,10 @@ export default function DieInTheJungleUpgraded() {
             </div>
           ) : null}
 
-          <div className="grid justify-center gap-1" style={{ gridTemplateColumns: "40px repeat(3, 84px)" }}>
+          <div className="grid justify-center gap-1 [grid-template-columns:32px_repeat(3,72px)] md:[grid-template-columns:40px_repeat(3,84px)]">
             {ROW_INFO.map((row, y) => (
               <React.Fragment key={row.name}>
-                <div className="h-[84px] rounded-[10px] border border-white/15 bg-black flex flex-col items-center justify-center text-[10px] font-black text-white">
+                <div className="h-[72px] rounded-[10px] border border-white/15 bg-black flex flex-col items-center justify-center text-[9px] font-black text-white md:h-[84px] md:text-[10px]">
                   <span>{row.emoji}</span>
                   <span>x{rowMultiplier(game.player, y)}</span>
                   <span className="text-[8px] text-zinc-300">{row.role}</span>
@@ -1832,7 +1832,7 @@ export default function DieInTheJungleUpgraded() {
                       onClick={() => activeDieIndex !== null && placeDie(activeDieIndex, x, y)}
                       onMouseEnter={() => setHoveredSlot({ x, y })}
                       onMouseLeave={() => setHoveredSlot(null)}
-                      className={`relative h-[84px] w-[84px] overflow-hidden rounded-[10px] border text-white transition ${canPlace ? "border-amber-300/60 ring-2 ring-amber-300/20" : "border-white/20"}`}
+                      className={`relative h-[72px] w-[72px] overflow-hidden rounded-[10px] border text-white transition md:h-[84px] md:w-[84px] ${canPlace ? "border-amber-300/60 ring-2 ring-amber-300/20" : "border-white/20"}`}
                     >
                       <img src={LANE_IMAGES[y]} className="absolute inset-0 h-full w-full object-contain" />
                       {cell !== null ? (
@@ -1868,7 +1868,7 @@ export default function DieInTheJungleUpgraded() {
         </SectionCard>
 
 
-        <SectionCard title="Combat log" right={<button onClick={() => setGame((g) => ({ ...g, showAllLogs: !g.showAllLogs }))} className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-bold text-white hover:bg-white/20">{game.showAllLogs ? "▲" : "▼"}</button>}>
+        <SectionCard title="Combat log" className="order-2 md:order-none" right={<button onClick={() => setGame((g) => ({ ...g, showAllLogs: !g.showAllLogs }))} className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-bold text-white hover:bg-white/20">{game.showAllLogs ? "▲" : "▼"}</button>}>
           <div className="space-y-1">
             {latestLogs.map((line, i) => (
               <div key={`${line}-${i}`} className="rounded-[12px] border border-white/10 bg-zinc-900/80 px-2.5 py-1.5 text-[11px] md:text-xs">{line}</div>
@@ -1883,7 +1883,7 @@ export default function DieInTheJungleUpgraded() {
           <AnimatePresence>
             {game.showAllLogs ? (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                <div className="max-h-28 space-y-1 overflow-auto pt-1.5">
+                <div className="max-h-40 space-y-1 overflow-auto pt-1.5 md:max-h-28">
                   {game.log.slice(3).map((line, i) => (
                     <div key={`${line}-${i}`} className="rounded-[12px] border border-white/10 bg-black/35 px-2.5 py-1.5 text-[10px] text-zinc-100">{line}</div>
                   ))}
