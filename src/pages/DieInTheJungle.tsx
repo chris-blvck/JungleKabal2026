@@ -65,11 +65,15 @@ const DICE_IMAGES_BY_KIND = {
     1: "https://i.postimg.cc/x8qstddp/Dice-shield-1.png",
     2: "https://i.postimg.cc/Zngwgh9P/Dice-Shield-2.png",
     3: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+    3: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
     4: "https://i.postimg.cc/L57x7Mq3/Dice-Shield-4.png",
     5: "https://i.postimg.cc/mkqmqGcp/Dice-Shield-5.png",
     6: "https://i.postimg.cc/90SLSj4K/Dice-Shield-6.png",
   },
 };
+
+const GAME_STATE_STORAGE_KEY = "jungle_kabal_run_state_v1";
+const LEADERBOARD_STORAGE_KEY = "jungle_kabal_leaderboard_v1";
 
 const GAME_STATE_STORAGE_KEY = "jungle_kabal_run_state_v1";
 const LEADERBOARD_STORAGE_KEY = "jungle_kabal_leaderboard_v1";
@@ -1012,7 +1016,7 @@ function makeInitialState() {
   return {
     floor,
     room: 0,
-    phase: "roll",
+    phase: "reward",
     route,
     enemy: { ...route[0] },
     dice: [],
@@ -1044,6 +1048,34 @@ function makeInitialState() {
     comboPopup: null,
     lastOutcome: null,
   };
+  safe.artifactsOffered = (safe.artifactsOffered || []).map((id) => byId.get(id)).filter(Boolean);
+  safe.enemyAttackPulse = 0;
+  safe.damagePopups = [];
+  safe.actionFlash = null;
+  safe.killPopup = null;
+  return safe;
+}
+
+function loadSavedGameState() {
+  try {
+    const raw = localStorage.getItem(GAME_STATE_STORAGE_KEY);
+    if (!raw) return makeInitialState();
+    const parsed = JSON.parse(raw);
+    return hydrateGameState(parsed) || makeInitialState();
+  } catch {
+    return makeInitialState();
+  }
+}
+
+function loadLeaderboard() {
+  try {
+    const raw = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 function serializeGameState(game) {
@@ -1272,6 +1304,48 @@ export default function DieInTheJungleUpgraded() {
     const characterName = game.player.characterId === "kkm" ? "KKM" : "Kabalian";
     const text = `Reached Zone ${game.floor} in Die in the Jungle%0AScore: ${game.score}%0ACharacter: ${characterName}%0ASeed: ${game.runSeed}%0A%23KabalBlessing`;
     window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank", "noopener,noreferrer");
+  }
+
+  function shiftSelectedDie(direction) {
+    if (game.phase !== "place") return;
+    setGame((g) => ({
+      ...g,
+      selectedDieIndex: cycleDieIndex(g.dice, activeDieIndex, direction),
+    }));
+  }
+
+  function connectWallet() {
+    const provider = (window as any).solana;
+    if (!provider?.connect) {
+      setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "⚠️ Phantom wallet not found", tone: "rose" } }));
+      return;
+    }
+    provider.connect()
+      .then((response) => {
+        const address = response?.publicKey?.toString?.() || "";
+        setWalletAddress(address);
+        setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "✅ Wallet connected", tone: "emerald" } }));
+      })
+      .catch(() => {
+        setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "❌ Wallet connect failed", tone: "rose" } }));
+      });
+  }
+
+  function submitScoreToLeaderboard() {
+    if (!game.runEnded) return;
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      wallet: walletAddress || "guest",
+      score: game.score,
+      zone: game.floor,
+      at: new Date().toISOString(),
+    };
+    const next = [entry, ...leaderboard]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20);
+    setLeaderboard(next);
+    localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(next));
+    setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "🏁 Score submitted", tone: "emerald" } }));
   }
 
   function pushLog(lines) {
@@ -2073,7 +2147,6 @@ export default function DieInTheJungleUpgraded() {
             )) : <div className="text-[11px] text-zinc-300">No score yet. Finish a run and submit.</div>}
           </div>
         </SectionCard>
-
 
         <AnimatePresence>
           {game.damagePopups.map((popup) => (

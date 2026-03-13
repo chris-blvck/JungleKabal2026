@@ -27,6 +27,17 @@ const SECTIONS = [
         href: "/finance/pnl-calendar",
       },
       {
+        id: "track-record",
+        icon: "🏆",
+        name: "TRACK RECORD",
+        desc: "Top PNL cards · Full archive · Sort by ROI/SOL/USD",
+        tag: "PROOF",
+        tagColor: JK.gold,
+        status: "LIVE",
+        statusColor: JK.green,
+        href: "/finance/track-record",
+      },
+      {
         id: "narrative-board",
         icon: "🗺",
         name: "NARRATIVE BOARD",
@@ -58,6 +69,17 @@ const SECTIONS = [
         status: "LIVE",
         statusColor: JK.gold,
         href: "/trading/kredo",
+      },
+      {
+        id: "kabal-academy",
+        icon: "🎓",
+        name: "KABAL ACADEMY",
+        desc: "Training modules · Quizzes · Exercises",
+        tag: "LEARN",
+        tagColor: "#60A5FA",
+        status: "LIVE",
+        statusColor: JK.green,
+        href: "/academy",
       },
     ],
   },
@@ -306,7 +328,7 @@ export default function TeamHome() {
         <StatBox value="90"   label="Sprint days"    color="gold" />
         <StatBox value="5"    label="Active members" color="gold" />
         <StatBox value="$31K" label="Sprint target"  color="green" />
-        <StatBox value="8"    label="Live tools"     color="gold" badge="↑ LIVE" />
+        <StatBox value="9"    label="Live tools"     color="gold" badge="↑ LIVE" />
       </div>
 
       <Card style={{ marginBottom: 20 }}>
