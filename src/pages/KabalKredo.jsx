@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 // ─── DESIGN TOKENS ──────────────────────────────────────────
 const JK = {
@@ -778,8 +778,193 @@ function PillarSection({ pillar, rules }) {
 
 // ─── MAIN ────────────────────────────────────────────────────
 
+const AGENT_TRAINING_TARGETS = [
+  "Kabalian Scalper",
+  "Breakout Conviction",
+  "Risk Manager",
+  "KKM Sentinel",
+  "Token Architect",
+  "Brand Generator",
+  "Token Deployer",
+  "Launch Marketing",
+  "Momentum Agent",
+];
+
+const RESOURCE_CATEGORIES = ["Lore", "Trading", "Brand", "Ops", "On-chain", "Marketing"];
+
+function RuleAdminPanel({ rules, setRules }) {
+  const [draft, setDraft] = useState({ title: "", pillar: "execution", tag: "training", tier: "secondary", fatal: false });
+
+  const removeRule = (id) => setRules(prev => prev.filter(r => r.id !== id));
+  const addRule = () => {
+    if (!draft.title.trim()) return;
+    const id = `U-${String(Date.now()).slice(-5)}`;
+    setRules(prev => [...prev, { ...draft, id, title: draft.title.trim() }]);
+    setDraft({ title: "", pillar: "execution", tag: "training", tier: "secondary", fatal: false });
+  };
+
+  const exportTxt = () => {
+    const txt = rules.map(r => `${r.id} | ${r.pillar} | ${r.tier} | ${r.title} | tag:${r.tag}`).join("\n");
+    const blob = new Blob([txt], { type: "text/plain;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "kabal-kredo-rules.txt";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  const exportCsv = () => {
+    const rows = ["id,pillar,tier,fatal,tag,title", ...rules.map(r => `${r.id},${r.pillar},${r.tier},${r.fatal ? "true" : "false"},${r.tag},"${r.title.replaceAll('"','""')}"`)];
+    const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "kabal-kredo-rules.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  return (
+    <div style={{ background: JK.card, border: `1px solid ${JK.border2}`, borderRadius: 18, padding: 16, marginBottom: 26 }}>
+      <div style={{ fontFamily:"'Cinzel',serif", fontSize:11, letterSpacing:"0.25em", color:JK.gold, textTransform:"uppercase", marginBottom:10 }}>Kredo Admin · Rule Editor</div>
+      <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr", gap:8, marginBottom:8 }}>
+        <input value={draft.title} onChange={(e)=>setDraft(v=>({ ...v, title:e.target.value }))} placeholder="New rule title" style={{ background:"#111", border:`1px solid ${JK.border}`, borderRadius:8, color:JK.white, padding:"8px 10px", fontSize:12 }} />
+        <select value={draft.pillar} onChange={(e)=>setDraft(v=>({ ...v, pillar:e.target.value }))} style={{ background:"#111", border:`1px solid ${JK.border}`, borderRadius:8, color:JK.white, padding:"8px 10px", fontSize:12 }}>
+          {PILLARS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+        </select>
+        <select value={draft.tier} onChange={(e)=>setDraft(v=>({ ...v, tier:e.target.value }))} style={{ background:"#111", border:`1px solid ${JK.border}`, borderRadius:8, color:JK.white, padding:"8px 10px", fontSize:12 }}>
+          <option value="primary">primary</option><option value="secondary">secondary</option>
+        </select>
+        <button onClick={addRule} style={{ background:"rgba(40,217,111,0.16)", border:"1px solid rgba(40,217,111,0.4)", color:JK.green, borderRadius:8, cursor:"pointer" }}>Add rule</button>
+      </div>
+      <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+        <button onClick={exportTxt} style={{ background:"rgba(212,154,42,0.14)", border:`1px solid ${JK.border2}`, color:JK.gold, borderRadius:8, padding:"6px 10px", cursor:"pointer" }}>Export TXT</button>
+        <button onClick={exportCsv} style={{ background:"rgba(59,130,246,0.16)", border:"1px solid rgba(59,130,246,0.45)", color:"#93C5FD", borderRadius:8, padding:"6px 10px", cursor:"pointer" }}>Export CSV</button>
+      </div>
+      <div style={{ maxHeight:180, overflow:"auto", display:"grid", gap:6 }}>
+        {rules.map(r => (
+          <div key={r.id} style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.02)", border:`1px solid ${JK.border}`, borderRadius:8, padding:"6px 8px" }}>
+            <span style={{ fontSize:10, color:JK.gold, minWidth:46 }}>{r.id}</span>
+            <span style={{ fontSize:11, color:JK.muted, flex:1 }}>{r.title}</span>
+            <button onClick={() => removeRule(r.id)} style={{ background:"rgba(227,74,50,0.12)", border:"1px solid rgba(227,74,50,0.3)", color:JK.redSoft, borderRadius:6, cursor:"pointer" }}>remove</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ResourceBankPanel({ resources, setResources }) {
+  const [category, setCategory] = useState(RESOURCE_CATEGORIES[0]);
+  const [targets, setTargets] = useState([AGENT_TRAINING_TARGETS[0]]);
+  const [note, setNote] = useState("");
+
+  const onUpload = (ev) => {
+    const files = Array.from(ev.target.files || []);
+    if (!files.length) return;
+    const batch = files.map(f => ({ id: `${Date.now()}-${f.name}`, name: f.name, category, targets, note, status: "Queued to learning pipe" }));
+    setResources(prev => [...batch, ...prev]);
+    setNote("");
+  };
+
+  const toggleTarget = (target) => {
+    setTargets(prev => prev.includes(target) ? prev.filter(t => t !== target) : [...prev, target]);
+  };
+
+  return (
+    <div style={{ background: JK.card, border: `1px solid ${JK.border2}`, borderRadius: 18, padding: 16, marginBottom: 26 }}>
+      <div style={{ fontFamily:"'Cinzel',serif", fontSize:11, letterSpacing:"0.25em", color:JK.gold, textTransform:"uppercase", marginBottom:10 }}>Resource Bank · Agent Learning Pipe</div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:8 }}>
+        <select value={category} onChange={(e)=>setCategory(e.target.value)} style={{ background:"#111", border:`1px solid ${JK.border}`, borderRadius:8, color:JK.white, padding:"8px 10px" }}>
+          {RESOURCE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <input value={note} onChange={(e)=>setNote(e.target.value)} placeholder="Resource note/context" style={{ background:"#111", border:`1px solid ${JK.border}`, borderRadius:8, color:JK.white, padding:"8px 10px" }} />
+      </div>
+      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8 }}>
+        {AGENT_TRAINING_TARGETS.map(target => (
+          <button key={target} type="button" onClick={() => toggleTarget(target)} style={{ borderRadius:999, padding:"4px 10px", cursor:"pointer", border:`1px solid ${targets.includes(target) ? JK.border2 : JK.border}`, background: targets.includes(target) ? "rgba(212,154,42,0.12)" : "rgba(255,255,255,0.02)", color: targets.includes(target) ? JK.gold : JK.muted }}>
+            {target}
+          </button>
+        ))}
+      </div>
+      <label style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(59,130,246,0.16)", border:"1px solid rgba(59,130,246,0.45)", color:"#93C5FD", borderRadius:8, padding:"8px 12px", cursor:"pointer", marginBottom:10 }}>
+        Upload resources (.txt .md .csv)
+        <input type="file" accept=".txt,.md,.csv,text/plain,text/csv" multiple onChange={onUpload} style={{ display:"none" }} />
+      </label>
+      <div style={{ maxHeight:180, overflow:"auto", display:"grid", gap:6 }}>
+        {resources.map(r => (
+          <div key={r.id} style={{ border:`1px solid ${JK.border}`, borderRadius:8, padding:"8px 10px", background:"rgba(255,255,255,0.02)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", gap:8 }}>
+              <div style={{ fontSize:12, color:JK.white }}>{r.name}</div>
+              <span style={{ fontSize:10, color:JK.green }}>{r.status}</span>
+            </div>
+            <div style={{ fontSize:10, color:JK.mutedDim }}>{r.category} · {r.targets.join(", ")}</div>
+            {r.note ? <div style={{ fontSize:10, color:JK.muted }}>{r.note}</div> : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AdminCollapsibleDock({ adminRules, setAdminRules, resources, setResources }) {
+  return (
+    <div style={{ marginTop: 30, marginBottom: 18 }}>
+      <details style={{
+        background: "rgba(12,12,12,0.92)",
+        border: `1px solid ${JK.border}`,
+        borderRadius: 12,
+        overflow: "hidden",
+      }}>
+        <summary style={{
+          listStyle: "none",
+          cursor: "pointer",
+          padding: "11px 14px",
+          fontFamily: "'Cinzel',serif",
+          fontSize: 10,
+          letterSpacing: "0.2em",
+          textTransform: "uppercase",
+          color: JK.muted,
+          borderBottom: `1px solid rgba(212,154,42,0.08)`,
+        }}>
+          Admin tools (rules + resources)
+        </summary>
+        <div style={{ padding: 12 }}>
+          <RuleAdminPanel rules={adminRules} setRules={setAdminRules} />
+          <ResourceBankPanel resources={resources} setResources={setResources} />
+        </div>
+      </details>
+    </div>
+  );
+}
+
+
 export default function KabalMasterRules() {
   const [activeFilter, setActiveFilter] = useState("all");
+  const [adminRules, setAdminRules] = useState(() => {
+    if (typeof window === "undefined") return RULES.map(r => ({ id: r.id, title: r.title, pillar: r.pillar, tier: r.tier, fatal: !!r.fatal, tag: r.tag }));
+    try {
+      const saved = localStorage.getItem("jk-kredo-admin-rules");
+      return saved ? JSON.parse(saved) : RULES.map(r => ({ id: r.id, title: r.title, pillar: r.pillar, tier: r.tier, fatal: !!r.fatal, tag: r.tag }));
+    } catch {
+      return RULES.map(r => ({ id: r.id, title: r.title, pillar: r.pillar, tier: r.tier, fatal: !!r.fatal, tag: r.tag }));
+    }
+  });
+  const [resources, setResources] = useState(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      return JSON.parse(localStorage.getItem("jk-learning-resources") || "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("jk-kredo-admin-rules", JSON.stringify(adminRules));
+  }, [adminRules]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("jk-learning-resources", JSON.stringify(resources));
+  }, [resources]);
 
   const fatalCount = RULES.filter(r => r.fatal).length;
   const primaryCount = RULES.filter(r => r.tier === "primary").length;
@@ -978,6 +1163,13 @@ export default function KabalMasterRules() {
             background:`linear-gradient(to bottom, ${JK.gold}88, transparent)`,
           }}/>
         </div>
+
+        <AdminCollapsibleDock
+          adminRules={adminRules}
+          setAdminRules={setAdminRules}
+          resources={resources}
+          setResources={setResources}
+        />
       </div>
 
       {/* Footer */}
