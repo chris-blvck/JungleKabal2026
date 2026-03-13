@@ -27,6 +27,17 @@ const SECTIONS = [
         href: "/finance/pnl-calendar",
       },
       {
+        id: "track-record",
+        icon: "🏆",
+        name: "TRACK RECORD",
+        desc: "Top PNL cards · Full archive · Sort by ROI/SOL/USD",
+        tag: "PROOF",
+        tagColor: JK.gold,
+        status: "LIVE",
+        statusColor: JK.green,
+        href: "/finance/track-record",
+      },
+      {
         id: "narrative-board",
         icon: "🗺",
         name: "NARRATIVE BOARD",
