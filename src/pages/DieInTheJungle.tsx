@@ -6,6 +6,7 @@ const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
 const LOGO_URL = "https://i.postimg.cc/rwdjP9rb/logo-jaune.png";
 const PLAYER_AVATAR_URL = "https://i.postimg.cc/B6rBLmBt/Kabalian-Face.png";
 const KKM_AVATAR_URL = "https://i.postimg.cc/Kv8zygVk/KKM-Mascot-2.png";
+const STORY_FRAGMENT_IMAGE_URL = "https://i.postimg.cc/DwMdGXHm/Kabalian-or-KKM.png";
 const PLAYER_EMOTION_URLS = {
   focus: "https://i.postimg.cc/K8xhZnpB/Chat-GPT-Image-Mar-12-2026-03-09-30-PM.png",
   fierce: "https://i.postimg.cc/K8xhZnpB/Chat-GPT-Image-Mar-12-2026-03-09-30-PM.png",
@@ -63,6 +64,7 @@ const DICE_IMAGES_BY_KIND = {
   shield: {
     1: "https://i.postimg.cc/x8qstddp/Dice-shield-1.png",
     2: "https://i.postimg.cc/Zngwgh9P/Dice-Shield-2.png",
+    3: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
     4: "https://i.postimg.cc/L57x7Mq3/Dice-Shield-4.png",
     5: "https://i.postimg.cc/mkqmqGcp/Dice-Shield-5.png",
     6: "https://i.postimg.cc/90SLSj4K/Dice-Shield-6.png",
@@ -614,12 +616,11 @@ function getDieMeta(die) {
   if (!die) return { kind: "attack", label: "Attack", emoji: "⚔️", desc: "" };
   if (die.kind === "shield") return { kind: "shield", label: "Shield", emoji: "🛡️", desc: `Gain ${die.value} shield before row multiplier.` };
   if (die.kind === "heal") return { kind: "heal", label: "Health", emoji: "❤️", desc: `Heal ${die.value} before row multiplier.` };
-  return { kind: "attack", label: "Dice", emoji: "🎲", desc: `Deal ${die.value} damage before row multiplier.` };
+  return { kind: "attack", label: "Attack", emoji: "⚔️", desc: `Deal ${die.value} damage before row multiplier.` };
 }
 
 function getDieImage(die) {
   if (!die) return DICE_IMAGES[1];
-  if (die.kind === "shield" && die.value === 3) return DICE_IMAGES_BY_KIND.shield[2];
   return DICE_IMAGES_BY_KIND[die.kind]?.[die.value] || DICE_IMAGES[die.value];
 }
 
@@ -672,6 +673,24 @@ function getNoHitMultiplier(noHitTurns) {
   if (noHitTurns >= 6) return 2;
   if (noHitTurns >= 3) return 1.5;
   return 1;
+}
+
+function getStoryFragment(floor, characterId) {
+  const isKKM = characterId === "kkm";
+  if (floor <= 1) {
+    return {
+      title: "KABAL MEMORY · Fragment 01",
+      lines: isKKM
+        ? ["The jungle rewards patience.", "Armor first, then profit.", "Survive now, send it later."]
+        : ["No fear, only pressure.", "Strike early, score fast.", "Every roll can be alpha."],
+    };
+  }
+  return {
+    title: "KABAL MEMORY · Fragment 02",
+    lines: isKKM
+      ? ["Big shield. Slow breath.", "Let chaos hit the armor.", "Then collect the score burst." ]
+      : ["Speed beats hesitation.", "Overkill is the signal.", "Aggro turns runs into legends."],
+  };
 }
 
 function buildArtifactChoices(player) {
@@ -1205,6 +1224,7 @@ export default function DieInTheJungleUpgraded() {
   const intentTimeline = getIntentTimeline(game.enemy, 3);
   const expectedOutcome = estimatePlayerOutcome(game.grid, game.player);
   const streakMultiplier = getNoHitMultiplier(game.noHitTurns);
+  const storyFragment = getStoryFragment(game.floor, game.player.characterId);
 
   function shiftSelectedDie(direction) {
     if (game.characterSelectPending || game.phase !== "place") return;
@@ -1888,9 +1908,9 @@ export default function DieInTheJungleUpgraded() {
 
         <SectionCard title="Dice + Action" className="order-1" right={<div className="text-[9px] text-zinc-300">Tap die, then slot</div>}>
           <div className="mb-1 flex flex-wrap justify-center gap-1 text-[9px] md:text-[10px]">
-            <div className="rounded-xl border border-zinc-300/30 bg-zinc-900/70 px-2 py-1">🎲 Dice 1-6 (black)</div>
+            <div className="rounded-xl border border-zinc-300/30 bg-zinc-900/70 px-2 py-1">⚔️ Attack die 1-6 (black)</div>
             <div className="rounded-xl border border-pink-200/35 bg-pink-500/20 px-2 py-1">❤️ Dé Health 1-6</div>
-            <div className="rounded-xl border border-white/50 bg-white/15 px-2 py-1">🛡️ Dé Shield 1-6</div>
+            <div className="rounded-xl border border-white/50 bg-white/15 px-2 py-1">🛡️ Shield die 1-6 (white)</div>
             <div className="rounded-xl border border-white/10 bg-black/35 px-2 py-1">🔥 Combo = 3 attack dice</div>
           </div>
           <div className="mb-1 grid gap-1 rounded-[12px] border border-white/10 bg-black/35 p-2 text-[11px] md:grid-cols-2">
@@ -1952,7 +1972,7 @@ export default function DieInTheJungleUpgraded() {
 
 
 
-        <SectionCard title="Board" className="order-3 md:order-none" right={<div className="text-[9px] text-zinc-300">Place dice on available slots</div>}>
+        <SectionCard title="Board" className="order-2 md:order-none" right={<div className="text-[9px] text-zinc-300">Place dice on available slots</div>}>
           {activeDieMeta && game.phase === "place" ? (
             <div className="mb-2 flex items-center gap-2 rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-2 py-1.5 text-[11px] text-white">
               <span className="text-lg">{activeDieMeta.emoji}</span>
@@ -2018,7 +2038,7 @@ export default function DieInTheJungleUpgraded() {
         </SectionCard>
 
 
-        <SectionCard title="Combat log" className="order-2 md:order-none" right={<button onClick={() => setGame((g) => ({ ...g, showAllLogs: !g.showAllLogs }))} className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-bold text-white hover:bg-white/20">{game.showAllLogs ? "▲" : "▼"}</button>}>
+        <SectionCard title="Combat log" className="order-3 md:order-none" right={<button onClick={() => setGame((g) => ({ ...g, showAllLogs: !g.showAllLogs }))} className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-bold text-white hover:bg-white/20">{game.showAllLogs ? "▲" : "▼"}</button>}>
           <div className="space-y-1">
             {latestLogs.map((line, i) => (
               <div key={`${line}-${i}`} className="rounded-[12px] border border-white/10 bg-zinc-900/80 px-2.5 py-1.5 text-[11px] md:text-xs">{line}</div>
@@ -2098,6 +2118,21 @@ export default function DieInTheJungleUpgraded() {
           ) : null}
         </AnimatePresence>
 
+        <AnimatePresence>
+          {game.killPopup ? Array.from({ length: 14 }).map((_, i) => (
+            <motion.div
+              key={`skull-rain-${i}`}
+              initial={{ opacity: 0, y: -40, x: 0, rotate: -10 }}
+              animate={{ opacity: [0, 1, 1, 0], y: [0, 220 + (i % 4) * 50], x: [0, (i % 2 === 0 ? -24 : 24)], rotate: [0, i % 2 === 0 ? -18 : 18] }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.3, delay: i * 0.04 }}
+              className="pointer-events-none fixed top-8 z-40 text-2xl"
+              style={{ left: `${8 + i * 6}%` }}
+            >
+              {i % 3 === 0 ? "🎉" : i % 2 === 0 ? "💀" : "✨"}
+            </motion.div>
+          )) : null}
+        </AnimatePresence>
 
         <AnimatePresence>
           {game.characterSelectPending ? (
@@ -2178,10 +2213,21 @@ export default function DieInTheJungleUpgraded() {
                     <img src={LOGO_URL} alt="Kabal logo" className="h-10 w-10 object-contain" />
                     <div>
                       <div className="font-serif text-xl italic text-amber-300 md:text-2xl">Choose 1 Artifact</div>
-                      <div className="text-sm text-zinc-300">{game.startRewardPending ? "Start your run with one trinket." : "Boss down. Build your run."}</div>
+                      <div className="text-sm text-zinc-300">{game.startRewardPending ? "First reward after your opening win." : "Boss down. Build your run."}</div>
                     </div>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-zinc-300">Zone {game.floor}</div>
+                </div>
+                <div className="mb-4 rounded-2xl border border-cyan-300/25 bg-cyan-950/25 p-3">
+                  <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-cyan-200">{storyFragment.title}</div>
+                  <div className="grid gap-2 md:grid-cols-[120px_1fr]">
+                    <img src={STORY_FRAGMENT_IMAGE_URL} alt="Chronicle fragment" className="h-[95px] w-full rounded-xl border border-white/10 bg-black/35 object-cover" />
+                    <div className="space-y-1 text-sm text-zinc-100">
+                      {storyFragment.lines.map((line) => (
+                        <div key={line}>• {line}</div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
                 <div className="grid gap-3 md:grid-cols-3">
                   {game.artifactsOffered.map((artifact) => (
