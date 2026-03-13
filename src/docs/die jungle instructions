@@ -1,0 +1,199 @@
+Die jungle feeatures and improvement to developp
+
+
+  scratch the list as much as we go and update this document in a clean way
+
+
+
+  Oui — c’est une bonne update, mais ça couvre seulement une partie de ce qu’on voulait.
+En gros, Codex a bien fait la couche “structure perso / UX de départ”.
+Mais il manque encore la couche dopamine / score / viral loop / build depth.
+
+Ce qui est bien couvert
+1. Choix de personnage
+Ça, c’était un gros morceau.
+Donc maintenant vous avez bien :
+sélection au début du run
+2 identités claires : Kabalian / KKM
+stats différentes
+avatar / panel joueur dynamique
+blocage du gameplay avant le choix
+Ça colle bien à ce qu’on voulait sur :
+Choose character
+↓
+start run
+
+
+Ce qui manque encore par rapport à notre vision
+1. Le vrai rebalance des persos
+Là il a mis des stats distinctes, mais la vraie question c’est :
+est-ce que les persos ont une vraie fantasy de build ?
+est-ce qu’ils jouent vraiment différemment ?
+est-ce que c’est équilibré long terme ?
+Ce qu’on voulait, ce n’était pas juste :
+Kabalian = un peu plus attack
+KKM = un peu plus tank
+
+On voulait plutôt :
+Kabalian
+plus fragile
+plus sharp
+orienté attaque / risque / aventure
+KKM
+plus tanky
+plus absurd / abundance
+orienté shield / sustain / smash / marteau
+Donc il manque sûrement encore :
+bonus passifs uniques
+vraie identité gameplay
+balance fine
+
+2. Premier artefact après le premier ennemi
+Ça c’était important.
+On voulait ce flow :
+Choose character
+↓
+Fight 1
+↓
+Choose first artifact
+↓
+continue
+↓
+boss artifact later
+
+Donc à vérifier, mais dans son résumé je ne vois pas qu’il ait ajouté ça.
+Donc probablement manquant.
+
+3. Les 3 dés différents
+Très gros point.
+On voulait :
+1 attack die
+1 heal die
+1 shield die
+avec potentiellement des ranges différents et des reliques qui modifient chaque dé.
+Dans son résumé, rien là-dessus.
+Donc ça manque encore.
+Et c’est un vrai morceau important parce que ça booste :
+build diversity
+lisibilité
+plaisir de relics
+
+4. Le système score “spectacle”
+Ça manque totalement.
+C’était un des plus gros points pour rendre le jeu :
+addictif
+sharable
+Twitter-friendly
+Il manque encore :
+no-hit streak multiplier
+one-shot bonus
+overkill bonus
+perfect fight bonus
+score breakdown animé
+total score explosion
+Ça, c’est probablement le plus gros manque current.
+
+5. Bouton share Twitter / fin de run shareable
+Codex le cite comme prochaine étape, donc pas fait.
+Et pourtant pour ton vrai objectif, c’est un des trucs les plus importants.
+Il manque encore :
+écran fin de run plus sexy
+score + floor + build recap
+CTA share
+tweet prérempli
+
+6. Viral loop / referral / wallet vision
+Pas encore là.
+Donc il manque encore la base pour :
+save score
+leaderboard futur
+share seed / run hash
+wallet connect
+social flex
+Normal, mais à garder en tête.
+
+7. Narrative layer
+Très important pour toi maintenant.
+Il n’a rien ajouté sur :
+fragments de lore
+point de vue Kabalian / KKM
+mini arc narratif
+popups après boss
+chronicle unlock
+Donc tout ça manque encore.
+
+8. Animations / juice / game feel
+Très gros morceau encore absent a priori.
+Il manque encore tout ce qui rend le jeu “vivant” :
+hit shake ennemi
+slash / impact FX
+heal popup
+shield popup
+kill explosion
+boss kill moment
+cooldown reset pulse
+score popup
+overkill flash
+Ça change énormément la sensation.
+
+9. Build depth
+Le choix de perso aide, mais il manque encore :
+persos vraiment orientés build
+relics spécifiques par perso éventuellement
+synergies plus lisibles
+panel build plus clair
+first artifact plus tôt
+Donc la run n’a pas encore toute la profondeur qu’on cherchait.
+
+En une phrase
+Codex a bien ajouté le squelette du “character select”.
+Mais il manque encore le cœur excitant :
+3 typed dice
+first artifact after fight 1
+score spectacle
+twitter share
+narrative fragments
+juice / animations
+
+
+Ordre des prochains moves les plus ROI
+Si je devais prioriser pour toi :
+1.
+Premier artefact après le premier ennemi
+Parce que ça rend la run intéressante plus vite.
+2.
+3 dés différents
+Parce que ça augmente la profondeur sans trop compliquer.
+3.
+Score system spectacle
+Parce que c’est la base du partage / flex.
+4.
+End screen + Share Twitter
+Parce que c’est là que le jeu sert ton groupe.
+5.
+Lore fragments Kabalian / KKM
+Parce que ça renforce le brand et l’attachement.
+6.
+Juice / animations
+Parce que ça transforme l’expérience.
+
+Mon verdict honnête
+L’update Codex est :
+utile
+propre
+nécessaire
+mais pas encore “banger”
+
+C’est une bonne fondation, pas encore la version qui fait :
+wow, j’ai envie de relancer une run
+wow, j’ai envie de poster mon score
+wow, j’aime l’univers Kabal
+
+La vraie bascule viendra quand vous ajoutez :
+score dopamine
+typed dice
+first artifact early
+share loop
+micro-lore
+Si tu veux, je peux te faire maintenant un checklist ultra propre “remaining features before desktop banger” que tu peux envoyer direct à Codex.
+

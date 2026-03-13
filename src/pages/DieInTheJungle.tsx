@@ -5,13 +5,34 @@ import { Button } from "@/components/ui/button";
 const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
 const LOGO_URL = "https://i.postimg.cc/rwdjP9rb/logo-jaune.png";
 const PLAYER_AVATAR_URL = "https://i.postimg.cc/B6rBLmBt/Kabalian-Face.png";
+const KKM_AVATAR_URL = "https://i.postimg.cc/Kv8zygVk/KKM-Mascot-2.png";
+const STORY_FRAGMENT_IMAGE_URL = "https://i.postimg.cc/DwMdGXHm/Kabalian-or-KKM.png";
 const PLAYER_EMOTION_URLS = {
-  focus: PLAYER_AVATAR_URL,
-  fierce: PLAYER_AVATAR_URL,
-  guard: PLAYER_AVATAR_URL,
-  joy: PLAYER_AVATAR_URL,
-  hurt: PLAYER_AVATAR_URL,
+  focus: "https://i.postimg.cc/K8xhZnpB/Chat-GPT-Image-Mar-12-2026-03-09-30-PM.png",
+  fierce: "https://i.postimg.cc/K8xhZnpB/Chat-GPT-Image-Mar-12-2026-03-09-30-PM.png",
+  guard: "https://i.postimg.cc/J7kfZT90/Chat-GPT-Image-Mar-12-2026-03-00-38-PM.png",
+  joy: "https://i.postimg.cc/WzLf5vQZ/Chat-GPT-Image-Mar-12-2026-03-04-11-PM.png",
+  hurt: "https://i.postimg.cc/FKCMgwrc/Chat-GPT-Image-Mar-12-2026-03-06-38-PM.png",
+  almostDead: "https://i.postimg.cc/Df4T5fbm/Chat-GPT-Image-Mar-12-2026-03-00-52-PM.png",
+  shocked: "https://i.postimg.cc/FKCMgwrc/Chat-GPT-Image-Mar-12-2026-03-06-38-PM.png",
   victory: PLAYER_AVATAR_URL,
+};
+
+const PLAYER_CHARACTERS = {
+  kabalian: {
+    id: "kabalian",
+    name: "Kabalian",
+    avatar: PLAYER_AVATAR_URL,
+    subtitle: "Aggro · 24 HP · +1 ATK · 2 rerolls",
+    stats: { maxHp: 24, attackBonus: 1, rerollsPerTurn: 2, combatStartShield: 0 },
+  },
+  kkm: {
+    id: "kkm",
+    name: "KKM",
+    avatar: KKM_AVATAR_URL,
+    subtitle: "Tank · 34 HP · +4 start shield",
+    stats: { maxHp: 34, attackBonus: 0, rerollsPerTurn: 1, combatStartShield: 4 },
+  },
 };
 
 const DICE_IMAGES = {
@@ -21,6 +42,49 @@ const DICE_IMAGES = {
   4: "https://i.postimg.cc/qqr0mLvJ/Dice-4.png",
   5: "https://i.postimg.cc/x8QYsR1j/Dice-5.png",
   6: "https://i.postimg.cc/gjpdMD2J/Dice-6.png",
+};
+
+const DICE_IMAGES_BY_KIND = {
+  attack: {
+    1: "https://i.postimg.cc/mk4Rdw2K/Dice-1.png",
+    2: "https://i.postimg.cc/NFtYN4jq/Dice-2.png",
+    3: "https://i.postimg.cc/4yGZ85xs/Dice-3.png",
+    4: "https://i.postimg.cc/qqr0mLvJ/Dice-4.png",
+    5: "https://i.postimg.cc/x8QYsR1j/Dice-5.png",
+    6: "https://i.postimg.cc/gjpdMD2J/Dice-6.png",
+  },
+  heal: {
+    1: "https://i.postimg.cc/k4T1QSqL/Dice-health-1.png",
+    2: "https://i.postimg.cc/hvhCpGGd/Dice-Health-2.png",
+    3: "https://i.postimg.cc/BbthMvv1/Dice-Health-3.png",
+    4: "https://i.postimg.cc/QCV60MM1/Dice-Health-4.png",
+    5: "https://i.postimg.cc/brd63vv3/Dice-Helath-5.png",
+    6: "https://i.postimg.cc/mkhd8rr1/Dice-Health-6.png",
+  },
+  shield: {
+    1: "https://i.postimg.cc/x8qstddp/Dice-shield-1.png",
+    2: "https://i.postimg.cc/Zngwgh9P/Dice-Shield-2.png",
+    3: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+    3: "https://i.postimg.cc/9MQCpGHw/Chat-GPT-Image-Mar-12-2026-09-40-50-PM.png",
+    4: "https://i.postimg.cc/L57x7Mq3/Dice-Shield-4.png",
+    5: "https://i.postimg.cc/mkqmqGcp/Dice-Shield-5.png",
+    6: "https://i.postimg.cc/90SLSj4K/Dice-Shield-6.png",
+  },
+};
+
+
+const GAME_STATE_STORAGE_KEY = "jungle_kabal_run_state_v1";
+const LEADERBOARD_STORAGE_KEY = "jungle_kabal_leaderboard_v1";
+
+const DIE_KIND_ORDER = ["attack", "shield", "heal"];
+
+const TAG_EMOJIS = {
+  attack: "⚔️",
+  shield: "🛡️",
+  heal: "❤️",
+  survival: "🧬",
+  tempo: "⏱️",
+  curse: "☠️",
 };
 
 const LANE_IMAGES = {
@@ -301,7 +365,8 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "relic",
     tags: ["survival"],
-    effectText: "+6 max HP and heal 6.",
+    image: "https://i.postimg.cc/0jTsM1zb/Chat-GPT-Image-Mar-12-2026-03-01-43-PM.png",
+    effectText: "🧬 +6 Max HP · ❤️ Heal 6.",
     apply: (player) => ({ ...player, maxHp: player.maxHp + 6, hp: Math.min(player.maxHp + 6, player.hp + 6) }),
   },
   {
@@ -310,7 +375,8 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "charm",
     tags: ["attack"],
-    effectText: "Attack dice deal +1 damage.",
+    image: "https://i.postimg.cc/T2WJnvSy/Chat-GPT-Image-Mar-12-2026-02-49-28-PM.png",
+    effectText: "⚔️ Attack dice deal +1 damage.",
     apply: (player) => ({ ...player, attackBonus: player.attackBonus + 1 }),
   },
   {
@@ -319,7 +385,8 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "idol",
     tags: ["heal"],
-    effectText: "Heal dice restore +1 extra heal.",
+    image: "https://i.postimg.cc/vTRq5Yt6/Chat-GPT-Image-Mar-12-2026-02-58-04-PM.png",
+    effectText: "❤️ Heal dice restore +1 extra heal.",
     apply: (player) => ({ ...player, healBonus: player.healBonus + 1 }),
   },
   {
@@ -328,7 +395,8 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "totem",
     tags: ["shield"],
-    effectText: "Start each combat with 4 shield.",
+    image: "https://i.postimg.cc/prwZnRKp/Chat-GPT-Image-Mar-12-2026-03-09-00-PM.png",
+    effectText: "🛡️ Start each combat with 4 shield.",
     apply: (player) => ({ ...player, combatStartShield: player.combatStartShield + 4 }),
   },
   {
@@ -337,7 +405,8 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "relic",
     tags: ["tempo"],
-    effectText: "Cooldowns tick +1 faster.",
+    image: "https://i.postimg.cc/fy6sDpt3/Chat-GPT-Image-Mar-12-2026-03-17-32-PM.png",
+    effectText: "⏱️ Cooldowns tick +1 faster.",
     apply: (player) => ({ ...player, cooldownTick: player.cooldownTick + 1 }),
   },
   {
@@ -346,7 +415,8 @@ const ARTIFACT_POOL = [
     rarity: "gray",
     category: "fang",
     tags: ["attack", "curse"],
-    effectText: "Attack dice +2 damage, but lose 3 max HP.",
+    image: "https://i.postimg.cc/MpxGd1Gc/Chat-GPT-Image-Mar-12-2026-03-04-39-PM.png",
+    effectText: "⚔️ +2 attack damage · ☠️ lose 3 max HP.",
     apply: (player) => {
       const nextMaxHp = Math.max(8, player.maxHp - 3);
       return { ...player, attackBonus: player.attackBonus + 2, maxHp: nextMaxHp, hp: Math.min(nextMaxHp, player.hp) };
@@ -358,7 +428,8 @@ const ARTIFACT_POOL = [
     rarity: "gray",
     category: "totem",
     tags: ["shield", "curse"],
-    effectText: "Start combats with 3 shield, but slot cooldown base +1.",
+    image: "https://i.postimg.cc/d1RHmMNs/Chat-GPT-Image-Mar-12-2026-03-05-52-PM.png",
+    effectText: "🛡️ Start with 3 shield · ☠️ cooldown base +1.",
     apply: (player) => ({ ...player, combatStartShield: player.combatStartShield + 3, cooldownBase: player.cooldownBase + 1 }),
   },
   {
@@ -367,7 +438,8 @@ const ARTIFACT_POOL = [
     rarity: "gray",
     category: "charm",
     tags: ["attack", "curse"],
-    effectText: "Attack dice +1 value, but lose 1 HP at turn start.",
+    image: "https://i.postimg.cc/HsyHBYRw/Chat-GPT-Image-Mar-12-2026-03-25-24-PM.png",
+    effectText: "⚔️ Attack dice +1 value · ☠️ lose 1 HP at turn start.",
     apply: (player) => ({ ...player, attackDieValueBonus: player.attackDieValueBonus + 1, selfBleed: player.selfBleed + 1 }),
   },
   {
@@ -376,7 +448,8 @@ const ARTIFACT_POOL = [
     rarity: "chrome",
     category: "crown",
     tags: ["attack", "tempo"],
-    effectText: "Top row multiplier +1.",
+    image: "https://i.postimg.cc/fy6sDpt3/Chat-GPT-Image-Mar-12-2026-03-17-32-PM.png",
+    effectText: "🔥 Top row multiplier +1.",
     apply: (player) => ({ ...player, topRowBonus: player.topRowBonus + 1 }),
   },
   {
@@ -385,7 +458,8 @@ const ARTIFACT_POOL = [
     rarity: "chrome",
     category: "relic",
     tags: ["tempo"],
-    effectText: "Roll 4 dice each turn instead of 3.",
+    image: "https://i.postimg.cc/CKFghj12/Chat-GPT-Image-Mar-12-2026-03-01-26-PM.png",
+    effectText: "🎲 Roll 4 dice each turn instead of 3.",
     apply: (player) => ({ ...player, dicePerTurn: Math.min(4, player.dicePerTurn + 1) }),
   },
   {
@@ -394,7 +468,8 @@ const ARTIFACT_POOL = [
     rarity: "chrome",
     category: "totem",
     tags: ["shield"],
-    effectText: "All shield gained is doubled.",
+    image: "https://i.postimg.cc/bJ5c9WTX/Chat-GPT-Image-Mar-12-2026-04-15-09-PM.png",
+    effectText: "🛡️ All shield gained is doubled.",
     apply: (player) => ({ ...player, shieldMultiplier: player.shieldMultiplier * 2 }),
   },
   {
@@ -403,7 +478,8 @@ const ARTIFACT_POOL = [
     rarity: "chrome",
     category: "sigil",
     tags: ["tempo"],
-    effectText: "Every 3 turns, reset all cooldowns.",
+    image: "https://i.postimg.cc/LsXbp0sn/Chat-GPT-Image-Mar-12-2026-02-59-23-PM.png",
+    effectText: "♻️ Every 3 turns, reset all cooldowns.",
     apply: (player) => ({ ...player, timedResetEvery: 3 }),
   },
   {
@@ -412,9 +488,41 @@ const ARTIFACT_POOL = [
     rarity: "chrome",
     category: "sigil",
     tags: ["survival"],
-    effectText: "Gain one revive per floor (revive at 40% HP).",
+    image: "https://i.postimg.cc/Dy4GtQFd/Chat-GPT-Image-Mar-12-2026-03-09-46-PM.png",
+    effectText: "✨ Gain one revive per zone (revive at 40% HP).",
     apply: (player) => ({ ...player, reviveOnce: true }),
   },
+  {
+    id: "golden-coin",
+    name: "Golden Coin",
+    rarity: "gold",
+    category: "coin",
+    tags: ["survival", "tempo"],
+    image: "https://i.postimg.cc/0jTsM1zb/Chat-GPT-Image-Mar-12-2026-03-01-43-PM.png",
+    effectText: "🧬 +3 max HP · 🔁 +1 reroll per turn.",
+    apply: (player) => ({ ...player, maxHp: player.maxHp + 3, hp: player.hp + 3, rerollsPerTurn: player.rerollsPerTurn + 1, rerollsLeft: player.rerollsLeft + 1 }),
+  },
+  {
+    id: "frozen-trinket",
+    name: "Frozen Trinket",
+    rarity: "gray",
+    category: "trinket",
+    tags: ["shield", "tempo"],
+    image: "https://i.postimg.cc/CKFghj12/Chat-GPT-Image-Mar-12-2026-03-01-26-PM.png",
+    effectText: "🛡️ +2 combat start shield · ⏱️ cooldown tick +1.",
+    apply: (player) => ({ ...player, combatStartShield: player.combatStartShield + 2, cooldownTick: player.cooldownTick + 1 }),
+  },
+  {
+    id: "eye-bracelet",
+    name: "Eye Bracelet",
+    rarity: "gold",
+    category: "bracelet",
+    tags: ["heal", "tempo"],
+    image: "https://i.postimg.cc/bJ5c9WTX/Chat-GPT-Image-Mar-12-2026-04-15-09-PM.png",
+    effectText: "❤️ +2 heal bonus · 🔁 +1 reroll each turn.",
+    apply: (player) => ({ ...player, healBonus: player.healBonus + 2, rerollsPerTurn: player.rerollsPerTurn + 1, rerollsLeft: player.rerollsLeft + 1 }),
+  },
+
 ];
 
 const KILL_WORDS = ["Slashed", "Crushed", "Berserk Mode", "Kabal Style", "Savage", "Annihilated"];
@@ -463,6 +571,10 @@ function shuffle(arr) {
   return copy;
 }
 
+function generateRunSeed() {
+  return Math.floor(10000 + Math.random() * 90000).toString();
+}
+
 function pickUnique(items, count) {
   return shuffle(items).slice(0, count);
 }
@@ -502,14 +614,39 @@ function buildRoute(floor = 1) {
   });
 }
 
-function getDieMeta(value) {
-  if (value <= 2) return { kind: "shield", label: "Shield", emoji: "🛡️", desc: `Gain ${value} shield before row multiplier.` };
-  if (value <= 4) return { kind: "heal", label: "Heal", emoji: "❤️", desc: "Heal 1 before row multiplier." };
-  return { kind: "attack", label: "Attack", emoji: "⚔️", desc: `Deal ${value} damage before row multiplier.` };
+function getDieMeta(die) {
+  if (!die) return { kind: "attack", label: "Attack", emoji: "⚔️", desc: "" };
+  if (die.kind === "shield") return { kind: "shield", label: "Shield", emoji: "🛡️", desc: `Gain ${die.value} shield before row multiplier.` };
+  if (die.kind === "heal") return { kind: "heal", label: "Health", emoji: "❤️", desc: `Heal ${die.value} before row multiplier.` };
+  return { kind: "attack", label: "Attack", emoji: "⚔️", desc: `Deal ${die.value} damage before row multiplier.` };
+}
+
+function getDieImage(die) {
+  if (!die) return DICE_IMAGES[1];
+  return DICE_IMAGES_BY_KIND[die.kind]?.[die.value] || DICE_IMAGES[die.value];
+}
+
+function cycleDieIndex(dice, startIndex, direction) {
+  const available = dice.map((die, i) => (die !== null ? i : null)).filter((i) => i !== null);
+  if (!available.length) return null;
+  const current = startIndex !== null && available.includes(startIndex) ? startIndex : available[0];
+  const pos = available.indexOf(current);
+  const nextPos = (pos + direction + available.length) % available.length;
+  return available[nextPos];
+}
+
+function dieStyleByKind(kind) {
+  if (kind === "attack") return { shell: "from-zinc-900/90 to-black/95 border-zinc-200/30", tag: "bg-zinc-950/80 text-zinc-100" };
+  if (kind === "heal") return { shell: "from-pink-300/25 to-rose-500/35 border-pink-200/40", tag: "bg-pink-500/35 text-pink-100" };
+  return { shell: "from-zinc-100/30 to-white/35 border-white/60", tag: "bg-white/35 text-white" };
 }
 
 function rollDice(count) {
-  return Array.from({ length: count }, () => Math.floor(Math.random() * 6) + 1);
+  return Array.from({ length: count }, (_, i) => ({
+    id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}`,
+    kind: DIE_KIND_ORDER[i % DIE_KIND_ORDER.length],
+    value: Math.floor(Math.random() * 6) + 1,
+  }));
 }
 
 function nextAvailableDieIndex(dice) {
@@ -534,6 +671,30 @@ function pickKillWord(streak) {
   return randFrom(KILL_WORDS);
 }
 
+function getNoHitMultiplier(noHitTurns) {
+  if (noHitTurns >= 6) return 2;
+  if (noHitTurns >= 3) return 1.5;
+  return 1;
+}
+
+function getStoryFragment(floor, characterId) {
+  const isKKM = characterId === "kkm";
+  if (floor <= 1) {
+    return {
+      title: "KABAL MEMORY · Fragment 01",
+      lines: isKKM
+        ? ["The jungle rewards patience.", "Armor first, then profit.", "Survive now, send it later."]
+        : ["No fear, only pressure.", "Strike early, score fast.", "Every roll can be alpha."],
+    };
+  }
+  return {
+    title: "KABAL MEMORY · Fragment 02",
+    lines: isKKM
+      ? ["Big shield. Slow breath.", "Let chaos hit the armor.", "Then collect the score burst." ]
+      : ["Speed beats hesitation.", "Overkill is the signal.", "Aggro turns runs into legends."],
+  };
+}
+
 function buildArtifactChoices(player) {
   const weights = { gray: 4, gold: 3, chrome: 1 };
   const pool = shuffle(ARTIFACT_POOL).filter((a) => !player.artifacts.find((owned) => owned.id === a.id));
@@ -543,6 +704,34 @@ function buildArtifactChoices(player) {
   while (rarities.length < 3) {
     const bag = [];
     Object.entries(weights).forEach(([rarity, amount]) => {
+      for (let i = 0; i < amount; i += 1) bag.push(rarity);
+    });
+    rarities.push(randFrom(bag));
+  }
+
+  rarities.forEach((rarity) => {
+    const found = pool.find((a) => a.rarity === rarity && !chosen.find((c) => c.id === a.id));
+    if (found) chosen.push(found);
+  });
+
+  while (chosen.length < 3) {
+    const fill = pool.find((a) => !chosen.find((c) => c.id === a.id));
+    if (!fill) break;
+    chosen.push(fill);
+  }
+
+  return chosen.slice(0, 3);
+}
+
+function buildStarterArtifactChoices(player) {
+  const starterWeights = { gray: 6, gold: 3, chrome: 1 };
+  const pool = shuffle(ARTIFACT_POOL).filter((a) => !player.artifacts.find((owned) => owned.id === a.id));
+  const chosen = [];
+  const rarities = [];
+
+  while (rarities.length < 3) {
+    const bag = [];
+    Object.entries(starterWeights).forEach(([rarity, amount]) => {
       for (let i = 0; i < amount; i += 1) bag.push(rarity);
     });
     rarities.push(randFrom(bag));
@@ -575,6 +764,35 @@ function getIntentPreview(enemy) {
   if (!enemy.firstIntentUsed && enemy.modifier === "swift") value += 2;
   if (baseIntent.type === "attack" && enemy.modifier === "berserk") value += 2;
   return { ...baseIntent, value, mod };
+}
+
+function intentMeta(type) {
+  if (type === "attack") return { emoji: "⚔️", color: "text-rose-300" };
+  if (type === "charge") return { emoji: "⚡", color: "text-amber-300" };
+  if (type === "heal") return { emoji: "❤️", color: "text-emerald-300" };
+  if (type === "shield") return { emoji: "🛡️", color: "text-cyan-300" };
+  if (type === "rage") return { emoji: "🔥", color: "text-orange-300" };
+  if (type === "curse") return { emoji: "☠️", color: "text-violet-300" };
+  return { emoji: "🔥", color: "text-orange-300" };
+}
+
+function modifierClass(modifier) {
+  if (modifier === "berserk") return "text-rose-300";
+  if (modifier === "stoneSkin") return "text-zinc-200";
+  if (modifier === "thorns") return "text-lime-300";
+  if (modifier === "swift") return "text-amber-300";
+  if (modifier === "venom") return "text-violet-300";
+  if (modifier === "regen") return "text-emerald-300";
+  return "text-zinc-200";
+}
+
+function getIntentTimeline(enemy, count = 3) {
+  const timeline = [];
+  for (let step = 0; step < count; step += 1) {
+    const simulated = { ...enemy, intentIndex: enemy.intentIndex + step, charge: step > 0 ? 0 : enemy.charge };
+    timeline.push(getIntentPreview(simulated));
+  }
+  return timeline;
 }
 
 function resolveEnemyIntent(enemy, player, log) {
@@ -644,11 +862,11 @@ function resolvePlayerGrid(state) {
       if (die === null) return;
       const meta = getDieMeta(die);
       if (meta.kind === "shield") {
-        rowShield += die * mult;
+        rowShield += die.value * mult;
       } else if (meta.kind === "heal") {
-        rowHeal += (1 + player.healBonus) * mult;
+        rowHeal += (die.value + player.healBonus) * mult;
       } else {
-        const attackValue = (die + player.attackDieValueBonus + player.attackBonus) * mult;
+        const attackValue = (die.value + player.attackDieValueBonus + player.attackBonus) * mult;
         rowAttack += attackValue;
         attackDiceCount += 1;
       }
@@ -716,6 +934,43 @@ function resolvePlayerGrid(state) {
   };
 }
 
+function estimatePlayerOutcome(grid, player) {
+  let totalAttack = 0;
+  let totalShield = 0;
+  let totalHeal = 0;
+  let attackDiceCount = 0;
+
+  grid.forEach((row, rowIndex) => {
+    let rowAttack = 0;
+    let rowShield = 0;
+    let rowHeal = 0;
+    const mult = rowMultiplier(player, rowIndex);
+    row.forEach((die) => {
+      if (!die) return;
+      const meta = getDieMeta(die);
+      if (meta.kind === "shield") rowShield += die.value * mult;
+      else if (meta.kind === "heal") rowHeal += (die.value + player.healBonus) * mult;
+      else {
+        rowAttack += (die.value + player.attackDieValueBonus + player.attackBonus) * mult;
+        attackDiceCount += 1;
+      }
+    });
+
+    if (rowAttack > 0) rowAttack += ROW_INFO[rowIndex].laneBonus.attack;
+    if (rowShield > 0) rowShield += ROW_INFO[rowIndex].laneBonus.shield;
+    if (rowHeal > 0) rowHeal += ROW_INFO[rowIndex].laneBonus.heal;
+
+    totalAttack += rowAttack;
+    totalShield += rowShield;
+    totalHeal += rowHeal;
+  });
+
+  if (attackDiceCount >= 3) totalAttack += 5;
+  totalShield *= player.shieldMultiplier;
+
+  return { attack: Math.max(0, totalAttack), shield: Math.max(0, totalShield), heal: Math.max(0, totalHeal) };
+}
+
 function applyArtifactToPlayer(player, artifact) {
   const nextBase = artifact.apply(player);
   return {
@@ -724,24 +979,26 @@ function applyArtifactToPlayer(player, artifact) {
   };
 }
 
-function makeInitialPlayer() {
+function makeInitialPlayer(characterId = "kabalian") {
+  const selected = PLAYER_CHARACTERS[characterId] || PLAYER_CHARACTERS.kabalian;
   return {
-    hp: 28,
-    maxHp: 28,
+    hp: selected.stats.maxHp,
+    maxHp: selected.stats.maxHp,
     shield: 0,
-    avatar: PLAYER_AVATAR_URL,
+    avatar: selected.avatar,
+    characterId: selected.id,
     cooldownBase: 3,
     cooldownTick: 1,
     dicePerTurn: 3,
-    rerollsPerTurn: 1,
-    rerollsLeft: 1,
-    attackBonus: 0,
+    rerollsPerTurn: selected.stats.rerollsPerTurn,
+    rerollsLeft: selected.stats.rerollsPerTurn,
+    attackBonus: selected.stats.attackBonus,
     attackDieValueBonus: 0,
     healBonus: 0,
     shieldMultiplier: 1,
     topRowBonus: 0,
     timedResetEvery: 0,
-    combatStartShield: 0,
+    combatStartShield: selected.stats.combatStartShield || 0,
     selfBleed: 0,
     curseNextTurn: 0,
     artifacts: [],
@@ -757,7 +1014,7 @@ function makeInitialState() {
   return {
     floor,
     room: 0,
-    phase: "roll",
+    phase: "reward",
     route,
     enemy: { ...route[0] },
     dice: [],
@@ -774,16 +1031,91 @@ function makeInitialState() {
     rolling: false,
     artifactsOffered: [],
     combatRewardPending: false,
+    startRewardPending: true,
+    characterSelectPending: true,
     score: 0,
+    noHitTurns: 0,
+    runSeed: generateRunSeed(),
     runEnded: false,
     avatarMood: "focus",
     actionFlash: null,
+    enemyAttackPulse: 0,
+    enemyHitPulse: 0,
+    damagePopups: [],
+    scorePopups: [],
+    comboPopup: null,
+    lastOutcome: null,
+  };
+  safe.artifactsOffered = (safe.artifactsOffered || []).map((id) => byId.get(id)).filter(Boolean);
+  safe.enemyAttackPulse = 0;
+  safe.damagePopups = [];
+  safe.actionFlash = null;
+  safe.killPopup = null;
+  return safe;
+}
+
+function loadSavedGameState() {
+  try {
+    const raw = localStorage.getItem(GAME_STATE_STORAGE_KEY);
+    if (!raw) return makeInitialState();
+    const parsed = JSON.parse(raw);
+    return hydrateGameState(parsed) || makeInitialState();
+  } catch {
+    return makeInitialState();
+  }
+}
+
+function loadLeaderboard() {
+  try {
+    const raw = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function serializeGameState(game) {
+  return {
+    ...game,
+    player: {
+      ...game.player,
+      artifacts: game.player.artifacts.map((artifact) => artifact.id),
+    },
+    artifactsOffered: game.artifactsOffered.map((artifact) => artifact.id),
   };
 }
 
-function SectionCard({ title, children, right }) {
+function hydrateGameState(rawState) {
+  if (!rawState || typeof rawState !== "object") return null;
+  const safe = { ...rawState };
+  const byId = new Map(ARTIFACT_POOL.map((artifact) => [artifact.id, artifact]));
+  safe.player = {
+    ...safe.player,
+    characterId: safe.player?.characterId || "kabalian",
+    avatar: safe.player?.avatar || PLAYER_CHARACTERS.kabalian.avatar,
+    artifacts: (safe.player?.artifacts || []).map((id) => byId.get(id)).filter(Boolean),
+  };
+  safe.artifactsOffered = (safe.artifactsOffered || []).map((id) => byId.get(id)).filter(Boolean);
+  safe.enemyAttackPulse = 0;
+  safe.enemyHitPulse = 0;
+  safe.damagePopups = [];
+  safe.scorePopups = [];
+  safe.comboPopup = null;
+  safe.actionFlash = null;
+  safe.killPopup = null;
+  safe.lastOutcome = null;
+  safe.noHitTurns = Number.isFinite(safe.noHitTurns) ? safe.noHitTurns : 0;
+  safe.runSeed = safe.runSeed || generateRunSeed();
+  safe.characterSelectPending = Boolean(safe.characterSelectPending);
+  return safe;
+}
+
+
+function SectionCard({ title, children, right, className = "" }) {
   return (
-    <div className="rounded-[20px] border border-white/15 bg-black/45 p-2 shadow-[0_14px_30px_rgba(0,0,0,0.28)] backdrop-blur-md md:p-2.5">
+    <div className={`rounded-[20px] border border-white/15 bg-black/45 p-1.5 shadow-[0_14px_30px_rgba(0,0,0,0.28)] backdrop-blur-md md:p-2.5 ${className}`}>
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="font-serif text-[11px] italic uppercase tracking-[0.22em] text-amber-300">{title}</div>
         {right ? <div>{right}</div> : null}
@@ -802,16 +1134,18 @@ function CompactStat({ label, value, accent = "text-white" }) {
   );
 }
 
-function LifeBar({ label, current, max, tone }) {
+function LifeBar({ label, current, max, tone, size = "md" }) {
   const pct = Math.max(0, Math.min(100, (current / max) * 100));
   const fill = tone === "enemy" ? "from-red-500 via-orange-400 to-yellow-300" : "from-emerald-500 via-lime-400 to-cyan-300";
+  const heightClass = size === "lg" ? "h-5" : "h-3.5";
+
   return (
     <div className="rounded-[16px] border border-white/10 bg-black/35 p-2">
       <div className="mb-1 flex items-center justify-between text-[9px] uppercase tracking-[0.16em] text-zinc-300">
         <span>{label}</span>
         <span>{Math.max(0, current)}/{max}</span>
       </div>
-      <div className="h-3.5 overflow-hidden rounded-full border border-white/10 bg-zinc-900 shadow-inner">
+      <div className={`${heightClass} overflow-hidden rounded-full border border-white/10 bg-zinc-900 shadow-inner`}>
         <div className={`h-full rounded-full bg-gradient-to-r ${fill} transition-all duration-300`} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -820,6 +1154,7 @@ function LifeBar({ label, current, max, tone }) {
 
 function DiceFace({ value, selected = false, rolling = false, onClick, disabled = false }) {
   const meta = getDieMeta(value);
+  const palette = dieStyleByKind(meta.kind);
   return (
     <motion.button
       whileHover={onClick && !disabled ? { y: -2 } : {}}
@@ -827,11 +1162,12 @@ function DiceFace({ value, selected = false, rolling = false, onClick, disabled 
       animate={rolling ? { rotate: [0, -12, 12, -8, 8, 0], scale: [1, 1.06, 0.98, 1.04, 1] } : { rotate: 0, scale: selected ? 1.05 : 1 }}
       transition={{ duration: rolling ? 0.7 : 0.18 }}
       onClick={disabled ? undefined : onClick}
-      className={`relative h-16 w-16 overflow-hidden rounded-[18px] border bg-black/30 md:h-[74px] md:w-[74px] ${selected ? "border-amber-300 shadow-[0_0_0_3px_rgba(252,211,77,0.25)]" : "border-white/20"} ${disabled ? "opacity-60" : ""}`}
+      className={`relative h-16 w-16 overflow-hidden rounded-[18px] border bg-gradient-to-br ${palette.shell} md:h-[74px] md:w-[74px] ${selected ? "border-amber-300 shadow-[0_0_0_3px_rgba(252,211,77,0.25)]" : ""} ${disabled ? "opacity-60" : ""}`}
     >
-      <img src={DICE_IMAGES[value]} alt={`Dice ${value}`} className="absolute inset-0 h-full w-full object-contain p-1" />
-      <div className="absolute bottom-0.5 left-0.5 right-0.5 flex items-center justify-center gap-1 rounded-lg bg-black/65 px-1 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-white">
+      <img src={getDieImage(value)} alt={`${meta.label} die ${value.value}`} className="absolute inset-0 h-full w-full object-contain p-1" />
+      <div className={`absolute bottom-0.5 left-0.5 right-0.5 flex items-center justify-center gap-1 rounded-lg px-1 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] ${palette.tag}`}>
         <span>{meta.emoji}</span>
+        <span>{meta.kind}</span>
       </div>
       {selected ? <div className="absolute -right-1 -top-1 rounded-full bg-amber-300 px-1.5 py-0.5 text-[9px] font-black text-black">NEXT</div> : null}
     </motion.button>
@@ -865,7 +1201,14 @@ function ArtifactCard({ artifact, onPick }) {
           <div className="text-[10px] uppercase tracking-[0.2em] opacity-80">{artifact.rarity} {artifact.category}</div>
           <div className="text-sm font-black md:text-base">{artifact.name}</div>
         </div>
-        <div className="rounded-full border border-current/30 px-2 py-1 text-[9px] uppercase tracking-[0.18em]">{artifact.tags.join(" · ")}</div>
+        {artifact.image ? <img src={artifact.image} alt={artifact.name} className="h-10 w-10 rounded-lg border border-white/20 bg-black/40 object-cover" /> : null}
+      </div>
+      <div className="mb-2 flex flex-wrap gap-1">
+        {artifact.tags.map((tag) => (
+          <div key={`${artifact.id}-${tag}`} className="rounded-full border border-current/30 px-2 py-0.5 text-[9px] uppercase tracking-[0.14em]">
+            {(TAG_EMOJIS[tag] || "✨")} {tag}
+          </div>
+        ))}
       </div>
       <div className="text-xs md:text-sm">{artifact.effectText}</div>
     </button>
@@ -873,7 +1216,10 @@ function ArtifactCard({ artifact, onPick }) {
 }
 
 export default function DieInTheJungleUpgraded() {
-  const [game, setGame] = useState(makeInitialState);
+  const [game, setGame] = useState(loadSavedGameState);
+  const [walletAddress, setWalletAddress] = useState("");
+  const [leaderboard, setLeaderboard] = useState(loadLeaderboard);
+  const [hoveredSlot, setHoveredSlot] = useState(null);
 
   const activeDieIndex = useMemo(() => {
     if (game.selectedDieIndex !== null && game.dice[game.selectedDieIndex] !== null) return game.selectedDieIndex;
@@ -884,13 +1230,133 @@ export default function DieInTheJungleUpgraded() {
   const activeDieMeta = activeDieValue !== null ? getDieMeta(activeDieValue) : null;
   const latestLogs = game.log.slice(0, 3);
   const intent = getIntentPreview(game.enemy);
+  const intentTimeline = getIntentTimeline(game.enemy, 3);
+  const expectedOutcome = estimatePlayerOutcome(game.grid, game.player);
+  const streakMultiplier = getNoHitMultiplier(game.noHitTurns);
+  const storyFragment = getStoryFragment(game.floor, game.player.characterId);
+
+  function shiftSelectedDie(direction) {
+    if (game.characterSelectPending || game.phase !== "place") return;
+    setGame((g) => ({
+      ...g,
+      selectedDieIndex: cycleDieIndex(g.dice, activeDieIndex, direction),
+    }));
+  }
+
+  function connectWallet() {
+    const provider = (window as any).solana;
+    if (!provider?.connect) {
+      setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "⚠️ Phantom wallet not found", tone: "rose" } }));
+      return;
+    }
+    provider.connect()
+      .then((response) => {
+        const address = response?.publicKey?.toString?.() || "";
+        setWalletAddress(address);
+        setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "✅ Wallet connected", tone: "emerald" } }));
+      })
+      .catch(() => {
+        setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "❌ Wallet connect failed", tone: "rose" } }));
+      });
+  }
+
+  function submitScoreToLeaderboard() {
+    if (!game.runEnded) return;
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      wallet: walletAddress || "guest",
+      score: game.score,
+      zone: game.floor,
+      at: new Date().toISOString(),
+    };
+    const next = [entry, ...leaderboard]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20);
+    setLeaderboard(next);
+    localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(next));
+    setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "🏁 Score submitted", tone: "emerald" } }));
+  }
+
+  function shareRun() {
+    const characterName = game.player.characterId === "kkm" ? "KKM" : "Kabalian";
+    const text = `Reached Zone ${game.floor} in Die in the Jungle%0AScore: ${game.score}%0ACharacter: ${characterName}%0ASeed: ${game.runSeed}%0A%23KabalBlessing`;
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank", "noopener,noreferrer");
+  }
+
+  function shiftSelectedDie(direction) {
+    if (game.phase !== "place") return;
+    setGame((g) => ({
+      ...g,
+      selectedDieIndex: cycleDieIndex(g.dice, activeDieIndex, direction),
+    }));
+  }
+
+  function connectWallet() {
+    const provider = (window as any).solana;
+    if (!provider?.connect) {
+      setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "⚠️ Phantom wallet not found", tone: "rose" } }));
+      return;
+    }
+    provider.connect()
+      .then((response) => {
+        const address = response?.publicKey?.toString?.() || "";
+        setWalletAddress(address);
+        setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "✅ Wallet connected", tone: "emerald" } }));
+      })
+      .catch(() => {
+        setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "❌ Wallet connect failed", tone: "rose" } }));
+      });
+  }
+
+  function submitScoreToLeaderboard() {
+    if (!game.runEnded) return;
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      wallet: walletAddress || "guest",
+      score: game.score,
+      zone: game.floor,
+      at: new Date().toISOString(),
+    };
+    const next = [entry, ...leaderboard]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20);
+    setLeaderboard(next);
+    localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(next));
+    setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "🏁 Score submitted", tone: "emerald" } }));
+  }
 
   function pushLog(lines) {
     setGame((g) => ({ ...g, log: [...lines, ...g.log].slice(0, 40) }));
   }
 
+  function pickCharacter(characterId) {
+    const selected = PLAYER_CHARACTERS[characterId] || PLAYER_CHARACTERS.kabalian;
+    setGame((g) => {
+      const nextPlayer = {
+        ...g.player,
+        characterId: selected.id,
+        avatar: selected.avatar,
+        maxHp: selected.stats.maxHp,
+        hp: Math.min(selected.stats.maxHp, g.player.hp),
+        attackBonus: selected.stats.attackBonus,
+        combatStartShield: selected.stats.combatStartShield || 0,
+        shield: selected.stats.combatStartShield || 0,
+        rerollsPerTurn: selected.stats.rerollsPerTurn,
+        rerollsLeft: selected.stats.rerollsPerTurn,
+      };
+      return {
+        ...g,
+        player: nextPlayer,
+        characterSelectPending: false,
+        avatarMood: "focus",
+        actionFlash: { id: Date.now(), text: `🧭 ${selected.name} selected`, tone: "sky" },
+        log: [`🧭 Character selected: ${selected.name}`, ...g.log].slice(0, 40),
+      };
+    });
+  }
+
   function startRoll() {
-    if (game.rolling || game.phase !== "roll" || game.combatRewardPending) return;
+    if (game.characterSelectPending || game.rolling || game.phase !== "roll" || game.combatRewardPending) return;
 
     setGame((g) => {
       const player = { ...g.player };
@@ -910,7 +1376,11 @@ export default function DieInTheJungleUpgraded() {
         rolling: true,
         phase: "rolling",
         avatarMood: player.selfBleed > 0 ? "hurt" : "focus",
-        dice: Array.from({ length: player.dicePerTurn }, (_, i) => (i % 6) + 1),
+        dice: Array.from({ length: player.dicePerTurn }, (_, i) => ({
+          id: `preview-${Date.now()}-${i}`,
+          kind: DIE_KIND_ORDER[i % DIE_KIND_ORDER.length],
+          value: (i % 6) + 1,
+        })),
         selectedDieIndex: null,
         log: [...lines, ...g.log].slice(0, 40),
       };
@@ -927,8 +1397,8 @@ export default function DieInTheJungleUpgraded() {
           rolling: false,
           selectedDieIndex: 0,
           avatarMood: "focus",
-          actionFlash: { id: Date.now(), text: `🎲 ${dice.join(" · ")}`, tone: "amber" },
-          log: [`🎲 Rolled: ${dice.join(" - ")}`, ...g.log].slice(0, 40),
+          actionFlash: { id: Date.now(), text: `🎲 ${dice.map((d) => `${getDieMeta(d).emoji}${d.value}`).join(" · ")}`, tone: "amber" },
+          log: [`🎲 Rolled: ${dice.map((d) => `${getDieMeta(d).label} ${d.value}`).join(" - ")}`, ...g.log].slice(0, 40),
         };
       });
     }, 700);
@@ -941,35 +1411,35 @@ export default function DieInTheJungleUpgraded() {
 
     setGame((g) => {
       const dice = [...g.dice];
-      const oldValue = dice[activeDieIndex];
+      const oldDie = dice[activeDieIndex];
       let next = Math.floor(Math.random() * 6) + 1;
-      if (next === oldValue) next = ((next % 6) + 1);
-      dice[activeDieIndex] = next;
+      if (next === oldDie.value) next = ((next % 6) + 1);
+      dice[activeDieIndex] = { ...oldDie, value: next };
       return {
         ...g,
         dice,
         avatarMood: "focus",
-        actionFlash: { id: Date.now(), text: `🔁 ${oldValue} → ${next}`, tone: "sky" },
+        actionFlash: { id: Date.now(), text: `🔁 ${getDieMeta(oldDie).label} ${oldDie.value} → ${next}`, tone: "sky" },
         player: { ...g.player, rerollsLeft: g.player.rerollsLeft - 1 },
-        log: [`🎯 Reroll: ${oldValue} → ${next}`, ...g.log].slice(0, 40),
+        log: [`🎯 Reroll: ${getDieMeta(oldDie).label} ${oldDie.value} → ${next}`, ...g.log].slice(0, 40),
       };
     });
   }
 
   function placeDie(dieIndex, x, y) {
-    if (game.phase !== "place") return;
+    if (game.characterSelectPending || game.phase !== "place") return;
     if (game.grid[y][x] !== null) return;
     if (game.cooldowns[y][x] > 0) return;
     if (game.dice[dieIndex] === null) return;
 
-    const placedValue = game.dice[dieIndex];
-    const placedMeta = getDieMeta(placedValue);
+    const placedDie = game.dice[dieIndex];
+    const placedMeta = getDieMeta(placedDie);
     const lane = ROW_INFO[y];
     const newGrid = game.grid.map((row) => [...row]);
     const newCooldowns = game.cooldowns.map((row) => [...row]);
     const newDice = [...game.dice];
 
-    newGrid[y][x] = placedValue;
+    newGrid[y][x] = placedDie;
     newCooldowns[y][x] = game.player.cooldownBase;
     newDice[dieIndex] = null;
 
@@ -984,7 +1454,7 @@ export default function DieInTheJungleUpgraded() {
       phase: allPlaced ? "resolve" : "place",
       selectedDieIndex: nextIndex,
       avatarMood: placedMeta.kind === "attack" ? "fierce" : placedMeta.kind === "heal" ? "joy" : "guard",
-      log: [`${lane.emoji} Put ${placedMeta.emoji} ${placedValue} in ${lane.name} x${rowMultiplier(g.player, y)}`, ...g.log].slice(0, 40),
+      log: [`${lane.emoji} Put ${placedMeta.emoji} ${placedDie.value} in ${lane.name} x${rowMultiplier(g.player, y)}`, ...g.log].slice(0, 40),
     }));
 
     if (allPlaced) {
@@ -997,17 +1467,53 @@ export default function DieInTheJungleUpgraded() {
       const playerResult = resolvePlayerGrid({ ...g, grid: gridRef, enemy: g.enemy, player: g.player });
       let enemy = playerResult.enemy;
       let player = playerResult.player;
+      const preRetaliationShield = player.shield;
+      const preRetaliationHp = player.hp;
       const totals = playerResult.totals;
       let log = [...playerResult.log];
       const enemyDied = enemy.hp <= 0;
       let nextCooldowns = cooldownRef;
       const saturated = boardIsSaturated(gridRef, cooldownRef);
       const nextTurn = g.turn + 1;
+      const damagePopups = [];
+      const scorePopups = [];
+      let enemyAttackPulse = 0;
+      let enemyHitPulse = 0;
+      let comboPopup = null;
+      let hpDamageTaken = 0;
+      const randomPos = (target) => ({
+        left: target === "enemy" ? `${12 + Math.floor(Math.random() * 24)}%` : `${58 + Math.floor(Math.random() * 24)}%`,
+        top: `${20 + Math.floor(Math.random() * 30)}%`,
+      });
+
+      if (totals.attack > 0) {
+        enemyHitPulse = Date.now();
+        damagePopups.push({ id: `${Date.now()}-enemy-hit`, target: "enemy", tone: "damage", text: `-${totals.attack}`, ...randomPos("enemy") });
+      }
+      if (totals.heal > 0) {
+        damagePopups.push({ id: `${Date.now()}-player-heal`, target: "player", tone: "heal", text: `+${totals.heal}`, ...randomPos("player") });
+      }
+      if (totals.shield > 0) {
+        damagePopups.push({ id: `${Date.now()}-player-shield`, target: "player", tone: "shield", text: `🛡️ +${totals.shield}`, ...randomPos("player") });
+      }
 
       if (!enemyDied) {
+        const intentNow = getIntentPreview(enemy);
         const retaliation = resolveEnemyIntent(enemy, player, log);
         enemy = retaliation.enemy;
         player = retaliation.player;
+        if (intentNow.type === "attack") {
+          enemyAttackPulse = Date.now();
+          const hpLoss = Math.max(0, preRetaliationHp - player.hp);
+          hpDamageTaken = hpLoss;
+          const shieldBlocked = Math.max(0, preRetaliationShield - player.shield - hpLoss);
+          if (hpLoss > 0) {
+            damagePopups.push({ id: `${Date.now()}-player-hit`, target: "player", tone: "damage", text: `-${hpLoss}`, ...randomPos("player") });
+          }
+          if (shieldBlocked > 0) {
+            damagePopups.push({ id: `${Date.now()}-player-block`, target: "player", tone: "shield", text: `🛡️ ${shieldBlocked}`, ...randomPos("player") });
+          }
+        }
       }
 
       if (player.timedResetEvery > 0 && nextTurn % player.timedResetEvery === 0) {
@@ -1026,7 +1532,32 @@ export default function DieInTheJungleUpgraded() {
         log.unshift(`✨ Kabal Sigil revives you at ${player.hp} HP`);
       }
 
-      let score = g.score + (enemyDied ? 100 : 10);
+      const nextNoHitTurns = hpDamageTaken > 0 ? 0 : g.noHitTurns + 1;
+      const streakMult = getNoHitMultiplier(nextNoHitTurns);
+      const zoneMult = Math.min(2.5, 1 + (g.floor - 1) * 0.2);
+      const scoreTags = [];
+      let scoreGain = enemyDied ? 120 : 20;
+      if (enemyDied) scoreTags.push(`Kill +${scoreGain}`);
+      const overkillAmount = enemyDied ? Math.max(0, -enemy.hp) : 0;
+      if (overkillAmount > 0) {
+        const overkillBonus = overkillAmount * 5;
+        scoreGain += overkillBonus;
+        scoreTags.push(`Overkill +${overkillBonus}`);
+      }
+      const oneShot = enemyDied && g.enemy.intentIndex === 0;
+      if (oneShot) {
+        scoreGain += 100;
+        scoreTags.push('ONE SHOT +100');
+      }
+      const perfectFight = enemyDied && hpDamageTaken === 0;
+      if (perfectFight) {
+        scoreGain += 150;
+        scoreTags.push('PERFECT +150');
+      }
+      const scoreAfterMult = Math.round(scoreGain * streakMult * zoneMult);
+      if (streakMult > 1) scoreTags.push(`No-hit x${streakMult.toFixed(1)}`);
+      if (zoneMult > 1) scoreTags.push(`Zone x${zoneMult.toFixed(1)}`);
+      let score = g.score + scoreAfterMult;
       let winStreak = enemyDied ? g.winStreak + 1 : 0;
       let phase = player.hp <= 0 ? "gameover" : "roll";
       let room = g.room;
@@ -1036,8 +1567,20 @@ export default function DieInTheJungleUpgraded() {
       let killPopup = null;
       const playerTookDamage = player.hp < g.player.hp;
       const playerRecovered = player.hp > g.player.hp;
-      let avatarMood = enemyDied ? "victory" : playerTookDamage ? "hurt" : playerRecovered ? "joy" : totals.shield > 0 ? "guard" : "focus";
+      const lowHpThreshold = Math.ceil(player.maxHp * 0.25);
+      let avatarMood = player.hp <= lowHpThreshold
+        ? "almostDead"
+        : enemyDied
+          ? "victory"
+          : playerTookDamage
+            ? "hurt"
+            : playerRecovered
+              ? "joy"
+              : totals.shield > 0
+                ? "guard"
+                : "focus";
       let actionFlash = null;
+      const lastOutcome = `⚔️ ${totals.attack} · 🛡️ ${totals.shield} · ❤️ ${totals.heal}`;
 
       if (totals.attack > 0) {
         actionFlash = { id: Date.now(), text: `⚔️ ${totals.attack} DMG`, tone: "rose" };
@@ -1046,17 +1589,35 @@ export default function DieInTheJungleUpgraded() {
       } else if (totals.heal > 0) {
         actionFlash = { id: Date.now(), text: `❤️ +${totals.heal} Heal`, tone: "emerald" };
       }
+      log.unshift(`🏆 Score +${scoreAfterMult}${scoreTags.length ? ` · ${scoreTags.join(' · ')}` : ''}`);
+      scorePopups.push({ id: `${Date.now()}-score-main`, tone: "amber", text: `+${scoreAfterMult}` });
+      if (scoreTags.some((tag) => tag.includes("Overkill"))) scorePopups.push({ id: `${Date.now()}-score-overkill`, tone: "rose", text: "OVERKILL" });
+      if (scoreTags.some((tag) => tag.includes("ONE SHOT"))) scorePopups.push({ id: `${Date.now()}-score-oneshot`, tone: "violet", text: "ONE SHOT" });
+      if (scoreTags.some((tag) => tag.includes("PERFECT"))) scorePopups.push({ id: `${Date.now()}-score-perfect`, tone: "emerald", text: "PERFECT" });
+      if (scoreTags.length >= 3) comboPopup = `COMBO BONUS +${scoreAfterMult}`;
 
       if (!enemyDied && playerTookDamage) {
         actionFlash = { id: Date.now() + 1, text: `💥 -${g.player.hp - player.hp} HP`, tone: "rose" };
+        avatarMood = "shocked";
       }
 
       if (enemyDied) {
-        killPopup = pickKillWord(winStreak);
-        if (g.enemy.tier === "boss") score += 500;
+        killPopup = `💀 ${pickKillWord(winStreak)} 💀`;
+        log.unshift(`☠️ ${g.enemy.name} defeated · ${killPopup}`);
+        if (g.enemy.tier === "boss") {
+          score += 500;
+          comboPopup = "👑 BOSS DESTROYED";
+          actionFlash = { id: Date.now() + 2, text: `👑 BOSS DESTROYED · +${scoreAfterMult + 500} SCORE`, tone: "amber" };
+        } else {
+          actionFlash = { id: Date.now() + 2, text: `🏆 +${scoreAfterMult} SCORE`, tone: "amber" };
+        }
         if (g.enemy.elite) score += 150;
 
-        if (g.enemy.tier === "boss") {
+        if (g.startRewardPending) {
+          combatRewardPending = true;
+          artifactsOffered = buildStarterArtifactChoices(player);
+          phase = "reward";
+        } else if (g.enemy.tier === "boss") {
           combatRewardPending = true;
           artifactsOffered = buildArtifactChoices(player);
           phase = "reward";
@@ -1077,6 +1638,7 @@ export default function DieInTheJungleUpgraded() {
       return {
         ...g,
         score,
+        noHitTurns: nextNoHitTurns,
         turn: nextTurn,
         room,
         route,
@@ -1090,11 +1652,18 @@ export default function DieInTheJungleUpgraded() {
         winStreak,
         artifactsOffered,
         combatRewardPending,
+        startRewardPending: g.startRewardPending && phase !== "reward" ? true : false,
         killPopup,
         log: [...log, ...g.log].slice(0, 40),
         runEnded: phase === "gameover" || phase === "victory",
         avatarMood,
         actionFlash,
+        enemyAttackPulse,
+        enemyHitPulse,
+        damagePopups,
+        scorePopups,
+        comboPopup,
+        lastOutcome,
       };
     });
 
@@ -1106,6 +1675,21 @@ export default function DieInTheJungleUpgraded() {
   function pickArtifact(artifact) {
     setGame((g) => {
       const player = applyArtifactToPlayer(g.player, artifact);
+
+      if (g.startRewardPending) {
+        return {
+          ...g,
+          player: { ...player, shield: player.combatStartShield },
+          phase: "roll",
+          artifactsOffered: [],
+          combatRewardPending: false,
+          startRewardPending: false,
+          actionFlash: { id: Date.now(), text: `🏆 Start relic: ${artifact.name}`, tone: "amber" },
+          lastOutcome: null,
+          log: [`🏆 Starting artifact: ${artifact.name}`, ...g.log].slice(0, 40),
+        };
+      }
+
       const finishedRoute = g.room >= g.route.length - 1;
 
       if (finishedRoute) {
@@ -1122,13 +1706,15 @@ export default function DieInTheJungleUpgraded() {
           phase: "roll",
           artifactsOffered: [],
           combatRewardPending: false,
+          startRewardPending: false,
           cooldowns: emptyCooldowns(),
           grid: emptyGrid(),
           dice: [],
           selectedDieIndex: null,
           avatarMood: "victory",
           actionFlash: { id: Date.now(), text: `🏆 ${artifact.name}`, tone: "amber" },
-          log: [`🏆 Chose ${artifact.name}`, `🌴 Floor ${nextFloor} begins`, ...g.log].slice(0, 40),
+          lastOutcome: null,
+          log: [`🏆 Chose ${artifact.name}`, `🌴 Zone ${nextFloor} begins`, ...g.log].slice(0, 40),
         };
       }
 
@@ -1142,8 +1728,10 @@ export default function DieInTheJungleUpgraded() {
         phase: "roll",
         avatarMood: "focus",
         actionFlash: { id: Date.now(), text: `🏆 ${artifact.name}`, tone: "amber" },
+        lastOutcome: null,
         artifactsOffered: [],
         combatRewardPending: false,
+        startRewardPending: false,
         log: [`🏆 Chose ${artifact.name}`, `✅ Next enemy: ${nextEnemy.emoji} ${nextEnemy.name}`, ...g.log].slice(0, 40),
       };
     });
@@ -1171,10 +1759,58 @@ export default function DieInTheJungleUpgraded() {
     return () => window.clearTimeout(timeout);
   }, [game.actionFlash]);
 
+  useEffect(() => {
+    localStorage.setItem(GAME_STATE_STORAGE_KEY, JSON.stringify(serializeGameState(game)));
+  }, [game]);
+
+  useEffect(() => {
+    if (!game.enemyAttackPulse) return;
+    const timeout = window.setTimeout(() => {
+      setGame((g) => (g.enemyAttackPulse ? { ...g, enemyAttackPulse: 0 } : g));
+    }, 420);
+    return () => window.clearTimeout(timeout);
+  }, [game.enemyAttackPulse]);
+
+  useEffect(() => {
+    if (!game.enemyHitPulse) return;
+    const timeout = window.setTimeout(() => {
+      setGame((g) => (g.enemyHitPulse ? { ...g, enemyHitPulse: 0 } : g));
+    }, 260);
+    return () => window.clearTimeout(timeout);
+  }, [game.enemyHitPulse]);
+
+  useEffect(() => {
+    if (!game.damagePopups.length) return;
+    const timeout = window.setTimeout(() => {
+      setGame((g) => ({ ...g, damagePopups: [] }));
+    }, 900);
+    return () => window.clearTimeout(timeout);
+  }, [game.damagePopups]);
+
+  useEffect(() => {
+    if (!game.scorePopups.length) return;
+    const timeout = window.setTimeout(() => {
+      setGame((g) => ({ ...g, scorePopups: [], comboPopup: null }));
+    }, 1400);
+    return () => window.clearTimeout(timeout);
+  }, [game.scorePopups]);
+
+  useEffect(() => {
+    if (!game.lastOutcome) return;
+    const timeout = window.setTimeout(() => {
+      setGame((g) => (g.lastOutcome ? { ...g, lastOutcome: null } : g));
+    }, 2600);
+    return () => window.clearTimeout(timeout);
+  }, [game.lastOutcome]);
+
   const totalArtifacts = game.player.artifacts.length;
-  const avatarUrl = PLAYER_EMOTION_URLS[game.avatarMood] || PLAYER_AVATAR_URL;
+  const avatarUrl = game.player.characterId === "kkm" ? game.player.avatar : (PLAYER_EMOTION_URLS[game.avatarMood] || game.player.avatar || PLAYER_AVATAR_URL);
   const avatarRing = game.avatarMood === "hurt"
     ? "ring-2 ring-rose-400/70"
+    : game.avatarMood === "almostDead"
+      ? "ring-2 ring-red-500/80"
+      : game.avatarMood === "shocked"
+        ? "ring-2 ring-fuchsia-300/75"
     : game.avatarMood === "victory"
       ? "ring-2 ring-amber-300/75"
       : game.avatarMood === "fierce"
@@ -1189,103 +1825,184 @@ export default function DieInTheJungleUpgraded() {
     sky: "border-sky-300/50 bg-sky-500/20 text-sky-100",
   };
 
+  const hoveredPreview = hoveredSlot && activeDieValue
+    ? (() => {
+      const mult = rowMultiplier(game.player, hoveredSlot.y);
+      const meta = getDieMeta(activeDieValue);
+      if (meta.kind === "shield") return `${meta.emoji} ${activeDieValue.value} ×${mult} = ${activeDieValue.value * mult}`;
+      if (meta.kind === "heal") return `${meta.emoji} ${activeDieValue.value} ×${mult} = ${(activeDieValue.value + game.player.healBonus) * mult}`;
+      return `${meta.emoji} ${activeDieValue.value} ×${mult} = ${(activeDieValue.value + game.player.attackBonus + game.player.attackDieValueBonus) * mult}`;
+    })()
+    : null;
+
   return (
-    <div className="h-screen overflow-hidden bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.78)), url(${BG_URL})` }}>
-      <div className="mx-auto flex h-full max-w-6xl flex-col gap-2">
-        <div className="rounded-[22px] border border-amber-300/20 bg-black/35 p-2 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md">
+    <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.78)), url(${BG_URL})` }}>
+      <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-1.5 pb-3 md:gap-2">
+        <div className="rounded-[22px] border border-amber-300/20 bg-black/35 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md md:p-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <img src={LOGO_URL} alt="Kabal logo" className="h-9 w-9 object-contain" />
               <div>
-                <h1 className="font-serif text-lg italic tracking-wide text-amber-300 md:text-2xl">Die in the Jungle</h1>
-                <p className="text-[10px] text-zinc-100 md:text-xs">Roguelite run · intents · reroll · artifacts · endless floors</p>
+                <h1 className="font-serif text-base italic tracking-wide text-amber-300 md:text-2xl">Die in the Jungle</h1>
+                <p className="text-[10px] text-zinc-100 md:text-xs">Roguelite run · intents · reroll · artifacts · endless zones</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 md:gap-2">
               <div className="rounded-xl border border-white/10 bg-black/40 px-2 py-1.5 text-right">
-                <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Floor</div>
+                <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Zone</div>
                 <div className="text-xs font-black text-amber-300 md:text-sm">{game.floor}</div>
               </div>
               <div className="rounded-xl border border-white/10 bg-black/40 px-2 py-1.5 text-right">
                 <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Phase</div>
                 <div className="text-xs font-black uppercase text-amber-300 md:text-sm">{game.phase}</div>
               </div>
+              <div className="rounded-xl border border-white/10 bg-black/40 px-2 py-1.5 text-right">
+                <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Seed</div>
+                <div className="text-xs font-black text-cyan-200 md:text-sm">#{game.runSeed}</div>
+              </div>
+              <Button onClick={connectWallet} className="rounded-xl bg-violet-500/25 px-2.5 py-2 text-white hover:bg-violet-500/40">
+                {walletAddress ? `🟣 ${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : "🟣 Connect Wallet"}
+              </Button>
               <Button onClick={() => setGame((g) => ({ ...g, showHowToPlay: true }))} className="rounded-xl bg-white/10 px-2.5 py-2 text-white hover:bg-white/20">❓</Button>
             </div>
           </div>
         </div>
 
-        <div className="grid shrink-0 gap-2 md:grid-cols-3">
-          <SectionCard title="Enemy portrait">
-            <div className="aspect-square max-h-[180px] overflow-hidden rounded-[18px] border border-white/10 bg-zinc-950/55 p-1.5">
-              <div className="flex h-full flex-col items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-amber-300/25 bg-black/20 p-1.5 text-center">
+        <div className="grid shrink-0 gap-1.5 md:gap-2 md:grid-cols-[1.15fr_1fr_1.15fr]">
+          <SectionCard title="Enemy panel">
+            <div className="rounded-[18px] border border-rose-300/30 bg-gradient-to-b from-rose-950/45 to-black/85 p-2">
+              <div className="flex h-full flex-col items-center justify-center gap-2 rounded-[14px] border border-rose-300/40 bg-black/35 p-2 text-center">
                 <motion.img
                   src={game.enemy.image}
                   alt={game.enemy.name}
-                  animate={intent.type === "attack" ? { scale: [1, 1.03, 1], x: [0, -2, 2, 0] } : { scale: 1, x: 0 }}
+                  animate={game.enemyHitPulse ? { scale: [1, 1.12, 0.96, 1], filter: ["brightness(1)", "brightness(1.55)", "brightness(1)"] } : game.enemyAttackPulse ? { x: [0, -10, 10, -8, 8, 0], scale: [1, 1.06, 1] } : intent.type === "attack" ? { scale: [1, 1.03, 1], x: [0, -2, 2, 0] } : { scale: 1, x: 0 }}
                   transition={{ duration: 0.45 }}
-                  className="max-h-[74%] w-full object-contain drop-shadow-[0_10px_18px_rgba(0,0,0,0.45)]"
+                  className="h-[128px] w-full object-contain contrast-110 saturate-110 drop-shadow-[0_14px_24px_rgba(0,0,0,0.6)] md:h-[175px]"
                 />
                 <div className="text-xs font-black md:text-sm">{game.enemy.emoji} {game.enemy.name}</div>
                 <div className="text-[9px] text-zinc-300">{game.enemy.mood}</div>
                 <div className="rounded-full border border-white/10 bg-black/45 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-zinc-200">
                   {game.enemy.elite ? "Elite" : game.enemy.tier}
                 </div>
+                <LifeBar label="Enemy HP" current={game.enemy.hp} max={game.enemy.maxHp} tone="enemy" size={game.enemy.maxHp >= 55 ? "lg" : "md"} />
               </div>
             </div>
           </SectionCard>
 
-          <SectionCard title="Combat stats">
-            <div className="grid grid-cols-2 gap-1.5">
+          <SectionCard title="Combat center">
+            <div className="grid grid-cols-2 gap-1.5 rounded-[16px] border border-white/10 bg-black/35 p-2">
               <CompactStat label="Room" value={`${game.room + 1}/${game.route.length}`} accent="text-amber-300" />
               <CompactStat label="Score" value={`${game.score}`} accent="text-violet-300" />
-              <div className="col-span-2">
-                <LifeBar label="Enemy HP" current={game.enemy.hp} max={game.enemy.maxHp} tone="enemy" />
-              </div>
-              <CompactStat label="Intent" value={`${intent.type}`} accent="text-white" />
+              <CompactStat label="Intent" value={`${intentMeta(intent.type).emoji} ${intent.type}`} accent={intentMeta(intent.type).color} />
               <CompactStat label="Value" value={`${intent.value}`} accent="text-rose-300" />
-              <CompactStat label="Modifier" value={intent.mod.badge} accent="text-cyan-200" />
+              <CompactStat label="Modifier" value={intent.mod.badge} accent={modifierClass(game.enemy.modifier)} />
               <CompactStat label="Streak" value={`${game.winStreak}`} accent="text-emerald-300" />
+              <CompactStat label="No-hit" value={`${game.noHitTurns}T · x${streakMultiplier.toFixed(1)}`} accent="text-lime-300" />
+              <CompactStat label="Enemy Shield" value={`${game.enemy.shield || 0}`} accent="text-rose-200" />
+              <div className="rounded-[16px] border border-white/10 bg-black/35 p-2 text-center">
+                <div className="text-[9px] uppercase tracking-[0.16em] text-zinc-300">Outcome</div>
+                <div className="mt-1 text-xs font-black text-cyan-100">{game.lastOutcome || "—"}</div>
+              </div>
+              <div className="col-span-2 rounded-[12px] border border-white/10 bg-black/40 p-2">
+                <div className="mb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-300">Intent timeline</div>
+                <div className="space-y-1 text-[11px]">
+                  {intentTimeline.map((entry, idx) => (
+                    <div key={`${entry.type}-${idx}-${entry.value}`} className={`rounded-lg border border-white/10 px-2 py-1 ${idx === 0 ? "bg-white/10" : "bg-black/35"}`}>
+                      <span className={intentMeta(entry.type).color}>{intentMeta(entry.type).emoji} {entry.label}</span>
+                      <span className="ml-1 text-zinc-200">{entry.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </SectionCard>
 
-          <SectionCard title="Player HUD">
-            <div className="grid grid-cols-2 gap-1.5">
-              <div className="col-span-2 flex items-center gap-2 rounded-[16px] border border-white/10 bg-black/35 p-2">
+          <SectionCard title="Player panel">
+            <div className="rounded-[18px] border border-cyan-300/30 bg-gradient-to-b from-cyan-950/40 to-black/85 p-2">
+              <div className="grid grid-cols-2 gap-1.5 rounded-[14px] border border-cyan-300/30 bg-black/35 p-2">
+                <div className="col-span-2 flex flex-col items-center gap-2 rounded-[16px] border border-white/10 bg-black/35 p-2 text-center">
                 <motion.img
                   src={avatarUrl}
                   alt="Kabalian"
                   animate={game.avatarMood === "hurt" ? { x: [0, -2, 2, -2, 0] } : game.avatarMood === "victory" ? { y: [0, -3, 0] } : { x: 0, y: 0 }}
                   transition={{ duration: 0.45 }}
-                  className={`h-12 w-12 rounded-2xl border border-white/10 bg-black/40 object-cover ${avatarRing}`}
+                  className={`h-[128px] w-full rounded-2xl border border-white/10 bg-black/40 object-contain md:h-[175px] ${avatarRing}`}
                 />
-                <div className="min-w-0 flex-1">
-                  <div className="font-black">Kabalian</div>
-                  <div className="text-[10px] text-zinc-300">Mood {game.avatarMood} · CD {game.player.cooldownBase} · Tick {game.player.cooldownTick} · Artifacts {totalArtifacts}</div>
+                <div className="min-w-0">
+                  <div className="font-black">{game.player.characterId === "kkm" ? "KKM" : "Kabalian"}</div>
+                  <div className="text-[10px] text-zinc-300">CD {game.player.cooldownBase} · Tick {game.player.cooldownTick} · Artifacts {totalArtifacts}</div>
                 </div>
-                <img src={LOGO_URL} alt="Kabal logo" className="h-8 w-8 object-contain opacity-90" />
+                <img src={LOGO_URL} alt="Kabal logo" className="h-7 w-7 object-contain opacity-90" />
               </div>
-              <div className="col-span-2">
-                <LifeBar label="Player HP" current={game.player.hp} max={game.player.maxHp} tone="player" />
+                <div className="col-span-2">
+                  <LifeBar label="Player HP" current={game.player.hp} max={game.player.maxHp} tone="player" />
+                </div>
+                <CompactStat label="🛡️ Shield" value={`${game.player.shield}`} accent="text-cyan-200" />
+                <CompactStat label="Reroll" value={`${game.player.rerollsLeft}`} accent="text-amber-300" />
+                <div className="col-span-2 rounded-[12px] border border-white/10 bg-black/45 p-2">
+                  <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">Owned artifacts</div>
+                  {game.player.artifacts.length ? (
+                    <div className="flex max-h-20 flex-wrap gap-1 overflow-auto pr-1">
+                      {game.player.artifacts.map((artifact) => (
+                        <div key={`owned-${artifact.id}`} className="flex items-center gap-1 rounded-full border border-white/20 bg-black/40 px-2 py-1 text-[9px]">
+                          {artifact.image ? <img src={artifact.image} alt={artifact.name} className="h-4 w-4 rounded-full object-cover" /> : <span>✨</span>}
+                          <span>{artifact.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <div className="text-[10px] text-zinc-300">No artifacts yet.</div>}
+                </div>
               </div>
-              <CompactStat label="Shield" value={`${game.player.shield}`} accent="text-cyan-200" />
-              <CompactStat label="Reroll" value={`${game.player.rerollsLeft}`} accent="text-amber-300" />
             </div>
           </SectionCard>
         </div>
 
-        <SectionCard title="Dice + Action" right={<div className="text-[9px] text-zinc-300">Tap die, then slot</div>}>
-          <div className="mb-1 flex flex-wrap gap-1 text-[9px] md:text-[10px]">
-            <div className="rounded-xl border border-white/10 bg-black/35 px-2 py-1">🛡️ 1-2</div>
-            <div className="rounded-xl border border-white/10 bg-black/35 px-2 py-1">❤️ 3-4</div>
-            <div className="rounded-xl border border-white/10 bg-black/35 px-2 py-1">⚔️ 5-6</div>
+        <SectionCard title="Dice + Action" className="order-1" right={<div className="text-[9px] text-zinc-300">Tap die, then slot</div>}>
+          <div className="mb-1.5 flex flex-wrap items-center justify-center gap-2">
+            {(game.phase === "roll" || game.phase === "rolling") ? (
+              <Button onClick={startRoll} disabled={game.rolling} className={`rounded-2xl bg-amber-400 px-4 py-2.5 text-sm font-black text-black hover:bg-amber-300 disabled:opacity-60 ${game.phase === "roll" && !game.rolling ? "animate-pulse shadow-[0_0_0_6px_rgba(252,211,77,0.20)]" : ""}`}>
+                {game.rolling ? "🎲 Rolling..." : "🎲 ROLL"}
+              </Button>
+            ) : null}
+            {game.phase === "place" ? (
+              <Button onClick={rerollActiveDie} disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null} className="rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-700/90 to-zinc-900 px-5 py-2.5 text-sm font-black text-white hover:from-zinc-600 hover:to-zinc-800 disabled:opacity-40">
+                🔁 REROLL
+              </Button>
+            ) : null}
+            {(game.phase === "gameover" || game.phase === "victory") ? (
+              <>
+                <div className="text-lg font-black md:text-xl">{game.phase === "victory" ? "🏆 YOU WIN" : "💀 YOU DIED"}</div>
+                <Button onClick={submitScoreToLeaderboard} className="rounded-2xl bg-violet-500/30 px-4 py-2.5 text-sm font-black text-white hover:bg-violet-500/45">Submit score</Button>
+                <Button onClick={shareRun} className="rounded-2xl bg-sky-500/35 px-4 py-2.5 text-sm font-black text-white hover:bg-sky-500/50">Share run</Button>
+                <Button onClick={restart} className="rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-black hover:bg-zinc-200">Play again</Button>
+              </>
+            ) : null}
+          </div>
+          <div className="mb-1 flex flex-wrap justify-center gap-1 text-[9px] md:text-[10px]">
+            <div className="rounded-xl border border-zinc-300/30 bg-zinc-900/70 px-2 py-1">⚔️ Attack die 1-6 (black)</div>
+            <div className="rounded-xl border border-pink-200/35 bg-pink-500/20 px-2 py-1">❤️ Dé Health 1-6</div>
+            <div className="rounded-xl border border-white/50 bg-white/15 px-2 py-1">🛡️ Shield die 1-6 (white)</div>
             <div className="rounded-xl border border-white/10 bg-black/35 px-2 py-1">🔥 Combo = 3 attack dice</div>
           </div>
-          <div className="flex min-h-[56px] flex-wrap items-start gap-1.5">
+          <div className="mb-1 grid gap-1 rounded-[12px] border border-white/10 bg-black/35 p-2 text-[11px] md:grid-cols-2">
+            <div>
+              <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-300">Damage forecast</div>
+              <div className="font-black text-zinc-100">⚔️ {expectedOutcome.attack} · 🛡️ +{expectedOutcome.shield} · ❤️ +{expectedOutcome.heal}</div>
+            </div>
+            <div>
+              <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-300">Slot preview</div>
+              <div className="font-black text-amber-200">{hoveredPreview || "Hover a slot to preview final value"}</div>
+            </div>
+          </div>
+          <div className="flex min-h-[56px] items-center justify-center gap-2">
+            {game.phase === "place" ? (
+              <Button onClick={() => shiftSelectedDie(-1)} className="h-10 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-4 text-white hover:from-zinc-700 hover:to-zinc-800">⬅️</Button>
+            ) : null}
+            <div className="flex min-h-[56px] flex-wrap items-start justify-center gap-1.5">
             {game.dice.some((d) => d !== null) ? (
               game.dice.map((die, i) => die !== null ? (
                 <DiceFace
-                  key={`${die}-${i}-${game.rolling}`}
+                  key={`${die.id}-${i}-${game.rolling}`}
                   value={die}
                   selected={i === activeDieIndex && game.phase === "place"}
                   rolling={game.rolling}
@@ -1295,23 +2012,9 @@ export default function DieInTheJungleUpgraded() {
             ) : (
               <div className="text-[11px] text-zinc-100">🎲 No dice yet. Press <span className="font-black text-amber-300">ROLL</span>.</div>
             )}
-          </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2">
-            {(game.phase === "roll" || game.phase === "rolling") ? (
-              <Button onClick={startRoll} disabled={game.rolling} className="rounded-2xl bg-amber-400 px-4 py-2.5 text-sm font-black text-black hover:bg-amber-300 disabled:opacity-60">
-                {game.rolling ? "🎲 Rolling..." : "🎲 ROLL"}
-              </Button>
-            ) : null}
+            </div>
             {game.phase === "place" ? (
-              <Button onClick={rerollActiveDie} disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null} className="rounded-2xl bg-white/10 px-4 py-2.5 text-sm font-black text-white hover:bg-white/20 disabled:opacity-40">
-                🔁 REROLL
-              </Button>
-            ) : null}
-            {(game.phase === "gameover" || game.phase === "victory") ? (
-              <>
-                <div className="text-lg font-black md:text-xl">{game.phase === "victory" ? "🏆 YOU WIN" : "💀 YOU DIED"}</div>
-                <Button onClick={restart} className="rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-black hover:bg-zinc-200">Restart</Button>
-              </>
+              <Button onClick={() => shiftSelectedDie(1)} className="h-10 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-4 text-white hover:from-zinc-700 hover:to-zinc-800">➡️</Button>
             ) : null}
           </div>
         </SectionCard>
@@ -1320,7 +2023,7 @@ export default function DieInTheJungleUpgraded() {
 
 
 
-        <SectionCard title="Board" right={<div className="text-[9px] text-zinc-300">Place dice on available slots</div>}>
+        <SectionCard title="Board" className="order-2 md:order-none" right={<div className="text-[9px] text-zinc-300">Place dice on available slots</div>}>
           {activeDieMeta && game.phase === "place" ? (
             <div className="mb-2 flex items-center gap-2 rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-2 py-1.5 text-[11px] text-white">
               <span className="text-lg">{activeDieMeta.emoji}</span>
@@ -1331,10 +2034,10 @@ export default function DieInTheJungleUpgraded() {
             </div>
           ) : null}
 
-          <div className="grid justify-center gap-1" style={{ gridTemplateColumns: "40px repeat(3, 84px)" }}>
+          <div className="grid justify-center gap-1 [grid-template-columns:32px_repeat(3,72px)] md:[grid-template-columns:40px_repeat(3,84px)]">
             {ROW_INFO.map((row, y) => (
               <React.Fragment key={row.name}>
-                <div className="h-[84px] rounded-[10px] border border-white/15 bg-black flex flex-col items-center justify-center text-[10px] font-black text-white">
+                <div className="h-[72px] rounded-[10px] border border-white/15 bg-black flex flex-col items-center justify-center text-[9px] font-black text-white md:h-[84px] md:text-[10px]">
                   <span>{row.emoji}</span>
                   <span>x{rowMultiplier(game.player, y)}</span>
                   <span className="text-[8px] text-zinc-300">{row.role}</span>
@@ -1348,15 +2051,17 @@ export default function DieInTheJungleUpgraded() {
                     <button
                       key={`${x}-${y}`}
                       onClick={() => activeDieIndex !== null && placeDie(activeDieIndex, x, y)}
-                      className={`relative h-[84px] w-[84px] overflow-hidden rounded-[10px] border text-white transition ${canPlace ? "border-amber-300/60 ring-2 ring-amber-300/20" : "border-white/20"}`}
+                      onMouseEnter={() => setHoveredSlot({ x, y })}
+                      onMouseLeave={() => setHoveredSlot(null)}
+                      className={`relative h-[72px] w-[72px] overflow-hidden rounded-[10px] border text-white transition md:h-[84px] md:w-[84px] ${canPlace ? "border-amber-300/60 ring-2 ring-amber-300/20" : "border-white/20"}`}
                     >
                       <img src={LANE_IMAGES[y]} className="absolute inset-0 h-full w-full object-contain" />
                       {cell !== null ? (
                         <>
                           <div className="absolute inset-0 bg-black/10" />
-                          <img src={DICE_IMAGES[cell]} className="absolute inset-0 h-full w-full object-contain" />
+                          <img src={getDieImage(cell)} className="absolute inset-0 h-full w-full object-contain" />
                           <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 rounded bg-black/60 px-1 text-[9px] font-black">
-                            {meta?.emoji}
+                            {meta?.emoji} {cell.value}
                           </div>
                         </>
                       ) : blocked ? (
@@ -1384,7 +2089,7 @@ export default function DieInTheJungleUpgraded() {
         </SectionCard>
 
 
-        <SectionCard title="Combat log" right={<button onClick={() => setGame((g) => ({ ...g, showAllLogs: !g.showAllLogs }))} className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-bold text-white hover:bg-white/20">{game.showAllLogs ? "▲" : "▼"}</button>}>
+        <SectionCard title="Combat log" className="order-3 md:order-none" right={<button onClick={() => setGame((g) => ({ ...g, showAllLogs: !g.showAllLogs }))} className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-bold text-white hover:bg-white/20">{game.showAllLogs ? "▲" : "▼"}</button>}>
           <div className="space-y-1">
             {latestLogs.map((line, i) => (
               <div key={`${line}-${i}`} className="rounded-[12px] border border-white/10 bg-zinc-900/80 px-2.5 py-1.5 text-[11px] md:text-xs">{line}</div>
@@ -1399,7 +2104,7 @@ export default function DieInTheJungleUpgraded() {
           <AnimatePresence>
             {game.showAllLogs ? (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                <div className="max-h-28 space-y-1 overflow-auto pt-1.5">
+                <div className="max-h-40 space-y-1 overflow-auto pt-1.5 md:max-h-28">
                   {game.log.slice(3).map((line, i) => (
                     <div key={`${line}-${i}`} className="rounded-[12px] border border-white/10 bg-black/35 px-2.5 py-1.5 text-[10px] text-zinc-100">{line}</div>
                   ))}
@@ -1409,6 +2114,37 @@ export default function DieInTheJungleUpgraded() {
           </AnimatePresence>
         </SectionCard>
 
+        <SectionCard title="Leaderboard">
+          <div className="space-y-1">
+            {leaderboard.length ? leaderboard.slice(0, 5).map((entry, index) => (
+              <div key={entry.id} className="flex items-center justify-between rounded-[12px] border border-white/10 bg-black/35 px-2.5 py-1.5 text-[11px]">
+                <span>#{index + 1} · {entry.wallet === "guest" ? "guest" : `${entry.wallet.slice(0, 4)}...${entry.wallet.slice(-4)}`}</span>
+                <span>🏆 {entry.score} · Zone {entry.zone}</span>
+              </div>
+            )) : <div className="text-[11px] text-zinc-300">No score yet. Finish a run and submit.</div>}
+          </div>
+        </SectionCard>
+
+        <AnimatePresence>
+          {game.damagePopups.map((popup) => (
+            <motion.div
+              key={popup.id}
+              initial={{ opacity: 0, y: 12, scale: 0.8 }}
+              animate={{ opacity: 1, y: -12, scale: 1.15 }}
+              exit={{ opacity: 0, y: -24, scale: 0.9 }}
+              style={{ left: popup.left, top: popup.top }}
+              className={`pointer-events-none fixed z-50 rounded-xl border px-4 py-2 text-3xl font-black shadow-[0_20px_60px_rgba(0,0,0,0.5)] ${
+                popup.tone === "damage"
+                  ? "border-rose-300/60 bg-rose-600/35 text-rose-100"
+                  : popup.tone === "heal"
+                    ? "border-emerald-300/60 bg-emerald-600/30 text-emerald-100"
+                    : "border-cyan-300/60 bg-cyan-600/30 text-cyan-100"
+              }`}
+            >
+              {popup.text}
+            </motion.div>
+          ))}
+        </AnimatePresence>
 
         <AnimatePresence>
           {game.actionFlash ? (
@@ -1426,14 +2162,100 @@ export default function DieInTheJungleUpgraded() {
 
         <AnimatePresence>
           {game.killPopup ? (
-            <motion.div initial={{ opacity: 0, y: 18, scale: 0.92 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -18, scale: 0.92 }} className="pointer-events-none fixed left-1/2 top-24 z-40 -translate-x-1/2 rounded-2xl border border-amber-300/25 bg-black/75 px-5 py-3 text-lg font-black text-amber-300 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+            <motion.div initial={{ opacity: 0, y: 18, scale: 0.85 }} animate={{ opacity: 1, y: 0, scale: 1.08 }} exit={{ opacity: 0, y: -18, scale: 0.9 }} className="pointer-events-none fixed left-1/2 top-24 z-40 -translate-x-1/2 rounded-2xl border border-rose-300/40 bg-black/85 px-6 py-3 text-3xl font-black text-rose-200 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
               {game.killPopup}
             </motion.div>
           ) : null}
         </AnimatePresence>
 
         <AnimatePresence>
-          {game.phase === "reward" ? (
+          {game.killPopup ? Array.from({ length: 14 }).map((_, i) => (
+            <motion.div
+              key={`skull-rain-${i}`}
+              initial={{ opacity: 0, y: -40, x: 0, rotate: -10 }}
+              animate={{ opacity: [0, 1, 1, 0], y: [0, 220 + (i % 4) * 50], x: [0, (i % 2 === 0 ? -24 : 24)], rotate: [0, i % 2 === 0 ? -18 : 18] }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.3, delay: i * 0.04 }}
+              className="pointer-events-none fixed top-8 z-40 text-2xl"
+              style={{ left: `${8 + i * 6}%` }}
+            >
+              {i % 3 === 0 ? "🎉" : i % 2 === 0 ? "💀" : "✨"}
+            </motion.div>
+          )) : null}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {game.characterSelectPending ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-3xl rounded-[28px] border border-cyan-300/25 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
+                <div className="mb-4 text-center">
+                  <div className="font-serif text-2xl italic text-amber-300">Choose your character</div>
+                  <div className="text-sm text-zinc-300">Choose your character before first fight. First artifact arrives after the first win.</div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {Object.values(PLAYER_CHARACTERS).map((character) => (
+                    <button
+                      key={character.id}
+                      onClick={() => pickCharacter(character.id)}
+                      className="rounded-2xl border border-white/15 bg-black/45 p-3 text-left transition hover:border-amber-300/60 hover:bg-black/70"
+                    >
+                      <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
+                      <div className="font-black text-lg text-amber-200">{character.name}</div>
+                      <div className="text-xs text-zinc-300">{character.subtitle}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {game.scorePopups.map((popup, i) => (
+            <motion.div
+              key={popup.id}
+              initial={{ opacity: 0, y: 16, scale: 0.75 }}
+              animate={{ opacity: 1, y: -8 - i * 10, scale: 1.05 }}
+              exit={{ opacity: 0, y: -30, scale: 0.8 }}
+              className={`pointer-events-none fixed left-1/2 top-1/3 z-40 -translate-x-1/2 rounded-xl border px-4 py-2 text-lg font-black shadow-[0_20px_60px_rgba(0,0,0,0.45)] ${popup.tone === "rose" ? "border-rose-300/60 bg-rose-500/30 text-rose-100" : popup.tone === "emerald" ? "border-emerald-300/60 bg-emerald-500/25 text-emerald-100" : popup.tone === "violet" ? "border-violet-300/60 bg-violet-500/25 text-violet-100" : "border-amber-300/60 bg-amber-500/25 text-amber-100"}`}
+            >
+              {popup.text}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {game.comboPopup ? (
+            <motion.div initial={{ opacity: 0, scale: 0.82 }} animate={{ opacity: 1, scale: 1.05 }} exit={{ opacity: 0, scale: 0.9 }} className="pointer-events-none fixed left-1/2 top-44 z-40 -translate-x-1/2 rounded-2xl border border-amber-300/45 bg-black/85 px-6 py-3 text-2xl font-black text-amber-200 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+              {game.comboPopup}
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {(game.phase === "gameover" || game.phase === "victory") ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-xl rounded-[28px] border border-amber-300/25 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
+                <div className="mb-3 text-center font-serif text-2xl italic text-amber-300">{game.phase === "victory" ? "RUN SUMMARY · KABAL BLESSING" : "RUN SUMMARY · LIQUIDATED"}</div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">Character: <span className="font-black">{game.player.characterId === "kkm" ? "KKM" : "Kabalian"}</span></div>
+                  <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">Zone: <span className="font-black">{game.floor}</span></div>
+                  <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">Score: <span className="font-black">{game.score}</span></div>
+                  <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">No-hit: <span className="font-black">{game.noHitTurns}T</span></div>
+                  <div className="col-span-2 rounded-xl border border-white/10 bg-black/35 px-3 py-2">Seed: <span className="font-black text-cyan-200">#{game.runSeed}</span></div>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                  <Button onClick={submitScoreToLeaderboard} className="rounded-xl bg-violet-500/30 px-4 py-2 text-white hover:bg-violet-500/45">Submit score</Button>
+                  <Button onClick={shareRun} className="rounded-xl bg-sky-500/35 px-4 py-2 text-white hover:bg-sky-500/50">Share run</Button>
+                  <Button onClick={restart} className="rounded-xl bg-white px-4 py-2 text-black hover:bg-zinc-200">Play again</Button>
+                </div>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {game.phase === "reward" && !game.characterSelectPending ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
               <div className="w-full max-w-4xl rounded-[28px] border border-amber-300/20 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
                 <div className="mb-4 flex items-center justify-between gap-4">
@@ -1441,10 +2263,21 @@ export default function DieInTheJungleUpgraded() {
                     <img src={LOGO_URL} alt="Kabal logo" className="h-10 w-10 object-contain" />
                     <div>
                       <div className="font-serif text-xl italic text-amber-300 md:text-2xl">Choose 1 Artifact</div>
-                      <div className="text-sm text-zinc-300">Boss down. Build your run.</div>
+                      <div className="text-sm text-zinc-300">{game.startRewardPending ? "First reward after your opening win." : "Boss down. Build your run."}</div>
                     </div>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-zinc-300">Floor {game.floor}</div>
+                  <div className="rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-zinc-300">Zone {game.floor}</div>
+                </div>
+                <div className="mb-4 rounded-2xl border border-cyan-300/25 bg-cyan-950/25 p-3">
+                  <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-cyan-200">{storyFragment.title}</div>
+                  <div className="grid gap-2 md:grid-cols-[120px_1fr]">
+                    <img src={STORY_FRAGMENT_IMAGE_URL} alt="Chronicle fragment" className="h-[95px] w-full rounded-xl border border-white/10 bg-black/35 object-cover" />
+                    <div className="space-y-1 text-sm text-zinc-100">
+                      {storyFragment.lines.map((line) => (
+                        <div key={line}>• {line}</div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
                 <div className="grid gap-3 md:grid-cols-3">
                   {game.artifactsOffered.map((artifact) => (
@@ -1478,7 +2311,7 @@ export default function DieInTheJungleUpgraded() {
                   <div>5️⃣ Used slots gain cooldown</div>
                   <div>6️⃣ If the board saturates, all cooldowns reset</div>
                   <div>7️⃣ Enemies have visible intents and combat modifiers</div>
-                  <div>8️⃣ Beat elites and bosses, pick artifacts, continue to higher floors</div>
+                  <div>8️⃣ Beat elites and bosses, pick artifacts, continue to higher zones</div>
                 </div>
               </div>
             </motion.div>

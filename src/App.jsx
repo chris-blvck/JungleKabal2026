@@ -28,6 +28,7 @@ export default function App() {
 
           {/* TRADING */}
           <Route path="/finance/pnl-calendar"     element={<PNLCalendar />} />
+          <Route path="/finance/track-record"     element={<TrackRecord />} />
           <Route path="/narrative-board"          element={<NarrativeBoard />} />
           <Route path="/risk-manager"             element={<RiskManager />} />
           <Route path="/trading/kredo"            element={<KabalKredo />} />
