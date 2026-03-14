@@ -59,6 +59,7 @@ API endpoint used by admin/user pages: `GET/PUT /api/academy/content` (default `
 Le flow de vente est maintenant **mini app first**:
 - depuis le site, l'utilisateur est redirigé vers Telegram Mini App
 - le catalogue, panier, upsell, création paiement et confirmation tx se font dans la mini app
+- Auto-refresh payment status every 4s with pending/confirmed/expired states
 - includes MEMECOINS COURSE (BEGINNER) as FREE starter with symbolic 0.00001 SOL activation
 - includes MEMECOINS COURSE (BEGINNER/INTERMEDIATE) at 20 SOL
 - includes Kourses / Kodex / Koaching sections with MINDSET and AI AUTOMATION & AGENT as coming soon
@@ -71,6 +72,8 @@ Le flow de vente est maintenant **mini app first**:
 - `POST /api/payments/create-cart`
 - `POST /api/payments/:id/confirm`
 - `POST /api/payments/link-telegram`
+- `GET /api/payments/history?telegramId=...&wallet=...`
+- `GET /api/access/list?telegramId=...&wallet=...`
 - `POST /api/waitlist/subscribe`
 - `GET /api/access/check?productId=...&wallet=...&telegramId=...`
 - `POST /api/telegram/webhook` (uniquement pour ouvrir la mini app / link)
@@ -82,27 +85,23 @@ ACADEMY_API_PORT=8787
 SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 PAYMENT_WALLET_POOL=wallet1,wallet2,wallet3
 # ou PAYMENT_WALLET=wallet_unique
-TELEGRAM_BOT_TOKEN=123456:ABC...
-TELEGRAM_STRICT_AUTH=0
+PAYMENT_EXPIRY_MINUTES=15
+
+# Front redirect mini app
+VITE_TELEGRAM_MINI_APP_URL=https://t.me/ton_bot/ton_mini_app
+
+# Bot Telegram (optionnel, pour /start + bouton web_app)
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_MINI_APP_URL=https://ton-domaine/telegram-miniapp
 ```
 
-Le backend fait une rotation automatique des wallets de réception via `PAYMENT_WALLET_POOL` (pour sécurité/opsec).
+### Route mini app
+
+- `/telegram-miniapp`
 
 
-## Telegram Mini App Migration
+### Roadmap
 
-A dedicated Telegram Mini App repo scaffold now exists in `telegram-miniapp/` to migrate **Die In The Jungle** while keeping desktop routes unchanged.
-
-
-### Mini App backend endpoints (MVP)
-
-When running `npm run api`, the same Node server now also exposes Telegram Mini App MVP endpoints:
-
-- `POST /api/runs/finish`
-- `GET /api/runs/leaderboard?limit=20`
-- `POST /api/runs/friends-leaderboard`
-- `POST /api/referrals/claim`
-- `GET /api/referrals/stats/:code`
-- `POST /api/miniapp/auth/check`
-- `POST /api/telemetry/event`
-- `GET /api/telemetry/summary`
+- Fichier roadmap produit mini app: `docs/KABAL_MINIAPP_ROADMAP.md`
+- Roadmap runtime utilisée par la mini app: `server/data/product-catalog.json` clé `roadmap`
+- Process recommandé: mettre à jour les deux à chaque sprint.

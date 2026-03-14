@@ -16,7 +16,8 @@ import KabalAcademyMVP from './pages/KabalAcademyMVP';
 import KabalAcademyAdmin from './pages/KabalAcademyAdmin';
 import TrackRecord from './pages/TrackRecord';
 import TrophyRoom from './pages/TrophyRoom';
-import AngelOpsDashboard from './pages/AngelOpsDashboard';
+import KabalCheckout from './pages/KabalCheckout';
+import TelegramMiniApp from './pages/TelegramMiniApp';
 
 const isTeamContext =
   typeof window !== 'undefined' &&
@@ -61,18 +62,6 @@ export default function App() {
           <Route path="/academy/admin"            element={<KabalAcademyAdmin />} />
           <Route path="/academy/checkout"         element={<KabalCheckout />} />
           <Route path="/telegram-miniapp"          element={<TelegramMiniApp />} />
-
-          {/* DIRECTORY */}
-          <Route path="/url"                      element={<TeamUrlDirectory />} />
-
-          {/* DIRECTORY */}
-          <Route path="/url"                      element={<TeamUrlDirectory />} />
-
-          {/* DIRECTORY */}
-          <Route path="/url"                      element={<TeamUrlDirectory />} />
-
-          {/* DIRECTORY */}
-          <Route path="/url"                      element={<TeamUrlDirectory />} />
 
           {/* Fallback */}
           <Route path="*"                         element={<TeamHome />} />

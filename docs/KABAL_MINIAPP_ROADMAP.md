@@ -5,25 +5,24 @@ This file is the source of truth for mini-app product progress.
 ## P0 — Live
 - Visual catalog with framed premium UI
 - Kourses / Kodex / Koaching sections
-- MEMECOINS COURSE (BEGINNER) free starter (0.00001 SOL activation)
-- MEMECOINS COURSE (BEGINNER/INTERMEDIATE) at 20 SOL
-- MINDSET + AI AUTOMATION & AGENT listed as coming soon
 - Cart + SOL payment + confirmation
+- Payment status polling with pending/confirmed/expired
+- Expiring payment sessions (`expiresAt`)
 
 ## P1 — In Progress
-- Connect entitlements to Academy token-gated pages
-- Add “My Access” page in mini app
-- Add purchase history + retry UX
+- My Access panel in mini app (owner-based entitlement list)
+- Purchase history endpoint + UI
+- Better fallback UX when API is unavailable
 
 ## P2 — Next (Growth)
-- Pricing / upsell A/B tests
-- Dynamic bundles based on cart behavior
-- Coupon and referral system
+- Connect entitlements directly into Academy gated pages
+- Auto-confirmation worker (server-side scan of pending tx)
+- Deep wallet integration (no manual signature paste)
 
 ## P3 — Ops / Data
 - Conversion dashboard (view -> add-to-cart -> pay -> confirm)
 - Solana RPC monitoring + alerting
-- Scheduled wallet rotation + anti-fraud rules
+- Anti-fraud rules + rate limits + signature replay protection
 
 ## Update rules
 - Update this file + `server/data/product-catalog.json` (`roadmap`) every sprint.

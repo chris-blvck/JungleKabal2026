@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BookOpen, Brain, Gem, Rocket, ShoppingBag, Sparkles, CheckCircle2, Clock3 } from 'lucide-react';
+import { ArrowLeft, BookOpen, Brain, Gem, Rocket, ShoppingBag, Sparkles, CheckCircle2, Clock3, Copy, RefreshCw } from 'lucide-react';
 import catalogFallback from '../data/catalogFallback.json';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 const typeTheme = {
   kourse: {
@@ -47,7 +49,8 @@ function getPreselectedProductId() {
 }
 
 async function apiRequest(path, options = {}) {
-  const response = await fetch(path, {
+  const url = /^https?:\/\//.test(path) ? path : `${API_BASE}${path}`;
+  const response = await fetch(url, {
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
   });
@@ -68,6 +71,13 @@ function money(value) {
   return `${Number(value).toFixed(5)} SOL`;
 }
 
+function shortDate(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString();
+}
+
 function isActivationFee(product) {
   return Number(product.amountSol || 0) <= 0.00001 && !product.comingSoon;
 }
@@ -75,6 +85,23 @@ function isActivationFee(product) {
 function normalizeProductType(type) {
   if (type === 'pack') return 'kourse';
   return type;
+}
+
+
+function formatCountdown(expiresAt) {
+  if (!expiresAt) return '';
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= 0) return 'Expired';
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function paymentStatusMeta(status) {
+  if (status === 'confirmed') return { label: 'Confirmed', className: 'border-emerald-300/40 bg-emerald-400/10 text-emerald-200' };
+  if (status === 'expired') return { label: 'Expired', className: 'border-red-300/40 bg-red-400/10 text-red-200' };
+  return { label: 'Pending', className: 'border-amber-300/40 bg-amber-400/10 text-amber-200' };
 }
 
 function ProductCard({ product, inCart, onToggle }) {
@@ -148,6 +175,13 @@ export default function TelegramMiniApp() {
   const [usingFallbackCatalog, setUsingFallbackCatalog] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState('');
   const [notifyByProduct, setNotifyByProduct] = useState({});
+  const [copiedField, setCopiedField] = useState('');
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [myAccess, setMyAccess] = useState([]);
+  const [accessLoading, setAccessLoading] = useState(false);
+
+  const canCheckout = !usingFallbackCatalog;
 
   useEffect(() => {
     const tgUser = getTelegramUserFromUrl();
@@ -183,6 +217,63 @@ export default function TelegramMiniApp() {
       })
       .finally(() => setLoadingCatalog(false));
   }, []);
+
+
+  useEffect(() => {
+    if (!payment?.id || payment.status === 'confirmed' || payment.status === 'expired') return undefined;
+
+    const timer = setInterval(() => {
+      apiRequest(`/api/payments/${payment.id}`)
+        .then((payload) => {
+          if (payload?.payment) setPayment(payload.payment);
+        })
+        .catch(() => {});
+    }, 4000);
+
+    return () => clearInterval(timer);
+  }, [payment?.id, payment?.status]);
+
+  const copyToClipboard = async (label, value) => {
+    try {
+      if (!value) return;
+      await navigator.clipboard.writeText(value);
+      setCopiedField(label);
+      setTimeout(() => setCopiedField(''), 1200);
+    } catch {
+      setError('Clipboard unavailable in this environment.');
+    }
+  };
+
+
+  const refreshOwnershipData = async () => {
+    if (usingFallbackCatalog) return;
+    if (!telegramId && !buyerWallet) return;
+
+    setHistoryLoading(true);
+    setAccessLoading(true);
+    try {
+      const search = new URLSearchParams();
+      if (telegramId) search.set('telegramId', telegramId);
+      if (buyerWallet) search.set('wallet', buyerWallet);
+
+      const [historyPayload, accessPayload] = await Promise.all([
+        apiRequest(`/api/payments/history?${search.toString()}`),
+        apiRequest(`/api/access/list?${search.toString()}`),
+      ]);
+
+      setHistory(historyPayload.payments || []);
+      setMyAccess(accessPayload.entitlements || []);
+    } catch (err) {
+      setError((prev) => prev || err.message);
+    } finally {
+      setHistoryLoading(false);
+      setAccessLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshOwnershipData();
+  }, [telegramId, buyerWallet, usingFallbackCatalog]);
 
   const productMap = useMemo(() => new Map(catalog.products.map((p) => [p.id, p])), [catalog.products]);
   const visibleProducts = useMemo(() => (activeType === 'all' ? catalog.products : catalog.products.filter((p) => normalizeProductType(p.type) === activeType)), [catalog.products, activeType]);
@@ -245,8 +336,15 @@ export default function TelegramMiniApp() {
         }),
       });
       setPayment(payload.payment);
+      setSignature('');
+      refreshOwnershipData();
     } catch (err) {
-      setError(err.message);
+      const msg = err?.message || 'Payment creation failed.';
+      if (/404/.test(msg)) {
+        setError('Payment API unavailable (404). Configure backend route /api/payments/create-cart or set VITE_API_BASE_URL.');
+      } else {
+        setError(msg);
+      }
     } finally {
       setBusy(false);
     }
@@ -262,6 +360,8 @@ export default function TelegramMiniApp() {
         body: JSON.stringify({ signature: signature.trim() }),
       });
       setPayment(payload.payment);
+      setSignature('');
+      refreshOwnershipData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -284,7 +384,7 @@ export default function TelegramMiniApp() {
   };
 
   return (
-    <div className="min-h-screen bg-[#060606] pb-40 text-white">
+    <div className="min-h-screen bg-[#060606] pb-56 text-white">
       <div className="pointer-events-none fixed inset-0 -z-10 opacity-40">
         <div className="absolute -top-20 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-fuchsia-600/30 blur-3xl" />
         <div className="absolute bottom-20 left-16 h-56 w-56 rounded-full bg-cyan-500/20 blur-3xl" />
@@ -310,7 +410,7 @@ export default function TelegramMiniApp() {
 
         {usingFallbackCatalog && (
           <div className="rounded-2xl border border-amber-300/40 bg-amber-500/10 p-3 text-sm text-amber-100">
-            ⚠️ Running in local fallback mode (API/catalog endpoint not reachable).
+            ⚠️ Running in local fallback mode (API/catalog endpoint not reachable). Checkout is disabled until a backend API is configured.
           </div>
         )}
 
@@ -366,6 +466,47 @@ export default function TelegramMiniApp() {
           </section>
         )}
 
+
+        <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-zinc-100">My Access</h3>
+            <button onClick={refreshOwnershipData} disabled={historyLoading || accessLoading} className="rounded-lg border border-white/20 px-2 py-1 text-[11px] text-zinc-200 disabled:opacity-50">Refresh</button>
+          </div>
+          {!telegramId && !buyerWallet && <p className="mt-2 text-xs text-zinc-400">Add Telegram ID in URL or wallet to retrieve your access.</p>}
+          {(telegramId || buyerWallet) && accessLoading && <p className="mt-2 text-xs text-zinc-400">Loading access...</p>}
+          {(telegramId || buyerWallet) && !accessLoading && myAccess.length === 0 && <p className="mt-2 text-xs text-zinc-400">No unlocked products yet.</p>}
+          {myAccess.length > 0 && (
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {myAccess.map((entry) => (
+                <article key={entry.id} className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 p-3">
+                  <p className="text-sm font-semibold text-emerald-100">{entry.product?.name || entry.productId}</p>
+                  <p className="mt-1 text-[11px] text-emerald-200">Unlocked: {shortDate(entry.createdAt)}</p>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <h3 className="text-sm font-semibold text-zinc-100">Purchase History</h3>
+          {(telegramId || buyerWallet) && historyLoading && <p className="mt-2 text-xs text-zinc-400">Loading history...</p>}
+          {(telegramId || buyerWallet) && !historyLoading && history.length === 0 && <p className="mt-2 text-xs text-zinc-400">No purchases yet.</p>}
+          {!telegramId && !buyerWallet && <p className="mt-2 text-xs text-zinc-400">Link wallet/Telegram to see your payments.</p>}
+          {history.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {history.slice(0, 8).map((item) => (
+                <article key={item.id} className="rounded-xl border border-white/10 bg-black/30 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-zinc-100">{item.lineItems?.map((li) => li.name).join(' · ') || item.productIds?.join(', ')}</p>
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] ${paymentStatusMeta(item.status).className}`}>{paymentStatusMeta(item.status).label}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-zinc-400">{shortDate(item.createdAt)} · {money(item.amountSol)}</p>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
         {catalog.roadmap.length > 0 && (
           <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <p className="text-sm font-semibold text-zinc-100">Roadmap</p>
@@ -387,31 +528,51 @@ export default function TelegramMiniApp() {
 
         {payment && (
           <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <h2 className="text-lg font-semibold">SOL payment pending</h2>
-            <p className="mt-1 text-xs text-zinc-300">ID: {payment.id}</p>
-            <p className="mt-2 text-sm text-zinc-300">Send <strong>{money(payment.amountSol)}</strong> to:</p>
-            <p className="mt-1 break-all rounded-lg border border-white/10 bg-black/30 px-3 py-2 font-mono text-xs">{payment.receiverWallet}</p>
-            <p className="mt-2 text-xs text-zinc-400">Reference: {payment.reference}</p>
-            <div className="mt-3 space-y-2">
-              <input value={signature} onChange={(e) => setSignature(e.target.value)} placeholder="Paste SOL tx signature" className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm" />
-              <button onClick={confirmPayment} disabled={busy} className="w-full rounded-xl border border-amber-300 px-4 py-2 text-sm text-amber-200 disabled:opacity-50">Confirm payment</button>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-semibold">SOL Payment</h2>
+              <span className={`rounded-full border px-2 py-0.5 text-[11px] ${paymentStatusMeta(payment.status).className}`}>{paymentStatusMeta(payment.status).label}</span>
+              {payment.status === 'pending' && <span className="inline-flex items-center gap-1 text-xs text-zinc-300"><RefreshCw className="h-3 w-3" /> Auto-refresh every 4s</span>}
             </div>
+            <p className="mt-1 text-xs text-zinc-300">ID: {payment.id}</p>
+            {payment.expiresAt && payment.status === 'pending' && (
+              <p className="mt-2 text-xs text-amber-200">Expires in: <strong>{formatCountdown(payment.expiresAt)}</strong></p>
+            )}
+
+            <p className="mt-2 text-sm text-zinc-300">Send <strong>{money(payment.amountSol)}</strong> to:</p>
+            <div className="mt-1 flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2">
+              <p className="min-w-0 flex-1 break-all font-mono text-xs">{payment.receiverWallet}</p>
+              <button onClick={() => copyToClipboard('wallet', payment.receiverWallet)} className="rounded-md border border-white/20 p-1 text-zinc-200 hover:bg-white/10" title="Copy wallet"><Copy className="h-3.5 w-3.5" /></button>
+            </div>
+            <div className="mt-2 flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+              <p className="min-w-0 flex-1 truncate text-xs text-zinc-300">Reference: <span className="font-mono">{payment.reference}</span></p>
+              <button onClick={() => copyToClipboard('reference', payment.reference)} className="rounded-md border border-white/20 p-1 text-zinc-200 hover:bg-white/10" title="Copy reference"><Copy className="h-3.5 w-3.5" /></button>
+            </div>
+            {copiedField && <p className="mt-2 text-[11px] text-emerald-300">Copied {copiedField} ✅</p>}
+
+            {payment.status !== 'confirmed' && payment.status !== 'expired' && (
+              <div className="mt-3 space-y-2">
+                <input value={signature} onChange={(e) => setSignature(e.target.value)} placeholder="Paste SOL tx signature" className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm" />
+                <button onClick={confirmPayment} disabled={busy} className="w-full rounded-xl border border-amber-300 px-4 py-2 text-sm text-amber-200 disabled:opacity-50">Confirm payment</button>
+              </div>
+            )}
             {payment.status === 'confirmed' && <p className="mt-3 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-200">✅ Payment confirmed. Access unlocked.</p>}
+            {payment.status === 'expired' && <p className="mt-3 rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-2 text-sm text-red-200">Payment expired. Please create a new payment.</p>}
           </section>
         )}
 
         {error && <p className="rounded-xl border border-red-400/40 bg-red-400/10 px-3 py-2 text-sm text-red-200">{error}</p>}
       </div>
 
-      <aside className="fixed bottom-0 left-0 right-0 border-t border-white/10 bg-black/90 px-4 py-3 backdrop-blur">
+      <aside className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-black/90 px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.45)] backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center gap-3">
           <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10"><ShoppingBag className="h-5 w-5 text-amber-300" /></div>
           <div className="min-w-0 flex-1">
             <p className="text-xs text-zinc-400">Cart</p>
             <p className="truncate text-sm font-semibold">{cartItems.length} item(s) · {money(totalSol)}</p>
+            {!canCheckout && <p className="text-[11px] text-amber-300">Checkout disabled (fallback mode)</p>}
           </div>
           <input value={buyerWallet} onChange={(e) => setBuyerWallet(e.target.value)} placeholder="Burner wallet (optional)" className="hidden w-64 rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs lg:block" />
-          <button onClick={createCartPayment} disabled={busy || cartItems.length === 0} className="rounded-xl bg-amber-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Pay with SOL</button>
+          <button onClick={createCartPayment} disabled={!canCheckout || busy || cartItems.length === 0} title={!canCheckout ? 'Checkout unavailable in fallback mode' : 'Create payment'} className="rounded-xl bg-amber-400 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50">Pay with SOL</button>
         </div>
       </aside>
     </div>
