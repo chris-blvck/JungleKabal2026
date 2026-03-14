@@ -54,12 +54,14 @@ function getLiveReplays(content) {
 
 function MobileTabs({ tab, setTab }) {
   const tabs = [["learn", "Cours", BookOpen], ["progress", "Suivi", Target], ["tools", "Outils", Wallet]];
+
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-black/95 p-2 backdrop-blur lg:hidden">
       <div className="mx-auto grid max-w-xl grid-cols-3 gap-2">
         {tabs.map(([key, label, Icon]) => (
           <button key={key} onClick={() => setTab(key)} className={`rounded-2xl px-3 py-2 text-xs font-semibold ${tab === key ? "bg-amber-400 text-black" : "bg-white/5 text-zinc-200"}`}>
-            <Icon className="mx-auto mb-1 h-4 w-4" />{label}
+            <Icon className="mx-auto mb-1 h-4 w-4" />
+            {label}
           </button>
         ))}
       </div>
