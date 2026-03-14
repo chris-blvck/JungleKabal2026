@@ -63,6 +63,10 @@ export default function App() {
           <Route path="/academy/checkout"         element={<KabalCheckout />} />
           <Route path="/telegram-miniapp"          element={<TelegramMiniApp />} />
 
+          {/* GAME MIRROR (available on team.* too) */}
+          <Route path="/diejungle"                element={<DieInTheJungle />} />
+          <Route path="/diejungle/admin"          element={<DieInTheJungleAdmin />} />
+
           {/* Fallback */}
           <Route path="*"                         element={<TeamHome />} />
         </Routes>

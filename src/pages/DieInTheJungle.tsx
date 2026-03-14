@@ -1325,7 +1325,6 @@ function ArtifactCard({ artifact, onPick }) {
 
 export default function DieInTheJungleUpgraded() {
   const [game, setGame] = useState(loadSavedGameState);
-  const [walletAddress, setWalletAddress] = useState("");
   const [leaderboard, setLeaderboard] = useState(loadLeaderboard);
   const [hoveredSlot, setHoveredSlot] = useState(null);
   const [remoteAdminConfig, setRemoteAdminConfig] = useState(DEFAULT_REMOTE_ADMIN_CONFIG);
@@ -1342,6 +1341,9 @@ export default function DieInTheJungleUpgraded() {
   const intentTimeline = getIntentTimeline(game.enemy, 3);
   const expectedOutcome = estimatePlayerOutcome(game.grid, game.player);
   const streakMultiplier = getNoHitMultiplier(game.noHitTurns);
+  const topLeaderboardScore = leaderboard[0]?.score || 0;
+  const nextBeatTarget = leaderboard.find((entry) => entry.score > game.score)?.score || null;
+  const pointsToNextRank = nextBeatTarget ? Math.max(0, nextBeatTarget - game.score + 1) : 0;
   const runtimeVisuals = remoteAdminConfig?.visuals || {};
   const runtimeLogoUrl = runtimeVisuals.logoUrl || LOGO_URL;
   const runtimeBgUrl = runtimeVisuals.backgroundUrl || BG_URL;
@@ -1358,28 +1360,11 @@ export default function DieInTheJungleUpgraded() {
     }));
   }
 
-  function connectWallet() {
-    const provider = (window as any).solana;
-    if (!provider?.connect) {
-      setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "⚠️ Phantom wallet not found", tone: "rose" } }));
-      return;
-    }
-    provider.connect()
-      .then((response) => {
-        const address = response?.publicKey?.toString?.() || "";
-        setWalletAddress(address);
-        setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "✅ Wallet connected", tone: "emerald" } }));
-      })
-      .catch(() => {
-        setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "❌ Wallet connect failed", tone: "rose" } }));
-      });
-  }
-
   function submitScoreToLeaderboard() {
     if (!game.runEnded) return;
     const entry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      wallet: walletAddress || "guest",
+      wallet: "guest",
       score: game.score,
       zone: game.floor,
       at: new Date().toISOString(),
@@ -2025,13 +2010,130 @@ export default function DieInTheJungleUpgraded() {
                 <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Seed</div>
                 <div className="text-xs font-black text-cyan-200 md:text-sm">#{game.runSeed}</div>
               </div>
-              <Button onClick={connectWallet} className="rounded-xl bg-violet-500/25 px-2.5 py-2 text-white hover:bg-violet-500/40">
-                {walletAddress ? `🟣 ${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : "🟣 Connect Wallet"}
-              </Button>
               <Button onClick={() => setGame((g) => ({ ...g, showHowToPlay: true }))} className="rounded-xl bg-white/10 px-2.5 py-2 text-white hover:bg-white/20">❓</Button>
             </div>
           </div>
         </div>
+
+        
+
+        
+
+
+        <SectionCard title="Score Rush" className="order-1" right={<div className="text-[9px] text-fuchsia-200">Competitive mode</div>}>
+          <div className="rounded-2xl border border-fuchsia-300/40 bg-gradient-to-r from-fuchsia-500/20 via-violet-500/20 to-cyan-500/20 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-fuchsia-100/80">Current score · dopamine rush</div>
+                <div className="text-3xl md:text-4xl font-black text-white drop-shadow-[0_0_18px_rgba(217,70,239,0.45)] animate-pulse">{game.score}</div>
+              </div>
+              <div className="text-right text-xs">
+                <div className="text-zinc-200">Best run: <span className="font-black text-fuchsia-200">{topLeaderboardScore}</span></div>
+                <div className="text-zinc-200">No-hit multiplier: <span className="font-black text-lime-300">x{streakMultiplier.toFixed(1)}</span></div>
+                <div className="text-zinc-200">Win streak: <span className="font-black text-amber-300">{game.winStreak}</span></div>
+              </div>
+            </div>
+            <div className="mt-2 rounded-xl border border-white/15 bg-black/35 px-3 py-2 text-xs text-zinc-100">
+              {nextBeatTarget ? (
+                <span>🎯 Next rank target: <span className="font-black text-cyan-200">{nextBeatTarget}</span> · need <span className="font-black text-amber-300">+{pointsToNextRank}</span> points</span>
+              ) : (
+                <span>👑 You are at the top. Push an even higher score.</span>
+              )}
+            </div>
+          </div>
+        </SectionCard>
+
+        <div className="grid shrink-0 gap-1.5 md:gap-2 md:grid-cols-[1.15fr_1fr_1.15fr]">
+          <SectionCard title="Enemy panel" className="order-3">
+            <div className="rounded-[18px] border border-rose-300/30 bg-gradient-to-b from-rose-950/45 to-black/85 p-2">
+              <div className="flex h-full flex-col items-center justify-center gap-2 rounded-[14px] border border-rose-300/40 bg-black/35 p-2 text-center">
+                <motion.img
+                  src={game.enemy.image}
+                  alt={game.enemy.name}
+                  animate={game.enemyHitPulse ? { scale: [1, 1.12, 0.96, 1], filter: ["brightness(1)", "brightness(1.55)", "brightness(1)"] } : game.enemyAttackPulse ? { x: [0, -10, 10, -8, 8, 0], scale: [1, 1.06, 1] } : intent.type === "attack" ? { scale: [1, 1.03, 1], x: [0, -2, 2, 0] } : { scale: 1, x: 0 }}
+                  transition={{ duration: 0.45 }}
+                  className="h-[128px] w-full object-contain contrast-110 saturate-110 drop-shadow-[0_14px_24px_rgba(0,0,0,0.6)] md:h-[175px]"
+                />
+                <div className="text-xs font-black md:text-sm">{game.enemy.emoji} {game.enemy.name}{game.enemy.elite ? ` ${"⭐".repeat(game.enemy.eliteStars || 1)}` : ""}</div>
+                <div className="text-[9px] text-zinc-300">{game.enemy.mood}</div>
+                <div className="rounded-full border border-white/10 bg-black/45 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-zinc-200">
+                  {getTierLabel(game.enemy)}
+                </div>
+                <LifeBar label="Enemy HP" current={game.enemy.hp} max={game.enemy.maxHp} tone="enemy" size={game.enemy.maxHp >= 55 ? "lg" : "md"} />
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Combat center" className="order-2">
+            <div className="grid grid-cols-2 gap-1.5 rounded-[16px] border border-white/10 bg-black/35 p-2">
+              <CompactStat label="Room" value={`${game.room + 1}/${game.route.length}`} accent="text-amber-300" />
+              <CompactStat label="Score" value={`${game.score}`} accent="text-fuchsia-200" />
+              <CompactStat label="Intent" value={`${intentMeta(intent.type).emoji} ${intent.type}`} accent={intentMeta(intent.type).color} />
+              <CompactStat label="Value" value={`${intent.value}`} accent="text-rose-300" />
+              <CompactStat label="Modifier" value={intent.mod.badge} accent={modifierClass(game.enemy.modifier)} />
+              <CompactStat label="Streak" value={`${game.winStreak}`} accent="text-emerald-300" />
+              <CompactStat label="No-hit" value={`${game.noHitTurns}T · x${streakMultiplier.toFixed(1)}`} accent="text-lime-300" />
+              <CompactStat label="Enemy Shield" value={`${game.enemy.shield || 0}`} accent="text-rose-200" />
+              <div className="rounded-[16px] border border-white/10 bg-black/35 p-2 text-center">
+                <div className="text-[9px] uppercase tracking-[0.16em] text-zinc-300">Outcome</div>
+                <div className="mt-1 text-xs font-black text-cyan-100">{game.lastOutcome || "—"}</div>
+              </div>
+              <div className="col-span-2 rounded-[12px] border border-white/10 bg-black/40 p-2">
+                <div className="mb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-300">Intent timeline</div>
+                <div className="space-y-1 text-[11px]">
+                  {intentTimeline.map((entry, idx) => (
+                    <div key={`${entry.type}-${idx}-${entry.value}`} className={`rounded-lg border border-white/10 px-2 py-1 ${idx === 0 ? "bg-white/10" : "bg-black/35"}`}>
+                      <span className={intentMeta(entry.type).color}>{intentMeta(entry.type).emoji} {entry.label}</span>
+                      <span className="ml-1 text-zinc-200">{entry.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Player panel" className="order-1">
+            <div className="rounded-[18px] border border-cyan-300/30 bg-gradient-to-b from-cyan-950/40 to-black/85 p-2">
+              <div className="grid grid-cols-2 gap-1.5 rounded-[14px] border border-cyan-300/30 bg-black/35 p-2">
+                <div className="col-span-2 flex flex-col items-center gap-2 rounded-[16px] border border-white/10 bg-black/35 p-2 text-center">
+                <motion.img
+                  src={avatarUrl}
+                  alt="Kabalian"
+                  animate={game.avatarMood === "hurt" ? { x: [0, -2, 2, -2, 0] } : game.avatarMood === "victory" ? { y: [0, -3, 0] } : { x: 0, y: 0 }}
+                  transition={{ duration: 0.45 }}
+                  className={`h-[128px] w-full rounded-2xl border border-white/10 bg-black/40 object-contain md:h-[175px] ${avatarRing}`} style={{ transform: "scaleX(-1)" }}
+                />
+                <div className="min-w-0">
+                  <div className="font-black">{game.player.characterId === "kkm" ? "KKM" : "Kabalian"}</div>
+                  <div className="text-[10px] text-zinc-300">CD {game.player.cooldownBase} · Tick {game.player.cooldownTick} · Artifacts {totalArtifacts}</div>
+                </div>
+                <img src={runtimeLogoUrl} alt="Kabal logo" className="h-7 w-7 object-contain opacity-90" />
+              </div>
+                <div className="col-span-2">
+                  <LifeBar label="Player HP" current={game.player.hp} max={game.player.maxHp} tone="player" />
+                </div>
+                <CompactStat label="🛡️ Shield" value={`${game.player.shield}`} accent="text-cyan-200" />
+                <CompactStat label="Reroll" value={`${game.player.rerollsLeft}`} accent="text-amber-300" />
+                <div className="col-span-2 rounded-[12px] border border-white/10 bg-black/45 p-2">
+                  <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">Owned artifacts</div>
+                  {game.player.artifacts.length ? (
+                    <div className="flex max-h-20 flex-wrap gap-1 overflow-auto pr-1">
+                      {game.player.artifacts.map((artifact) => (
+                        <div key={`owned-${artifact.id}`} className="flex items-center gap-1 rounded-full border border-white/20 bg-black/40 px-2 py-1 text-[9px]">
+                          {artifact.image ? <img src={artifact.image} alt={artifact.name} className="h-4 w-4 rounded-full object-cover" /> : <span>✨</span>}
+                          <span>{artifact.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <div className="text-[10px] text-zinc-300">No artifacts yet.</div>}
+                </div>
+              </div>
+            </div>
+          </SectionCard>
+        </div>
+
+        
+
 
         
 
@@ -2076,104 +2178,6 @@ export default function DieInTheJungleUpgraded() {
             ) : null}
           </div>
         </SectionCard>
-
-
-        <div className="grid shrink-0 gap-1.5 md:gap-2 md:grid-cols-[1.15fr_1fr_1.15fr]">
-          <SectionCard title="Enemy panel">
-            <div className="rounded-[18px] border border-rose-300/30 bg-gradient-to-b from-rose-950/45 to-black/85 p-2">
-              <div className="flex h-full flex-col items-center justify-center gap-2 rounded-[14px] border border-rose-300/40 bg-black/35 p-2 text-center">
-                <motion.img
-                  src={game.enemy.image}
-                  alt={game.enemy.name}
-                  animate={game.enemyHitPulse ? { scale: [1, 1.12, 0.96, 1], filter: ["brightness(1)", "brightness(1.55)", "brightness(1)"] } : game.enemyAttackPulse ? { x: [0, -10, 10, -8, 8, 0], scale: [1, 1.06, 1] } : intent.type === "attack" ? { scale: [1, 1.03, 1], x: [0, -2, 2, 0] } : { scale: 1, x: 0 }}
-                  transition={{ duration: 0.45 }}
-                  className="h-[128px] w-full object-contain contrast-110 saturate-110 drop-shadow-[0_14px_24px_rgba(0,0,0,0.6)] md:h-[175px]"
-                />
-                <div className="text-xs font-black md:text-sm">{game.enemy.emoji} {game.enemy.name}{game.enemy.elite ? ` ${"⭐".repeat(game.enemy.eliteStars || 1)}` : ""}</div>
-                <div className="text-[9px] text-zinc-300">{game.enemy.mood}</div>
-                <div className="rounded-full border border-white/10 bg-black/45 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-zinc-200">
-                  {getTierLabel(game.enemy)}
-                </div>
-                <LifeBar label="Enemy HP" current={game.enemy.hp} max={game.enemy.maxHp} tone="enemy" size={game.enemy.maxHp >= 55 ? "lg" : "md"} />
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Combat center">
-            <div className="grid grid-cols-2 gap-1.5 rounded-[16px] border border-white/10 bg-black/35 p-2">
-              <CompactStat label="Room" value={`${game.room + 1}/${game.route.length}`} accent="text-amber-300" />
-              <CompactStat label="Score" value={`${game.score}`} accent="text-violet-300" />
-              <CompactStat label="Intent" value={`${intentMeta(intent.type).emoji} ${intent.type}`} accent={intentMeta(intent.type).color} />
-              <CompactStat label="Value" value={`${intent.value}`} accent="text-rose-300" />
-              <CompactStat label="Modifier" value={intent.mod.badge} accent={modifierClass(game.enemy.modifier)} />
-              <CompactStat label="Streak" value={`${game.winStreak}`} accent="text-emerald-300" />
-              <CompactStat label="No-hit" value={`${game.noHitTurns}T · x${streakMultiplier.toFixed(1)}`} accent="text-lime-300" />
-              <CompactStat label="Enemy Shield" value={`${game.enemy.shield || 0}`} accent="text-rose-200" />
-              <div className="rounded-[16px] border border-white/10 bg-black/35 p-2 text-center">
-                <div className="text-[9px] uppercase tracking-[0.16em] text-zinc-300">Outcome</div>
-                <div className="mt-1 text-xs font-black text-cyan-100">{game.lastOutcome || "—"}</div>
-              </div>
-              <div className="col-span-2 rounded-[12px] border border-white/10 bg-black/40 p-2">
-                <div className="mb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-300">Intent timeline</div>
-                <div className="space-y-1 text-[11px]">
-                  {intentTimeline.map((entry, idx) => (
-                    <div key={`${entry.type}-${idx}-${entry.value}`} className={`rounded-lg border border-white/10 px-2 py-1 ${idx === 0 ? "bg-white/10" : "bg-black/35"}`}>
-                      <span className={intentMeta(entry.type).color}>{intentMeta(entry.type).emoji} {entry.label}</span>
-                      <span className="ml-1 text-zinc-200">{entry.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Player panel">
-            <div className="rounded-[18px] border border-cyan-300/30 bg-gradient-to-b from-cyan-950/40 to-black/85 p-2">
-              <div className="grid grid-cols-2 gap-1.5 rounded-[14px] border border-cyan-300/30 bg-black/35 p-2">
-                <div className="col-span-2 flex flex-col items-center gap-2 rounded-[16px] border border-white/10 bg-black/35 p-2 text-center">
-                <motion.img
-                  src={avatarUrl}
-                  alt="Kabalian"
-                  animate={game.avatarMood === "hurt" ? { x: [0, -2, 2, -2, 0] } : game.avatarMood === "victory" ? { y: [0, -3, 0] } : { x: 0, y: 0 }}
-                  transition={{ duration: 0.45 }}
-                  className={`h-[128px] w-full rounded-2xl border border-white/10 bg-black/40 object-contain md:h-[175px] ${avatarRing}`}
-                />
-                <div className="min-w-0">
-                  <div className="font-black">{game.player.characterId === "kkm" ? "KKM" : "Kabalian"}</div>
-                  <div className="text-[10px] text-zinc-300">CD {game.player.cooldownBase} · Tick {game.player.cooldownTick} · Artifacts {totalArtifacts}</div>
-                </div>
-                <img src={runtimeLogoUrl} alt="Kabal logo" className="h-7 w-7 object-contain opacity-90" />
-              </div>
-                <div className="col-span-2">
-                  <LifeBar label="Player HP" current={game.player.hp} max={game.player.maxHp} tone="player" />
-                </div>
-                <CompactStat label="🛡️ Shield" value={`${game.player.shield}`} accent="text-cyan-200" />
-                <CompactStat label="Reroll" value={`${game.player.rerollsLeft}`} accent="text-amber-300" />
-                <div className="col-span-2 rounded-[12px] border border-white/10 bg-black/45 p-2">
-                  <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">Owned artifacts</div>
-                  {game.player.artifacts.length ? (
-                    <div className="flex max-h-20 flex-wrap gap-1 overflow-auto pr-1">
-                      {game.player.artifacts.map((artifact) => (
-                        <div key={`owned-${artifact.id}`} className="flex items-center gap-1 rounded-full border border-white/20 bg-black/40 px-2 py-1 text-[9px]">
-                          {artifact.image ? <img src={artifact.image} alt={artifact.name} className="h-4 w-4 rounded-full object-cover" /> : <span>✨</span>}
-                          <span>{artifact.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : <div className="text-[10px] text-zinc-300">No artifacts yet.</div>}
-                </div>
-              </div>
-            </div>
-          </SectionCard>
-        </div>
-
-        
-
-
-
-
-
-        
 
         <SectionCard title="Board" className="order-3 md:order-none" right={<div className="text-[9px] text-zinc-300">Place dice on available slots</div>}>
                     {activeDieMeta && game.phase === "place" ? (
@@ -2266,7 +2270,7 @@ export default function DieInTheJungleUpgraded() {
           </AnimatePresence>
         </SectionCard>
 
-        <SectionCard title="Leaderboard">
+        <SectionCard title="Leaderboard · Competitive">
           <div className="space-y-1">
             {leaderboard.length ? leaderboard.slice(0, 5).map((entry, index) => (
               <div key={entry.id} className="flex items-center justify-between rounded-[12px] border border-white/10 bg-black/35 px-2.5 py-1.5 text-[11px]">
@@ -2352,7 +2356,7 @@ export default function DieInTheJungleUpgraded() {
                       onClick={() => pickCharacter(character.id)}
                       className="rounded-2xl border border-white/15 bg-black/45 p-3 text-left transition hover:border-amber-300/60 hover:bg-black/70"
                     >
-                      <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
+                      <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" style={{ transform: "scaleX(-1)" }} />
                       <div className="font-black text-lg text-amber-200">{character.name}</div>
                       <div className="text-xs text-zinc-300">{character.subtitle}</div>
                     </button>
