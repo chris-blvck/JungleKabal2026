@@ -1,0 +1,49 @@
+{
+  "categories": [
+    { "id": "kourses", "name": "Kourses", "description": "Core training paths." },
+    { "id": "kodex", "name": "Kodex", "description": "Resources & playbooks." },
+    { "id": "koaching", "name": "Koaching", "description": "Private coaching." }
+  ],
+  "roadmap": [
+    {
+      "id": "phase-1",
+      "title": "Phase 1 · Catalog visibility fix",
+      "status": "done",
+      "items": ["3 products guaranteed", "Shared premium cover", "Fallback-first rendering"]
+    }
+  ],
+  "products": [
+    {
+      "id": "kourse-memecoins-beginner-free",
+      "type": "kourse",
+      "categoryId": "kourses",
+      "name": "MEMECOINS COURSE (BEGINNER)",
+      "description": "FREE STARTER with symbolic activation.",
+      "amountSol": 0.00001,
+      "cover": "https://i.postimg.cc/jdH0StDF/Chat-GPT-Image-14-mars-2026-16-20-50.png",
+      "isFreePack": true,
+      "lessonsIncluded": ["Memecoin Basics", "Starter Setup", "Entry / Exit Rules", "Risk Guardrails"]
+    },
+    {
+      "id": "kodex-wallet-tracker",
+      "type": "kodex",
+      "categoryId": "kodex",
+      "name": "KODEX · WALLET TRACKER",
+      "description": "Smart-money wallet tracking framework.",
+      "amountSol": 2.5,
+      "cover": "https://i.postimg.cc/jdH0StDF/Chat-GPT-Image-14-mars-2026-16-20-50.png",
+      "lessonsIncluded": ["Wallet Clusters", "Signal Filtering", "Execution Watchlist"]
+    },
+    {
+      "id": "koaching-mindset-coming-soon",
+      "type": "koaching",
+      "categoryId": "koaching",
+      "name": "MINDSET",
+      "description": "COMING SOON",
+      "amountSol": 0,
+      "cover": "https://i.postimg.cc/jdH0StDF/Chat-GPT-Image-14-mars-2026-16-20-50.png",
+      "comingSoon": true,
+      "lessonsIncluded": ["Anti-Tilt Protocol", "Mental Resets", "Performance Journaling"]
+    }
+  ]
+}
