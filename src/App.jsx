@@ -15,6 +15,7 @@ import KabalAcademyMVP from './pages/KabalAcademyMVP';
 import KabalAcademyAdmin from './pages/KabalAcademyAdmin';
 import TrackRecord from './pages/TrackRecord';
 import TrophyRoom from './pages/TrophyRoom';
+import AngelOpsDashboard from './pages/AngelOpsDashboard';
 
 const isTeamSubdomain =
   typeof window !== 'undefined' &&
@@ -40,6 +41,7 @@ export default function App() {
 
           {/* SALES */}
           <Route path="/crm-angel"                element={<CRMAngel />} />
+          <Route path="/finance/angel-ops"        element={<AngelOpsDashboard />} />
 
           {/* INTERNAL */}
           <Route path="/sprint-board"             element={<SprintBoard />} />
