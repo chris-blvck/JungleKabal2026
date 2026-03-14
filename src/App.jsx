@@ -15,6 +15,8 @@ import KabalAcademyMVP from './pages/KabalAcademyMVP';
 import KabalAcademyAdmin from './pages/KabalAcademyAdmin';
 import TrackRecord from './pages/TrackRecord';
 import TrophyRoom from './pages/TrophyRoom';
+import KabalCheckout from './pages/KabalCheckout';
+import TelegramMiniApp from './pages/TelegramMiniApp';
 
 const isTeamSubdomain =
   typeof window !== 'undefined' &&
@@ -50,6 +52,8 @@ export default function App() {
           {/* ACADEMY */}
           <Route path="/academy"                  element={<KabalAcademyMVP />} />
           <Route path="/academy/admin"            element={<KabalAcademyAdmin />} />
+          <Route path="/academy/checkout"         element={<KabalCheckout />} />
+          <Route path="/telegram-miniapp"          element={<TelegramMiniApp />} />
 
           {/* Fallback */}
           <Route path="*"                         element={<TeamHome />} />
@@ -63,6 +67,7 @@ export default function App() {
       <Routes>
         <Route path="/diejungle" element={<DieInTheJungle />} />
         <Route path="/trophy-room" element={<TrophyRoom />} />
+        <Route path="/telegram-miniapp" element={<TelegramMiniApp />} />
         <Route path="*"          element={<LandingPage />} />
       </Routes>
     </BrowserRouter>
