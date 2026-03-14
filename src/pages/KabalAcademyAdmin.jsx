@@ -30,7 +30,7 @@ function createPack(existingModules = []) {
   return { id: `pack-${Date.now()}`, title: "Nouveau pack", description: "", moduleIds: existingModules.slice(0, 1).map((module) => module.id), audience: "public", accessType: "open", priceLabel: "Inclus", coverImage: DEFAULT_COVER, workflowStatus: "draft" };
 }
 
-function createPack(existingModules = []) {
+const createPackDraft = (existingModules = []) => {
   return {
     id: `pack-${Date.now()}`,
     title: "Nouveau pack",
@@ -40,7 +40,7 @@ function createPack(existingModules = []) {
     accessType: "open",
     priceLabel: "Inclus",
   };
-}
+};
 
 function createBlock(type = "text") {
   return { id: `b-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, type, content: "", options: ["", "", "", ""], answer: 0 };
@@ -135,13 +135,7 @@ export default function KabalAcademyAdmin() {
           <CardContent className="flex flex-wrap items-center gap-3">
             <Button onClick={saveAll} className="bg-amber-400 text-black hover:bg-amber-300">{saving ? "Sauvegarde..." : "Sauvegarder et publier"}</Button>
             <Button variant="outline" onClick={() => patchContent((draft) => { draft.modules.push(createModule()); return draft; })}>+ Module</Button>
-            <Button variant="outline" onClick={() => patchContent((draft) => { draft.packs = draft.packs || []; draft.packs.push(createPack(draft.modules)); return draft; })}>+ Pack</Button>
-            <Button variant="outline" onClick={() => patchContent((draft) => {
-              const allModuleIds = draft.modules.map((module) => module.id);
-              draft.packs = packTemplates.map((pack, index) => ({ ...pack, moduleIds: index === 0 ? allModuleIds : allModuleIds.slice(0, Math.max(1, Math.ceil(allModuleIds.length / 2))) }));
-              return draft;
-            })}>Packs placeholder (x3)</Button>
-            <img src={JK_LOGO_FULL} alt="Jungle Kabal" className="h-5 w-auto opacity-70" /><a href="/academy" className="rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-300">Voir la version publique</a>
+            <Button variant="outline" onClick={() => patchContent((draft) => { draft.packs = draft.packs || []; draft.packs.push(createPackDraft(draft.modules)); return draft; })}>+ Pack</Button>
             <span className="text-xs text-zinc-400">Une sauvegarde met à jour les versions public/admin. API: /api/academy/content (fallback localStorage).</span>
           </CardContent>
         </Card>
