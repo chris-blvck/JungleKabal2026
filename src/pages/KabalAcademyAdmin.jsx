@@ -26,10 +26,6 @@ function createLesson() {
   return { id: `l-${Date.now()}`, title: "Nouvelle leçon", duration: "7 min", content: "", bullets: [], blocks: [] };
 }
 
-function createPack(existingModules = []) {
-  return { id: `pack-${Date.now()}`, title: "Nouveau pack", description: "", moduleIds: existingModules.slice(0, 1).map((module) => module.id), audience: "public", accessType: "open", priceLabel: "Inclus", coverImage: DEFAULT_COVER, workflowStatus: "draft" };
-}
-
 const createPackDraft = (existingModules = []) => {
   return {
     id: `pack-${Date.now()}`,
