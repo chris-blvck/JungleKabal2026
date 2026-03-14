@@ -30,6 +30,18 @@ function createPack(existingModules = []) {
   return { id: `pack-${Date.now()}`, title: "Nouveau pack", description: "", moduleIds: existingModules.slice(0, 1).map((module) => module.id), audience: "public", accessType: "open", priceLabel: "Inclus", coverImage: DEFAULT_COVER, workflowStatus: "draft" };
 }
 
+function createPack(existingModules = []) {
+  return {
+    id: `pack-${Date.now()}`,
+    title: "Nouveau pack",
+    description: "",
+    moduleIds: existingModules.slice(0, 1).map((module) => module.id),
+    audience: "public",
+    accessType: "open",
+    priceLabel: "Inclus",
+  };
+}
+
 function createBlock(type = "text") {
   return { id: `b-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, type, content: "", options: ["", "", "", ""], answer: 0 };
 }
