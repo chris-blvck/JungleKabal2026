@@ -82,22 +82,27 @@ ACADEMY_API_PORT=8787
 SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 PAYMENT_WALLET_POOL=wallet1,wallet2,wallet3
 # ou PAYMENT_WALLET=wallet_unique
-
-# Front redirect mini app
-VITE_TELEGRAM_MINI_APP_URL=https://t.me/ton_bot/ton_mini_app
-
-# Bot Telegram (optionnel, pour /start + bouton web_app)
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_MINI_APP_URL=https://ton-domaine/telegram-miniapp
+TELEGRAM_BOT_TOKEN=123456:ABC...
+TELEGRAM_STRICT_AUTH=0
 ```
 
-### Route mini app
-
-- `/telegram-miniapp`
+Le backend fait une rotation automatique des wallets de réception via `PAYMENT_WALLET_POOL` (pour sécurité/opsec).
 
 
-### Roadmap
+## Telegram Mini App Migration
 
-- Fichier roadmap produit mini app: `docs/KABAL_MINIAPP_ROADMAP.md`
-- Roadmap runtime utilisée par la mini app: `server/data/product-catalog.json` clé `roadmap`
-- Process recommandé: mettre à jour les deux à chaque sprint.
+A dedicated Telegram Mini App repo scaffold now exists in `telegram-miniapp/` to migrate **Die In The Jungle** while keeping desktop routes unchanged.
+
+
+### Mini App backend endpoints (MVP)
+
+When running `npm run api`, the same Node server now also exposes Telegram Mini App MVP endpoints:
+
+- `POST /api/runs/finish`
+- `GET /api/runs/leaderboard?limit=20`
+- `POST /api/runs/friends-leaderboard`
+- `POST /api/referrals/claim`
+- `GET /api/referrals/stats/:code`
+- `POST /api/miniapp/auth/check`
+- `POST /api/telemetry/event`
+- `GET /api/telemetry/summary`
