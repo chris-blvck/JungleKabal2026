@@ -23,6 +23,8 @@ function getPacks(content) {
   }];
 }
 
+const TELEGRAM_MINI_APP_URL = import.meta.env.VITE_TELEGRAM_MINI_APP_URL || "/telegram-miniapp";
+
 function MobileTabs({ tab, setTab }) {
   const tabs = [["learn", "Cours", BookOpen], ["progress", "Suivi", Target], ["tools", "Outils", Wallet]];
 
@@ -117,13 +119,7 @@ export default function KabalAcademyMVP() {
             <h1 className="mt-4 text-4xl font-black leading-tight sm:text-5xl">Academy memecoins</h1>
             <p className="mt-4 text-zinc-300">Packs de formation, progression visuelle et structure prête pour le token-gating.</p>
           </div>
-          <Card className="rounded-3xl border-white/10 bg-white/5">
-            <CardHeader><CardTitle>Accéder à l'Academy</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Ton pseudo" className="h-12 rounded-2xl border-white/10 bg-black/30" />
-              <button onClick={() => setStarted(true)} className="h-12 w-full rounded-2xl bg-amber-400 text-black">Commencer</button>
-            </CardContent>
-          </Card>
+          <Card className="rounded-3xl border-white/10 bg-white/5"><CardHeader><CardTitle>Accéder à l'Academy</CardTitle></CardHeader><CardContent className="space-y-4"><Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Ton pseudo" className="h-12 rounded-2xl border-white/10 bg-black/30" /><button onClick={() => setStarted(true)} className="h-12 w-full rounded-2xl bg-amber-400 text-black">Commencer</button><a href={TELEGRAM_MINI_APP_URL} className="flex h-12 w-full items-center justify-center rounded-2xl border border-white/20 text-zinc-200">Acheter sur Telegram Mini App</a></CardContent></Card>
         </div>
       </div>
     );
