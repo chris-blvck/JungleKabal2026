@@ -45,6 +45,7 @@ export default function App() {
 
           {/* SALES */}
           <Route path="/crm-angel"                element={<CRMAngel />} />
+          <Route path="/finance/angel-ops"        element={<AngelOpsDashboard />} />
 
           {/* INTERNAL */}
           <Route path="/sprint-board"             element={<SprintBoard />} />
@@ -56,6 +57,16 @@ export default function App() {
           <Route path="/academy"                  element={<KabalAcademyMVP />} />
           <Route path="/academy/admin"            element={<KabalAcademyAdmin />} />
           <Route path="/academy/checkout"         element={<KabalCheckout />} />
+          <Route path="/telegram-miniapp"          element={<TelegramMiniApp />} />
+
+          {/* DIRECTORY */}
+          <Route path="/url"                      element={<TeamUrlDirectory />} />
+
+          {/* DIRECTORY */}
+          <Route path="/url"                      element={<TeamUrlDirectory />} />
+
+          {/* DIRECTORY */}
+          <Route path="/url"                      element={<TeamUrlDirectory />} />
 
           {/* DIRECTORY */}
           <Route path="/url"                      element={<TeamUrlDirectory />} />
@@ -72,6 +83,7 @@ export default function App() {
       <Routes>
         <Route path="/diejungle" element={<DieInTheJungle />} />
         <Route path="/trophy-room" element={<TrophyRoom />} />
+        <Route path="/telegram-miniapp" element={<TelegramMiniApp />} />
         <Route path="*"          element={<LandingPage />} />
       </Routes>
     </BrowserRouter>

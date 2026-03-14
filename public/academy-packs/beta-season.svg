@@ -1,0 +1,16 @@
+<svg width="1200" height="675" viewBox="0 0 1200 675" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="675" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6D28D9"/>
+      <stop offset="0.45" stop-color="#06B6D4"/>
+      <stop offset="1" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" rx="36" fill="url(#bg)"/>
+  <rect x="36" y="36" width="1128" height="603" rx="30" stroke="#FDE68A" stroke-opacity="0.7" stroke-width="4"/>
+  <text x="72" y="125" fill="#F8FAFC" font-size="64" font-family="Arial" font-weight="800">🔥 KKM BETA SEASON</text>
+  <text x="72" y="190" fill="#E2E8F0" font-size="34" font-family="Arial" font-weight="600">Placeholder inspiré du visuel fourni</text>
+  <circle cx="250" cy="390" r="120" fill="#0F172A" fill-opacity="0.3"/>
+  <text x="190" y="410" fill="#FEF08A" font-size="96" font-family="Arial">😎</text>
+  <text x="72" y="555" fill="#FFFFFF" fill-opacity="0.92" font-size="42" font-family="Arial" font-weight="700">Pack public d'introduction</text>
+</svg>
