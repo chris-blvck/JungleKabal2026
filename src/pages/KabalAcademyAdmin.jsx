@@ -22,7 +22,7 @@ function createLesson() {
   };
 }
 
-function createPack(existingModules = []) {
+const createPackDraft = (existingModules = []) => {
   return {
     id: `pack-${Date.now()}`,
     title: "Nouveau pack",
@@ -32,7 +32,7 @@ function createPack(existingModules = []) {
     accessType: "open",
     priceLabel: "Inclus",
   };
-}
+};
 
 function createBlock(type = "text") {
   return { id: `b-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, type, content: "", options: ["", "", "", ""], answer: 0 };
@@ -103,7 +103,7 @@ export default function KabalAcademyAdmin() {
           <CardContent className="flex flex-wrap items-center gap-3">
             <Button onClick={saveAll} className="bg-amber-400 text-black hover:bg-amber-300">{saving ? "Sauvegarde..." : "Sauvegarder et publier"}</Button>
             <Button variant="outline" onClick={() => patchContent((draft) => { draft.modules.push(createModule()); return draft; })}>+ Module</Button>
-            <Button variant="outline" onClick={() => patchContent((draft) => { draft.packs = draft.packs || []; draft.packs.push(createPack(draft.modules)); return draft; })}>+ Pack</Button>
+            <Button variant="outline" onClick={() => patchContent((draft) => { draft.packs = draft.packs || []; draft.packs.push(createPackDraft(draft.modules)); return draft; })}>+ Pack</Button>
             <span className="text-xs text-zinc-400">Une sauvegarde met à jour les versions public/admin. API: /api/academy/content (fallback localStorage).</span>
           </CardContent>
         </Card>
