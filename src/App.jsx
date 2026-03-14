@@ -16,18 +16,19 @@ import KabalAcademyMVP from './pages/KabalAcademyMVP';
 import KabalAcademyAdmin from './pages/KabalAcademyAdmin';
 import TrackRecord from './pages/TrackRecord';
 import TrophyRoom from './pages/TrophyRoom';
-import KabalCheckout from './pages/KabalCheckout';
-import TeamUrlDirectory from './pages/TeamUrlDirectory';
+import AngelOpsDashboard from './pages/AngelOpsDashboard';
 
-function isTeamHost() {
-  if (typeof window === 'undefined') return false;
-  const hostname = window.location.hostname.toLowerCase();
-  const normalized = hostname.startsWith('www.') ? hostname.slice(4) : hostname;
-  return normalized.startsWith('team.') || normalized.includes('.team.');
-}
+const isTeamContext =
+  typeof window !== 'undefined' &&
+  (
+    window.location.hostname.startsWith('team.') ||
+    ['localhost', '127.0.0.1'].includes(window.location.hostname) ||
+    window.location.pathname.startsWith('/finance/') ||
+    window.location.pathname.startsWith('/telegram/')
+  );
 
 export default function App() {
-  if (isTeamHost()) {
+  if (isTeamContext) {
     return (
       <BrowserRouter>
         <Routes>
@@ -47,6 +48,7 @@ export default function App() {
           {/* SALES */}
           <Route path="/crm-angel"                element={<CRMAngel />} />
           <Route path="/finance/angel-ops"        element={<AngelOpsDashboard />} />
+          <Route path="/telegram/angel-ops"       element={<AngelOpsDashboard />} />
 
           {/* INTERNAL */}
           <Route path="/sprint-board"             element={<SprintBoard />} />
