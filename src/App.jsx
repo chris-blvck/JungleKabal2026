@@ -15,13 +15,19 @@ import KabalAcademyMVP from './pages/KabalAcademyMVP';
 import KabalAcademyAdmin from './pages/KabalAcademyAdmin';
 import TrackRecord from './pages/TrackRecord';
 import TrophyRoom from './pages/TrophyRoom';
+import AngelOpsDashboard from './pages/AngelOpsDashboard';
 
-const isTeamSubdomain =
+const isTeamContext =
   typeof window !== 'undefined' &&
-  window.location.hostname.startsWith('team.');
+  (
+    window.location.hostname.startsWith('team.') ||
+    ['localhost', '127.0.0.1'].includes(window.location.hostname) ||
+    window.location.pathname.startsWith('/finance/') ||
+    window.location.pathname.startsWith('/telegram/')
+  );
 
 export default function App() {
-  if (isTeamSubdomain) {
+  if (isTeamContext) {
     return (
       <BrowserRouter>
         <Routes>
@@ -40,6 +46,8 @@ export default function App() {
 
           {/* SALES */}
           <Route path="/crm-angel"                element={<CRMAngel />} />
+          <Route path="/finance/angel-ops"        element={<AngelOpsDashboard />} />
+          <Route path="/telegram/angel-ops"       element={<AngelOpsDashboard />} />
 
           {/* INTERNAL */}
           <Route path="/sprint-board"             element={<SprintBoard />} />
