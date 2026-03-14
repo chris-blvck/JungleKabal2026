@@ -15,6 +15,7 @@ import KabalAcademyMVP from './pages/KabalAcademyMVP';
 import KabalAcademyAdmin from './pages/KabalAcademyAdmin';
 import TrackRecord from './pages/TrackRecord';
 import TrophyRoom from './pages/TrophyRoom';
+import KabalCheckout from './pages/KabalCheckout';
 
 const isTeamSubdomain =
   typeof window !== 'undefined' &&
@@ -50,6 +51,7 @@ export default function App() {
           {/* ACADEMY */}
           <Route path="/academy"                  element={<KabalAcademyMVP />} />
           <Route path="/academy/admin"            element={<KabalAcademyAdmin />} />
+          <Route path="/academy/checkout"         element={<KabalCheckout />} />
 
           {/* Fallback */}
           <Route path="*"                         element={<TeamHome />} />
