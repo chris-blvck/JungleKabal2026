@@ -17,12 +17,15 @@ import TrackRecord from './pages/TrackRecord';
 import TrophyRoom from './pages/TrophyRoom';
 import AngelOpsDashboard from './pages/AngelOpsDashboard';
 
-const isTeamSubdomain =
-  typeof window !== 'undefined' &&
-  window.location.hostname.startsWith('team.');
+function isTeamHost() {
+  if (typeof window === 'undefined') return false;
+  const hostname = window.location.hostname.toLowerCase();
+  const normalized = hostname.startsWith('www.') ? hostname.slice(4) : hostname;
+  return normalized.startsWith('team.') || normalized.includes('.team.');
+}
 
 export default function App() {
-  if (isTeamSubdomain) {
+  if (isTeamHost()) {
     return (
       <BrowserRouter>
         <Routes>
@@ -53,6 +56,16 @@ export default function App() {
           <Route path="/academy"                  element={<KabalAcademyMVP />} />
           <Route path="/academy/admin"            element={<KabalAcademyAdmin />} />
           <Route path="/academy/checkout"         element={<KabalCheckout />} />
+          <Route path="/telegram-miniapp"          element={<TelegramMiniApp />} />
+
+          {/* DIRECTORY */}
+          <Route path="/url"                      element={<TeamUrlDirectory />} />
+
+          {/* DIRECTORY */}
+          <Route path="/url"                      element={<TeamUrlDirectory />} />
+
+          {/* DIRECTORY */}
+          <Route path="/url"                      element={<TeamUrlDirectory />} />
 
           {/* Fallback */}
           <Route path="*"                         element={<TeamHome />} />
@@ -66,6 +79,7 @@ export default function App() {
       <Routes>
         <Route path="/diejungle" element={<DieInTheJungle />} />
         <Route path="/trophy-room" element={<TrophyRoom />} />
+        <Route path="/telegram-miniapp" element={<TelegramMiniApp />} />
         <Route path="*"          element={<LandingPage />} />
       </Routes>
     </BrowserRouter>
