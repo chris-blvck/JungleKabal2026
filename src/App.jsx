@@ -17,13 +17,19 @@ import KabalAcademyAdmin from './pages/KabalAcademyAdmin';
 import TrackRecord from './pages/TrackRecord';
 import TrophyRoom from './pages/TrophyRoom';
 import KabalCheckout from './pages/KabalCheckout';
+import TelegramMiniApp from './pages/TelegramMiniApp';
 
-const isTeamSubdomain =
+const isTeamContext =
   typeof window !== 'undefined' &&
-  window.location.hostname.startsWith('team.');
+  (
+    window.location.hostname.startsWith('team.') ||
+    ['localhost', '127.0.0.1'].includes(window.location.hostname) ||
+    window.location.pathname.startsWith('/finance/') ||
+    window.location.pathname.startsWith('/telegram/')
+  );
 
 export default function App() {
-  if (isTeamSubdomain) {
+  if (isTeamContext) {
     return (
       <BrowserRouter>
         <Routes>
@@ -42,6 +48,8 @@ export default function App() {
 
           {/* SALES */}
           <Route path="/crm-angel"                element={<CRMAngel />} />
+          <Route path="/finance/angel-ops"        element={<AngelOpsDashboard />} />
+          <Route path="/telegram/angel-ops"       element={<AngelOpsDashboard />} />
 
           {/* INTERNAL */}
           <Route path="/sprint-board"             element={<SprintBoard />} />
@@ -53,6 +61,7 @@ export default function App() {
           <Route path="/academy"                  element={<KabalAcademyMVP />} />
           <Route path="/academy/admin"            element={<KabalAcademyAdmin />} />
           <Route path="/academy/checkout"         element={<KabalCheckout />} />
+          <Route path="/telegram-miniapp"          element={<TelegramMiniApp />} />
 
           {/* GAME MIRROR (available on team.* too) */}
           <Route path="/diejungle"                element={<DieInTheJungle />} />
@@ -71,6 +80,7 @@ export default function App() {
         <Route path="/diejungle" element={<DieInTheJungle />} />
         <Route path="/diejungle/admin" element={<DieInTheJungleAdmin />} />
         <Route path="/trophy-room" element={<TrophyRoom />} />
+        <Route path="/telegram-miniapp" element={<TelegramMiniApp />} />
         <Route path="*"          element={<LandingPage />} />
       </Routes>
     </BrowserRouter>

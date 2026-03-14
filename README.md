@@ -54,16 +54,29 @@ User route: `/academy`
 
 API endpoint used by admin/user pages: `GET/PUT /api/academy/content` (default `http://localhost:8787`).
 
-## Kabal Payment Processor (SOL + Telegram link)
+## Kabal Payment Processor (SOL) · Mini App first
 
-Le serveur Node inclut maintenant un flow de paiement SOL minimal pour Academy:
+Le flow de vente est maintenant **mini app first**:
+- depuis le site, l'utilisateur est redirigé vers Telegram Mini App
+- le catalogue, panier, upsell, création paiement et confirmation tx se font dans la mini app
+- Auto-refresh payment status every 4s with pending/confirmed/expired states
+- includes MEMECOINS COURSE (BEGINNER) as FREE starter with symbolic 0.00001 SOL activation
+- includes MEMECOINS COURSE (BEGINNER/INTERMEDIATE) at 20 SOL
+- includes Kourses / Kodex / Koaching sections with MINDSET and AI AUTOMATION & AGENT as coming soon
+- frontend includes a local fallback catalog if `/api/catalog` is unreachable (dev resilience)
+- une fois confirmé, le backend crée les entitlements (wallet/telegram) pour token gating
 
-- Page checkout: `/academy/checkout`
-- Créer un paiement: `POST /api/payments/create`
-- Vérifier un paiement: `POST /api/payments/:id/confirm`
-- Vérifier un accès token-gated: `GET /api/access/check?productId=...&wallet=...&telegramId=...`
-- Lier Telegram manuellement: `POST /api/payments/link-telegram`
-- Webhook bot Telegram (deep-link `/start link_<paymentId>`): `POST /api/telegram/webhook`
+### Endpoints
+
+- `GET /api/catalog`
+- `POST /api/payments/create-cart`
+- `POST /api/payments/:id/confirm`
+- `POST /api/payments/link-telegram`
+- `GET /api/payments/history?telegramId=...&wallet=...`
+- `GET /api/access/list?telegramId=...&wallet=...`
+- `POST /api/waitlist/subscribe`
+- `GET /api/access/check?productId=...&wallet=...&telegramId=...`
+- `POST /api/telegram/webhook` (uniquement pour ouvrir la mini app / link)
 
 ### Variables d'environnement
 
