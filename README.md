@@ -53,3 +53,25 @@ Admin route (team subdomain): `/academy/admin`
 User route: `/academy`
 
 API endpoint used by admin/user pages: `GET/PUT /api/academy/content` (default `http://localhost:8787`).
+
+## Kabal Payment Processor (SOL + Telegram link)
+
+Le serveur Node inclut maintenant un flow de paiement SOL minimal pour Academy:
+
+- Page checkout: `/academy/checkout`
+- Créer un paiement: `POST /api/payments/create`
+- Vérifier un paiement: `POST /api/payments/:id/confirm`
+- Vérifier un accès token-gated: `GET /api/access/check?productId=...&wallet=...&telegramId=...`
+- Lier Telegram manuellement: `POST /api/payments/link-telegram`
+- Webhook bot Telegram (deep-link `/start link_<paymentId>`): `POST /api/telegram/webhook`
+
+### Variables d'environnement
+
+```bash
+ACADEMY_API_PORT=8787
+SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+PAYMENT_WALLET_POOL=wallet1,wallet2,wallet3
+# ou PAYMENT_WALLET=wallet_unique
+```
+
+Le backend fait une rotation automatique des wallets de réception via `PAYMENT_WALLET_POOL` (pour sécurité/opsec).
