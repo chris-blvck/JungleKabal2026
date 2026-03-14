@@ -32,6 +32,7 @@ const SECTIONS = [
     icon: "📊",
     tools: [
       { id: "crm-angel", icon: "🤝", name: "CRM ANGEL", desc: "Deal pipeline · Investor tracking · Angel round", tag: "DEALS", tagColor: "#A855F7", status: "LIVE", statusColor: JK.green, href: "/crm-angel" },
+      { id: "angel-ops-dashboard", icon: "🦅", name: "ANGEL OPS DASHBOARD", desc: "Wallet equity · Epoch pulse · Choice center", tag: "OPS", tagColor: JK.gold, status: "MVP", statusColor: JK.gold, href: "/finance/angel-ops" },
     ],
   },
   {
@@ -325,6 +326,21 @@ export default function TeamHome() {
       ...AGENT_SECTIONS,
     ];
   }, [customAgents]);
+
+  const filteredSections = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return SECTIONS.map((section) => ({
+      ...section,
+      tools: section.tools.filter((tool) => {
+        const matchesQuery = !normalized || `${tool.name} ${tool.desc} ${tool.tag}`.toLowerCase().includes(normalized);
+        const matchesStatus = statusFilter === "ALL" || tool.status === statusFilter;
+        return matchesQuery && matchesStatus;
+      }),
+    })).filter((section) => section.tools.length > 0);
+  }, [query, statusFilter]);
+
+  const allTools = useMemo(() => SECTIONS.flatMap((section) => section.tools), []);
+  const pinnedTools = useMemo(() => allTools.filter((tool) => pinnedIds.includes(tool.id)), [allTools, pinnedIds]);
 
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("jk-agent-notes", JSON.stringify(agentNotes));
