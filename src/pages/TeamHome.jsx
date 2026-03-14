@@ -269,6 +269,29 @@ function emptyAgentForm() {
   };
 }
 
+function normalizeAgent(raw, index = 0) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const highlights = Array.isArray(source.highlights)
+    ? source.highlights.filter((item) => typeof item === "string" && item.trim())
+    : typeof source.highlights === "string"
+      ? source.highlights.split(",").map((item) => item.trim()).filter(Boolean)
+      : [];
+
+  return {
+    id: typeof source.id === "string" ? source.id : `restored-${Date.now()}-${index}`,
+    name: typeof source.name === "string" && source.name.trim() ? source.name : "Custom Agent",
+    role: typeof source.role === "string" && source.role.trim() ? source.role : "Custom Role",
+    utility: typeof source.utility === "string" && UTILITY_COLORS[source.utility] ? source.utility : "TRADING",
+    costUsd: Number.isFinite(Number(source.costUsd)) ? Number(source.costUsd) : 0,
+    avatar: typeof source.avatar === "string" && source.avatar.trim() ? source.avatar : "/avatars/agent-hood.svg",
+    status: typeof source.status === "string" && source.status.trim() ? source.status : "🟢 Running",
+    quick: typeof source.quick === "string" && source.quick.trim() ? source.quick : "Custom quick usage.",
+    mission: typeof source.mission === "string" && source.mission.trim() ? source.mission : "Custom mission.",
+    highlights: highlights.length ? highlights : ["Custom setup"],
+    docs: Array.isArray(source.docs) ? source.docs.filter((doc) => typeof doc === "string") : [],
+  };
+}
+
 export default function TeamHome() {
   const [solPrice, setSolPrice] = useState(null);
   const [query, setQuery] = useState("");
@@ -292,7 +315,9 @@ export default function TeamHome() {
   const [customAgents, setCustomAgents] = useState(() => {
     if (typeof window === "undefined") return [];
     try {
-      return JSON.parse(localStorage.getItem(CUSTOM_AGENTS_STORAGE_KEY) || "[]");
+      const parsed = JSON.parse(localStorage.getItem(CUSTOM_AGENTS_STORAGE_KEY) || "[]");
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map((agent, index) => normalizeAgent(agent, index));
     } catch {
       return [];
     }
@@ -326,21 +351,6 @@ export default function TeamHome() {
       ...AGENT_SECTIONS,
     ];
   }, [customAgents]);
-
-  const filteredSections = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return SECTIONS.map((section) => ({
-      ...section,
-      tools: section.tools.filter((tool) => {
-        const matchesQuery = !normalized || `${tool.name} ${tool.desc} ${tool.tag}`.toLowerCase().includes(normalized);
-        const matchesStatus = statusFilter === "ALL" || tool.status === statusFilter;
-        return matchesQuery && matchesStatus;
-      }),
-    })).filter((section) => section.tools.length > 0);
-  }, [query, statusFilter]);
-
-  const allTools = useMemo(() => SECTIONS.flatMap((section) => section.tools), []);
-  const pinnedTools = useMemo(() => allTools.filter((tool) => pinnedIds.includes(tool.id)), [allTools, pinnedIds]);
 
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("jk-agent-notes", JSON.stringify(agentNotes));

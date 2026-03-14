@@ -59,6 +59,9 @@ export default function App() {
           {/* DIRECTORY */}
           <Route path="/url"                      element={<TeamUrlDirectory />} />
 
+          {/* DIRECTORY */}
+          <Route path="/url"                      element={<TeamUrlDirectory />} />
+
           {/* Fallback */}
           <Route path="*"                         element={<TeamHome />} />
         </Routes>
