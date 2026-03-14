@@ -85,6 +85,7 @@ const MEMBERS = [
 const AGENT_PIPELINE = ["Scout", "OnChain", "Narrative", "Heat Engine", "Risk", "Trader"];
 const UTILITY_COLORS = { TRADING: "#22C55E", ANALYTICS: "#3B82F6", MARKETING: "#EC4899", OPS: "#F59E0B", SECURITY: "#EF4444" };
 const PIN_STORAGE_KEY = "jk-home-pins";
+const CUSTOM_AGENTS_STORAGE_KEY = "jk-custom-agents";
 
 const AGENT_SECTIONS = [
   {
@@ -254,6 +255,20 @@ function AgentSection({ section, data, setData }) {
   );
 }
 
+function emptyAgentForm() {
+  return {
+    name: "",
+    role: "",
+    utility: "TRADING",
+    costUsd: "",
+    quick: "",
+    mission: "",
+    highlights: "",
+    avatar: "",
+    docs: [],
+  };
+}
+
 export default function TeamHome() {
   const [solPrice, setSolPrice] = useState(null);
   const [query, setQuery] = useState("");
@@ -274,6 +289,43 @@ export default function TeamHome() {
       return {};
     }
   });
+  const [customAgents, setCustomAgents] = useState(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      return JSON.parse(localStorage.getItem(CUSTOM_AGENTS_STORAGE_KEY) || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [showCreateAgent, setShowCreateAgent] = useState(false);
+  const [agentForm, setAgentForm] = useState(emptyAgentForm());
+
+  const filteredSections = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return SECTIONS.map((section) => ({
+      ...section,
+      tools: section.tools.filter((tool) => {
+        const matchesQuery = !normalized || `${tool.name} ${tool.desc} ${tool.tag}`.toLowerCase().includes(normalized);
+        const matchesStatus = statusFilter === "ALL" || tool.status === statusFilter;
+        return matchesQuery && matchesStatus;
+      }),
+    })).filter((section) => section.tools.length > 0);
+  }, [query, statusFilter]);
+
+  const allTools = useMemo(() => SECTIONS.flatMap((section) => section.tools), []);
+  const pinnedTools = useMemo(() => allTools.filter((tool) => pinnedIds.includes(tool.id)), [allTools, pinnedIds]);
+  const agentSections = useMemo(() => {
+    if (!customAgents.length) return AGENT_SECTIONS;
+    return [
+      {
+        id: "custom-agents",
+        label: "CUSTOM AGENTS",
+        color: JK.gold,
+        agents: customAgents,
+      },
+      ...AGENT_SECTIONS,
+    ];
+  }, [customAgents]);
 
   const filteredSections = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -299,6 +351,10 @@ export default function TeamHome() {
   }, [pinnedIds]);
 
   useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem(CUSTOM_AGENTS_STORAGE_KEY, JSON.stringify(customAgents));
+  }, [customAgents]);
+
+  useEffect(() => {
     let active = true;
     const load = async () => {
       try {
@@ -319,6 +375,47 @@ export default function TeamHome() {
 
   const togglePin = (toolId) => {
     setPinnedIds((prev) => (prev.includes(toolId) ? prev.filter((id) => id !== toolId) : [...prev, toolId]));
+  };
+
+  const onAvatarUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAgentForm((prev) => ({ ...prev, avatar: String(reader.result || "") }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const onDocsUpload = (event) => {
+    const names = Array.from(event.target.files || []).map((file) => file.name);
+    setAgentForm((prev) => ({ ...prev, docs: names }));
+  };
+
+  const createAgent = () => {
+    if (!agentForm.name.trim()) return;
+    const highlights = agentForm.highlights
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    const created = {
+      id: `custom-${Date.now()}`,
+      name: agentForm.name.trim(),
+      role: agentForm.role.trim() || "Custom Role",
+      utility: agentForm.utility,
+      costUsd: Number(agentForm.costUsd || 0),
+      avatar: agentForm.avatar || "/avatars/agent-hood.svg",
+      status: "🟢 Running",
+      quick: agentForm.quick.trim() || "Custom quick usage.",
+      mission: agentForm.mission.trim() || "Custom mission.",
+      highlights: highlights.length ? highlights : ["Custom setup"],
+      docs: agentForm.docs,
+    };
+
+    setCustomAgents((prev) => [created, ...prev]);
+    setAgentForm(emptyAgentForm());
+    setShowCreateAgent(false);
   };
 
   return (
@@ -379,16 +476,57 @@ export default function TeamHome() {
         {filteredSections.map((section) => <SectionRow key={section.id} section={section} pinnedIds={pinnedIds} onTogglePin={togglePin} />)}
       </Card>
 
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
+        <a href="/url" style={{ textDecoration: "none" }}><Badge color="#60A5FA">📚 URL DIRECTORY (/url)</Badge></a>
+        <Badge color={JK.gold}>Live + Draft + Public links</Badge>
+      </div>
+
       <Card style={{ marginBottom: 20, background: "rgba(28,28,28,0.95)" }}>
         <SectionTitle>Agent <span style={{ color: JK.gold }}>AI</span></SectionTitle>
         <div style={{ fontSize: 12, color: "#DADADA", marginBottom: 12, lineHeight: 1.6 }}>
           Fast cards: role + utility + cost + quick purpose. Use upload for TXT/MD/CSV and team notes directly in each agent card.
         </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+          <button type="button" onClick={() => setShowCreateAgent((prev) => !prev)} style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.45)", color: "#86EFAC", borderRadius: 8, padding: "7px 12px", fontSize: 11, cursor: "pointer" }}>
+            {showCreateAgent ? "Close creator" : "+ Create Agent"}
+          </button>
+          <Badge color="#93C5FD">Upload photo + docs</Badge>
+        </div>
+
+        {showCreateAgent && (
+          <div style={{ border: `1px solid ${JK.border2}`, borderRadius: 12, padding: 12, marginBottom: 14, display: "grid", gap: 10, background: "rgba(0,0,0,0.28)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 8 }}>
+              <input value={agentForm.name} onChange={(event) => setAgentForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="Agent name" style={{ background: "rgba(0,0,0,0.35)", color: "#F3F4F6", border: `1px solid ${JK.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 12 }} />
+              <input value={agentForm.role} onChange={(event) => setAgentForm((prev) => ({ ...prev, role: event.target.value }))} placeholder="Role" style={{ background: "rgba(0,0,0,0.35)", color: "#F3F4F6", border: `1px solid ${JK.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 12 }} />
+              <select value={agentForm.utility} onChange={(event) => setAgentForm((prev) => ({ ...prev, utility: event.target.value }))} style={{ background: "rgba(0,0,0,0.35)", color: "#F3F4F6", border: `1px solid ${JK.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 12 }}>
+                {Object.keys(UTILITY_COLORS).map((utility) => <option key={utility} value={utility}>{utility}</option>)}
+              </select>
+              <input value={agentForm.costUsd} onChange={(event) => setAgentForm((prev) => ({ ...prev, costUsd: event.target.value }))} placeholder="Cost USD / month" type="number" style={{ background: "rgba(0,0,0,0.35)", color: "#F3F4F6", border: `1px solid ${JK.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 12 }} />
+            </div>
+
+            <input value={agentForm.quick} onChange={(event) => setAgentForm((prev) => ({ ...prev, quick: event.target.value }))} placeholder="Quick use" style={{ background: "rgba(0,0,0,0.35)", color: "#F3F4F6", border: `1px solid ${JK.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 12 }} />
+            <input value={agentForm.mission} onChange={(event) => setAgentForm((prev) => ({ ...prev, mission: event.target.value }))} placeholder="Mission" style={{ background: "rgba(0,0,0,0.35)", color: "#F3F4F6", border: `1px solid ${JK.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 12 }} />
+            <input value={agentForm.highlights} onChange={(event) => setAgentForm((prev) => ({ ...prev, highlights: event.target.value }))} placeholder="Highlights (comma separated)" style={{ background: "rgba(0,0,0,0.35)", color: "#F3F4F6", border: `1px solid ${JK.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 12 }} />
+
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              <label style={{ fontSize: 11, color: "#D1D5DB" }}>Photo: <input type="file" accept="image/*" onChange={onAvatarUpload} /></label>
+              <label style={{ fontSize: 11, color: "#D1D5DB" }}>Documents: <input type="file" multiple onChange={onDocsUpload} /></label>
+              {!!agentForm.docs.length && <span style={{ fontSize: 11, color: "#93C5FD" }}>Docs: {agentForm.docs.join(" · ")}</span>}
+            </div>
+
+            <div>
+              <button type="button" onClick={createAgent} style={{ background: JK.gold, border: "none", color: "#111", borderRadius: 8, padding: "8px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                Save Agent
+              </button>
+            </div>
+          </div>
+        )}
+
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
           {AGENT_PIPELINE.map((step, index) => <Badge key={step} color={index === AGENT_PIPELINE.length - 1 ? JK.gold : undefined}>{step}{index < AGENT_PIPELINE.length - 1 ? " ↓" : ""}</Badge>)}
         </div>
 
-        {AGENT_SECTIONS.map((section) => <AgentSection key={section.id} section={section} data={agentNotes} setData={setAgentNotes} />)}
+        {agentSections.map((section) => <AgentSection key={section.id} section={section} data={agentNotes} setData={setAgentNotes} />)}
       </Card>
 
       <Card>
