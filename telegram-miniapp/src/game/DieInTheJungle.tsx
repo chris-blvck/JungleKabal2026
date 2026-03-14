@@ -1,8 +1,21 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
+import { Button } from "../components/Button";
 
 const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
+
+type RunSummary = {
+  score: number;
+  floor: number;
+  runSeed: string;
+  characterId: string;
+};
+
+type DieInTheJungleProps = {
+  onRunEnded?: (summary: RunSummary) => void;
+  onBeforeRestart?: () => boolean;
+};
+
 const LOGO_URL = "https://i.postimg.cc/rwdjP9rb/logo-jaune.png";
 const PLAYER_AVATAR_URL = "https://i.postimg.cc/B6rBLmBt/Kabalian-Face.png";
 const KKM_AVATAR_URL = "https://i.postimg.cc/Kv8zygVk/KKM-Mascot-2.png";
@@ -33,12 +46,6 @@ const PLAYER_CHARACTERS = {
     subtitle: "Tank · 34 HP · +4 start shield",
     stats: { maxHp: 34, attackBonus: 0, rerollsPerTurn: 1, combatStartShield: 4 },
   },
-};
-
-const DEFAULT_REMOTE_ADMIN_CONFIG = {
-  visuals: { backgroundUrl: "", logoUrl: "", storyFragmentImageUrl: "" },
-  characters: { playable: {}, emotionUrls: {} },
-  narrative: { kabalian: [], kkm: [] },
 };
 
 const DICE_IMAGES = {
@@ -694,7 +701,7 @@ function getNoHitMultiplier(noHitTurns) {
   return 1;
 }
 
-function getStoryFragment(fragmentIndex, characterId, narrativeOverride = null) {
+function getStoryFragment(fragmentIndex, characterId) {
   const isKKM = characterId === "kkm";
   const kabalian = [
     {
@@ -798,9 +805,7 @@ function getStoryFragment(fragmentIndex, characterId, narrativeOverride = null) 
     },
   ];
 
-  const overrideSet = isKKM ? narrativeOverride?.kkm : narrativeOverride?.kabalian;
-  const normalizedOverride = Array.isArray(overrideSet) ? overrideSet.filter((item) => item && Array.isArray(item.lines)) : [];
-  const fragments = normalizedOverride.length ? normalizedOverride : (isKKM ? kkm : kabalian);
+  const fragments = isKKM ? kkm : kabalian;
   return fragments[Math.abs(fragmentIndex) % fragments.length];
 }
 
@@ -1323,11 +1328,11 @@ function ArtifactCard({ artifact, onPick }) {
   );
 }
 
-export default function DieInTheJungleUpgraded() {
+export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: DieInTheJungleProps = {}) {
   const [game, setGame] = useState(loadSavedGameState);
+  const [walletAddress, setWalletAddress] = useState("");
   const [leaderboard, setLeaderboard] = useState(loadLeaderboard);
   const [hoveredSlot, setHoveredSlot] = useState(null);
-  const [remoteAdminConfig, setRemoteAdminConfig] = useState(DEFAULT_REMOTE_ADMIN_CONFIG);
 
   const activeDieIndex = useMemo(() => {
     if (game.selectedDieIndex !== null && game.dice[game.selectedDieIndex] !== null) return game.selectedDieIndex;
@@ -1337,20 +1342,33 @@ export default function DieInTheJungleUpgraded() {
   const activeDieValue = activeDieIndex !== null ? game.dice[activeDieIndex] : null;
   const activeDieMeta = activeDieValue !== null ? getDieMeta(activeDieValue) : null;
   const latestLogs = game.log.slice(0, 3);
+  const latestAction = game.log[0] || "No action yet. Press ROLL.";
   const intent = getIntentPreview(game.enemy);
   const intentTimeline = getIntentTimeline(game.enemy, 3);
   const expectedOutcome = estimatePlayerOutcome(game.grid, game.player);
   const streakMultiplier = getNoHitMultiplier(game.noHitTurns);
-  const topLeaderboardScore = leaderboard[0]?.score || 0;
-  const nextBeatTarget = leaderboard.find((entry) => entry.score > game.score)?.score || null;
-  const pointsToNextRank = nextBeatTarget ? Math.max(0, nextBeatTarget - game.score + 1) : 0;
-  const runtimeVisuals = remoteAdminConfig?.visuals || {};
-  const runtimeLogoUrl = runtimeVisuals.logoUrl || LOGO_URL;
-  const runtimeBgUrl = runtimeVisuals.backgroundUrl || BG_URL;
-  const runtimeStoryImageUrl = runtimeVisuals.storyFragmentImageUrl || STORY_FRAGMENT_IMAGE_URL;
-  const runtimeEmotionUrls = { ...PLAYER_EMOTION_URLS, ...(remoteAdminConfig?.characters?.emotionUrls || {}) };
-  const runtimeCharacters = { ...PLAYER_CHARACTERS, ...(remoteAdminConfig?.characters?.playable || {}) };
-  const storyFragment = getStoryFragment(game.floor + game.room, game.player.characterId, remoteAdminConfig?.narrative);
+  const enemyAnchorRef = useRef(null);
+  const playerAnchorRef = useRef(null);
+
+  function getPopupPosition(target) {
+    const node = target === "enemy" ? enemyAnchorRef.current : playerAnchorRef.current;
+    if (node) {
+      const rect = node.getBoundingClientRect();
+      const x = rect.left + rect.width * 0.5 + (Math.random() * 70 - 35);
+      const y = rect.top + rect.height * 0.35 + (Math.random() * 44 - 22);
+      return {
+        left: `${Math.round(Math.max(8, Math.min(window.innerWidth - 8, x)))}px`,
+        top: `${Math.round(Math.max(8, Math.min(window.innerHeight - 8, y)))}px`,
+      };
+    }
+
+    return {
+      left: target === "enemy" ? `${16 + Math.floor(Math.random() * 20)}%` : `${62 + Math.floor(Math.random() * 18)}%`,
+      top: `${22 + Math.floor(Math.random() * 24)}%`,
+    };
+  }
+
+  const storyFragment = getStoryFragment(game.floor + game.room, game.player.characterId);
 
   function shiftSelectedDie(direction) {
     if (game.characterSelectPending || game.phase !== "place") return;
@@ -1360,11 +1378,28 @@ export default function DieInTheJungleUpgraded() {
     }));
   }
 
+  function connectWallet() {
+    const provider = (window as any).solana;
+    if (!provider?.connect) {
+      setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "⚠️ Phantom wallet not found", tone: "rose" } }));
+      return;
+    }
+    provider.connect()
+      .then((response) => {
+        const address = response?.publicKey?.toString?.() || "";
+        setWalletAddress(address);
+        setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "✅ Wallet connected", tone: "emerald" } }));
+      })
+      .catch(() => {
+        setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "❌ Wallet connect failed", tone: "rose" } }));
+      });
+  }
+
   function submitScoreToLeaderboard() {
     if (!game.runEnded) return;
     const entry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      wallet: "guest",
+      wallet: walletAddress || "guest",
       score: game.score,
       zone: game.floor,
       at: new Date().toISOString(),
@@ -1388,7 +1423,7 @@ export default function DieInTheJungleUpgraded() {
   }
 
   function pickCharacter(characterId) {
-    const selected = runtimeCharacters[characterId] || runtimeCharacters.kabalian || PLAYER_CHARACTERS.kabalian;
+    const selected = PLAYER_CHARACTERS[characterId] || PLAYER_CHARACTERS.kabalian;
     setGame((g) => {
       const nextPlayer = {
         ...g.player,
@@ -1539,20 +1574,16 @@ export default function DieInTheJungleUpgraded() {
       let enemyHitPulse = 0;
       let comboPopup = null;
       let hpDamageTaken = 0;
-      const randomPos = (target) => ({
-        left: target === "enemy" ? `${12 + Math.floor(Math.random() * 24)}%` : `${58 + Math.floor(Math.random() * 24)}%`,
-        top: `${20 + Math.floor(Math.random() * 30)}%`,
-      });
 
       if (totals.attack > 0) {
         enemyHitPulse = Date.now();
-        damagePopups.push({ id: `${Date.now()}-enemy-hit`, target: "enemy", tone: "damage", text: `-${totals.attack}`, ...randomPos("enemy") });
+        damagePopups.push({ id: `${Date.now()}-enemy-hit`, target: "enemy", tone: "damage", text: `-${totals.attack}`, ...getPopupPosition("enemy") });
       }
       if (totals.heal > 0) {
-        damagePopups.push({ id: `${Date.now()}-player-heal`, target: "player", tone: "heal", text: `+${totals.heal}`, ...randomPos("player") });
+        damagePopups.push({ id: `${Date.now()}-player-heal`, target: "player", tone: "heal", text: `+${totals.heal}`, ...getPopupPosition("player") });
       }
       if (totals.shield > 0) {
-        damagePopups.push({ id: `${Date.now()}-player-shield`, target: "player", tone: "shield", text: `🛡️ +${totals.shield}`, ...randomPos("player") });
+        damagePopups.push({ id: `${Date.now()}-player-shield`, target: "player", tone: "shield", text: `🛡️ +${totals.shield}`, ...getPopupPosition("player") });
       }
 
       if (!enemyDied) {
@@ -1566,10 +1597,10 @@ export default function DieInTheJungleUpgraded() {
           hpDamageTaken = hpLoss;
           const shieldBlocked = Math.max(0, preRetaliationShield - player.shield - hpLoss);
           if (hpLoss > 0) {
-            damagePopups.push({ id: `${Date.now()}-player-hit`, target: "player", tone: "damage", text: `-${hpLoss}`, ...randomPos("player") });
+            damagePopups.push({ id: `${Date.now()}-player-hit`, target: "player", tone: "damage", text: `-${hpLoss}`, ...getPopupPosition("player") });
           }
           if (shieldBlocked > 0) {
-            damagePopups.push({ id: `${Date.now()}-player-block`, target: "player", tone: "shield", text: `🛡️ ${shieldBlocked}`, ...randomPos("player") });
+            damagePopups.push({ id: `${Date.now()}-player-block`, target: "player", tone: "shield", text: `🛡️ ${shieldBlocked}`, ...getPopupPosition("player") });
           }
         }
       }
@@ -1860,36 +1891,27 @@ export default function DieInTheJungleUpgraded() {
   }
 
   function restart() {
+    if (onBeforeRestart && !onBeforeRestart()) {
+      setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "🚫 No run tickets left", tone: "rose" } }));
+      return;
+    }
     setGame(makeInitialState());
   }
 
-  useEffect(() => {
-    let mounted = true;
-    fetch('/api/miniapp/config')
-      .then((res) => res.json())
-      .then((payload) => {
-        if (!mounted || !payload?.ok) return;
-        const cfg = payload.config || {};
-        setRemoteAdminConfig({
-          ...DEFAULT_REMOTE_ADMIN_CONFIG,
-          ...cfg,
-          visuals: { ...DEFAULT_REMOTE_ADMIN_CONFIG.visuals, ...(cfg.visuals || {}) },
-          characters: {
-            playable: { ...(cfg.characters?.playable || {}) },
-            emotionUrls: { ...(cfg.characters?.emotionUrls || {}) },
-          },
-          narrative: {
-            kabalian: Array.isArray(cfg.narrative?.kabalian) ? cfg.narrative.kabalian : [],
-            kkm: Array.isArray(cfg.narrative?.kkm) ? cfg.narrative.kkm : [],
-          },
-        });
-      })
-      .catch(() => {});
+  const notifiedRunRef = useRef<string | null>(null);
 
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  useEffect(() => {
+    if (!game.runEnded || !onRunEnded) return;
+    const runId = `${game.runSeed}:${game.score}:${game.floor}`;
+    if (notifiedRunRef.current === runId) return;
+    notifiedRunRef.current = runId;
+    onRunEnded({
+      score: game.score,
+      floor: game.floor,
+      runSeed: game.runSeed,
+      characterId: game.player.characterId,
+    });
+  }, [game.runEnded, game.runSeed, game.score, game.floor, game.player.characterId, onRunEnded]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -1954,7 +1976,7 @@ export default function DieInTheJungleUpgraded() {
   }, [game.lastOutcome]);
 
   const totalArtifacts = game.player.artifacts.length;
-  const avatarUrl = game.player.characterId === "kkm" ? game.player.avatar : (runtimeEmotionUrls[game.avatarMood] || game.player.avatar || PLAYER_AVATAR_URL);
+  const avatarUrl = game.player.characterId === "kkm" ? game.player.avatar : (PLAYER_EMOTION_URLS[game.avatarMood] || game.player.avatar || PLAYER_AVATAR_URL);
   const avatarRing = game.avatarMood === "hurt"
     ? "ring-2 ring-rose-400/70"
     : game.avatarMood === "almostDead"
@@ -1986,12 +2008,12 @@ export default function DieInTheJungleUpgraded() {
     : null;
 
   return (
-    <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.78)), url(${runtimeBgUrl})` }}>
+    <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.78)), url(${BG_URL})` }}>
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-1.5 pb-3 md:gap-2">
         <div className="rounded-[22px] border border-amber-300/20 bg-black/35 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md md:p-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <img src={runtimeLogoUrl} alt="Kabal logo" className="h-9 w-9 object-contain" />
+              <img src={LOGO_URL} alt="Kabal logo" className="h-9 w-9 object-contain" />
               <div>
                 <h1 className="font-serif text-base italic tracking-wide text-amber-300 md:text-2xl">Die in the Jungle</h1>
                 <p className="text-[10px] text-zinc-100 md:text-xs">Roguelite run · intents · reroll · artifacts · endless zones</p>
@@ -2010,44 +2032,20 @@ export default function DieInTheJungleUpgraded() {
                 <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Seed</div>
                 <div className="text-xs font-black text-cyan-200 md:text-sm">#{game.runSeed}</div>
               </div>
+              <Button onClick={connectWallet} className="rounded-xl bg-violet-500/25 px-2.5 py-2 text-white hover:bg-violet-500/40">
+                {walletAddress ? `🟣 ${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : "🟣 Connect Wallet"}
+              </Button>
               <Button onClick={() => setGame((g) => ({ ...g, showHowToPlay: true }))} className="rounded-xl bg-white/10 px-2.5 py-2 text-white hover:bg-white/20">❓</Button>
             </div>
           </div>
         </div>
 
-        
-
-        
-
-
-        <SectionCard title="Score Rush" className="order-1" right={<div className="text-[9px] text-fuchsia-200">Competitive mode</div>}>
-          <div className="rounded-2xl border border-fuchsia-300/40 bg-gradient-to-r from-fuchsia-500/20 via-violet-500/20 to-cyan-500/20 p-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.2em] text-fuchsia-100/80">Current score · dopamine rush</div>
-                <div className="text-3xl md:text-4xl font-black text-white drop-shadow-[0_0_18px_rgba(217,70,239,0.45)] animate-pulse">{game.score}</div>
-              </div>
-              <div className="text-right text-xs">
-                <div className="text-zinc-200">Best run: <span className="font-black text-fuchsia-200">{topLeaderboardScore}</span></div>
-                <div className="text-zinc-200">No-hit multiplier: <span className="font-black text-lime-300">x{streakMultiplier.toFixed(1)}</span></div>
-                <div className="text-zinc-200">Win streak: <span className="font-black text-amber-300">{game.winStreak}</span></div>
-              </div>
-            </div>
-            <div className="mt-2 rounded-xl border border-white/15 bg-black/35 px-3 py-2 text-xs text-zinc-100">
-              {nextBeatTarget ? (
-                <span>🎯 Next rank target: <span className="font-black text-cyan-200">{nextBeatTarget}</span> · need <span className="font-black text-amber-300">+{pointsToNextRank}</span> points</span>
-              ) : (
-                <span>👑 You are at the top. Push an even higher score.</span>
-              )}
-            </div>
-          </div>
-        </SectionCard>
-
         <div className="grid shrink-0 gap-1.5 md:gap-2 md:grid-cols-[1.15fr_1fr_1.15fr]">
-          <SectionCard title="Enemy panel" className="order-3">
+          <SectionCard title="Enemy panel" className="order-3 md:order-3">
             <div className="rounded-[18px] border border-rose-300/30 bg-gradient-to-b from-rose-950/45 to-black/85 p-2">
               <div className="flex h-full flex-col items-center justify-center gap-2 rounded-[14px] border border-rose-300/40 bg-black/35 p-2 text-center">
                 <motion.img
+                  ref={enemyAnchorRef}
                   src={game.enemy.image}
                   alt={game.enemy.name}
                   animate={game.enemyHitPulse ? { scale: [1, 1.12, 0.96, 1], filter: ["brightness(1)", "brightness(1.55)", "brightness(1)"] } : game.enemyAttackPulse ? { x: [0, -10, 10, -8, 8, 0], scale: [1, 1.06, 1] } : intent.type === "attack" ? { scale: [1, 1.03, 1], x: [0, -2, 2, 0] } : { scale: 1, x: 0 }}
@@ -2064,10 +2062,10 @@ export default function DieInTheJungleUpgraded() {
             </div>
           </SectionCard>
 
-          <SectionCard title="Combat center" className="order-2">
+          <SectionCard title="Combat center" className="order-2 md:order-2">
             <div className="grid grid-cols-2 gap-1.5 rounded-[16px] border border-white/10 bg-black/35 p-2">
               <CompactStat label="Room" value={`${game.room + 1}/${game.route.length}`} accent="text-amber-300" />
-              <CompactStat label="Score" value={`${game.score}`} accent="text-fuchsia-200" />
+              <CompactStat label="Score" value={`${game.score}`} accent="text-violet-300" />
               <CompactStat label="Intent" value={`${intentMeta(intent.type).emoji} ${intent.type}`} accent={intentMeta(intent.type).color} />
               <CompactStat label="Value" value={`${intent.value}`} accent="text-rose-300" />
               <CompactStat label="Modifier" value={intent.mod.badge} accent={modifierClass(game.enemy.modifier)} />
@@ -2092,22 +2090,23 @@ export default function DieInTheJungleUpgraded() {
             </div>
           </SectionCard>
 
-          <SectionCard title="Player panel" className="order-1">
+          <SectionCard title="Player panel" className="order-1 md:order-1">
             <div className="rounded-[18px] border border-cyan-300/30 bg-gradient-to-b from-cyan-950/40 to-black/85 p-2">
               <div className="grid grid-cols-2 gap-1.5 rounded-[14px] border border-cyan-300/30 bg-black/35 p-2">
                 <div className="col-span-2 flex flex-col items-center gap-2 rounded-[16px] border border-white/10 bg-black/35 p-2 text-center">
                 <motion.img
+                  ref={playerAnchorRef}
                   src={avatarUrl}
                   alt="Kabalian"
                   animate={game.avatarMood === "hurt" ? { x: [0, -2, 2, -2, 0] } : game.avatarMood === "victory" ? { y: [0, -3, 0] } : { x: 0, y: 0 }}
                   transition={{ duration: 0.45 }}
-                  className={`h-[128px] w-full rounded-2xl border border-white/10 bg-black/40 object-contain md:h-[175px] ${avatarRing}`} style={{ transform: "scaleX(-1)" }}
+                  className={`h-[128px] w-full rounded-2xl border border-white/10 bg-black/40 object-contain md:h-[175px] ${avatarRing}`}
                 />
                 <div className="min-w-0">
                   <div className="font-black">{game.player.characterId === "kkm" ? "KKM" : "Kabalian"}</div>
                   <div className="text-[10px] text-zinc-300">CD {game.player.cooldownBase} · Tick {game.player.cooldownTick} · Artifacts {totalArtifacts}</div>
                 </div>
-                <img src={runtimeLogoUrl} alt="Kabal logo" className="h-7 w-7 object-contain opacity-90" />
+                <img src={LOGO_URL} alt="Kabal logo" className="h-7 w-7 object-contain opacity-90" />
               </div>
                 <div className="col-span-2">
                   <LifeBar label="Player HP" current={game.player.hp} max={game.player.maxHp} tone="player" />
@@ -2132,12 +2131,33 @@ export default function DieInTheJungleUpgraded() {
           </SectionCard>
         </div>
 
-        
+        <SectionCard
+          title="Last action"
+          className="order-1"
+          right={(
+            <button
+              onClick={() => setGame((g) => ({ ...g, showAllLogs: !g.showAllLogs }))}
+              className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-bold text-white hover:bg-white/20"
+            >
+              {game.showAllLogs ? "▲" : "▼"}
+            </button>
+          )}
+        >
+          <div className="rounded-[12px] border border-white/10 bg-zinc-900/80 px-2.5 py-1.5 text-[11px] md:text-xs">{latestAction}</div>
+          <AnimatePresence>
+            {game.showAllLogs ? (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                <div className="mt-2 max-h-32 space-y-1 overflow-auto pr-1">
+                  {game.log.slice(1, 12).map((line, i) => (
+                    <div key={`${line}-${i}`} className="rounded-[10px] border border-white/10 bg-black/35 px-2 py-1 text-[10px] text-zinc-100">{line}</div>
+                  ))}
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+        </SectionCard>
 
-
-        
-
-        <SectionCard title="Dice + Action" className="order-1" right={<div className="text-[9px] text-zinc-300">Tap die, then slot</div>}>
+        <SectionCard title="Dice + Action" className="order-2" right={<div className="text-[9px] text-zinc-300">Tap die, then slot</div>}>
           <div className="mb-1 flex flex-wrap justify-center gap-1 text-[9px] md:text-[10px]">
             <div className="rounded-xl border border-zinc-300/30 bg-zinc-900/70 px-2 py-1">⚔️ Attack die 1-6 (black)</div>
             <div className="rounded-xl border border-pink-200/35 bg-pink-500/20 px-2 py-1">❤️ Dé Health 1-6</div>
@@ -2154,6 +2174,27 @@ export default function DieInTheJungleUpgraded() {
               <div className="font-black text-amber-200">{hoveredPreview || "Hover a slot to preview final value"}</div>
             </div>
           </div>
+          <div className="mb-2 flex flex-wrap items-center justify-center gap-2">
+            {game.phase === "roll" ? <div className="w-full text-center text-xs font-bold uppercase tracking-[0.18em] text-amber-200">Start turn: press roll, then place dice on board</div> : null}
+            {(game.phase === "roll" || game.phase === "rolling") ? (
+              <Button onClick={startRoll} disabled={game.rolling} className={`rounded-2xl bg-amber-400 px-4 py-2.5 text-sm font-black text-black hover:bg-amber-300 disabled:opacity-60 ${game.phase === "roll" && !game.rolling ? "animate-pulse shadow-[0_0_0_6px_rgba(252,211,77,0.20)]" : ""}`}>
+                {game.rolling ? "🎲 Rolling..." : "🎲 ROLL"}
+              </Button>
+            ) : null}
+            {game.phase === "place" ? (
+              <Button onClick={rerollActiveDie} disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null} className="rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-700/90 to-zinc-900 px-5 py-2.5 text-sm font-black text-white hover:from-zinc-600 hover:to-zinc-800 disabled:opacity-40">
+                🔁 REROLL
+              </Button>
+            ) : null}
+            {(game.phase === "gameover" || game.phase === "victory") ? (
+              <>
+                <Button onClick={submitScoreToLeaderboard} className="rounded-2xl bg-violet-500/30 px-4 py-2.5 text-sm font-black text-white hover:bg-violet-500/45">Submit score</Button>
+                <Button onClick={shareRun} className="rounded-2xl bg-sky-500/35 px-4 py-2.5 text-sm font-black text-white hover:bg-sky-500/50">Share run</Button>
+                <Button onClick={restart} className="rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-black hover:bg-zinc-200">Play again</Button>
+              </>
+            ) : null}
+          </div>
+
           <div className="flex min-h-[56px] items-center justify-center gap-2">
             {game.phase === "place" ? (
               <Button onClick={() => shiftSelectedDie(-1)} className="h-10 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-4 text-white hover:from-zinc-700 hover:to-zinc-800">⬅️</Button>
@@ -2179,8 +2220,12 @@ export default function DieInTheJungleUpgraded() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Board" className="order-3 md:order-none" right={<div className="text-[9px] text-zinc-300">Place dice on available slots</div>}>
-                    {activeDieMeta && game.phase === "place" ? (
+
+
+
+
+        <SectionCard title="Board" className="order-3 md:order-3" right={<div className="text-[9px] text-zinc-300">Place dice on available slots</div>}>
+          {activeDieMeta && game.phase === "place" ? (
             <div className="mb-2 flex items-center gap-2 rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-2 py-1.5 text-[11px] text-white">
               <span className="text-lg">{activeDieMeta.emoji}</span>
               <div>
@@ -2245,7 +2290,7 @@ export default function DieInTheJungleUpgraded() {
         </SectionCard>
 
 
-        <SectionCard title="Combat log" className="order-4 md:order-none" right={<button onClick={() => setGame((g) => ({ ...g, showAllLogs: !g.showAllLogs }))} className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-bold text-white hover:bg-white/20">{game.showAllLogs ? "▲" : "▼"}</button>}>
+        <SectionCard title="Combat log" className="order-4 md:order-4">
           <div className="space-y-1">
             {latestLogs.map((line, i) => (
               <div key={`${line}-${i}`} className="rounded-[12px] border border-white/10 bg-zinc-900/80 px-2.5 py-1.5 text-[11px] md:text-xs">{line}</div>
@@ -2257,20 +2302,14 @@ export default function DieInTheJungleUpgraded() {
               return <RouteCard key={`${enemy.name}-${index}`} enemy={enemy} state={state} />;
             })}
           </div>
-          <AnimatePresence>
-            {game.showAllLogs ? (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                <div className="max-h-40 space-y-1 overflow-auto pt-1.5 md:max-h-28">
-                  {game.log.slice(3).map((line, i) => (
-                    <div key={`${line}-${i}`} className="rounded-[12px] border border-white/10 bg-black/35 px-2.5 py-1.5 text-[10px] text-zinc-100">{line}</div>
-                  ))}
-                </div>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
+          <div className="max-h-32 space-y-1 overflow-auto pt-1.5 md:max-h-28">
+            {game.log.slice(3, 20).map((line, i) => (
+              <div key={`${line}-${i}`} className="rounded-[12px] border border-white/10 bg-black/35 px-2.5 py-1.5 text-[10px] text-zinc-100">{line}</div>
+            ))}
+          </div>
         </SectionCard>
 
-        <SectionCard title="Leaderboard · Competitive">
+        <SectionCard title="Leaderboard">
           <div className="space-y-1">
             {leaderboard.length ? leaderboard.slice(0, 5).map((entry, index) => (
               <div key={entry.id} className="flex items-center justify-between rounded-[12px] border border-white/10 bg-black/35 px-2.5 py-1.5 text-[11px]">
@@ -2350,13 +2389,13 @@ export default function DieInTheJungleUpgraded() {
                   <div className="text-sm text-zinc-300">Choose your character before first fight. First artifact arrives after the first win.</div>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
-                  {Object.values(runtimeCharacters).map((character) => (
+                  {Object.values(PLAYER_CHARACTERS).map((character) => (
                     <button
                       key={character.id}
                       onClick={() => pickCharacter(character.id)}
                       className="rounded-2xl border border-white/15 bg-black/45 p-3 text-left transition hover:border-amber-300/60 hover:bg-black/70"
                     >
-                      <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" style={{ transform: "scaleX(-1)" }} />
+                      <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
                       <div className="font-black text-lg text-amber-200">{character.name}</div>
                       <div className="text-xs text-zinc-300">{character.subtitle}</div>
                     </button>
@@ -2417,7 +2456,7 @@ export default function DieInTheJungleUpgraded() {
               <div className="w-full max-w-5xl rounded-[28px] border border-amber-300/20 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <img src={runtimeLogoUrl} alt="Kabal logo" className="h-10 w-10 object-contain" />
+                    <img src={LOGO_URL} alt="Kabal logo" className="h-10 w-10 object-contain" />
                     <div>
                       <div className="font-serif text-xl italic text-amber-300 md:text-2xl">Choose 1 Artifact</div>
                       <div className="text-sm text-zinc-300">{game.startRewardPending ? "First reward after your opening win." : "Boss down. Build your run."}</div>
@@ -2431,7 +2470,7 @@ export default function DieInTheJungleUpgraded() {
                 <div className="mb-4 rounded-2xl border border-cyan-300/25 bg-cyan-950/25 p-3">
                   <div className="mb-2 text-sm font-black tracking-[0.05em] text-cyan-200 md:text-base">{storyFragment.title}</div>
                   <div className="space-y-3">
-                    <img src={runtimeStoryImageUrl} alt="Chronicle fragment" className="h-[260px] w-full rounded-xl border border-white/10 bg-black/35 object-cover md:h-[420px]" />
+                    <img src={STORY_FRAGMENT_IMAGE_URL} alt="Chronicle fragment" className="h-[260px] w-full rounded-xl border border-white/10 bg-black/35 object-cover md:h-[420px]" />
                     <div className="rounded-xl border border-white/10 bg-black/30 p-3">
                       <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-cyan-200/80">Narrative legend</div>
                       <div className="space-y-3 text-xl italic leading-relaxed text-zinc-100 md:text-3xl" style={{ fontFamily: '"Caveat", "Patrick Hand", "Segoe Script", cursive' }}>
@@ -2460,7 +2499,7 @@ export default function DieInTheJungleUpgraded() {
               <div className="w-full max-w-xl rounded-[28px] border border-amber-300/20 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <img src={runtimeLogoUrl} alt="Kabal logo" className="h-10 w-10 object-contain" />
+                    <img src={LOGO_URL} alt="Kabal logo" className="h-10 w-10 object-contain" />
                     <div>
                       <div className="font-serif text-xl italic text-amber-300 md:text-2xl">How to play</div>
                       <div className="text-sm text-zinc-300">Updated prototype rules</div>

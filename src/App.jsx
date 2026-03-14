@@ -11,6 +11,7 @@ import CRMAngel from './pages/CRMAngel';
 import SprintBoard from './pages/SprintBoard';
 import Arsenal from './pages/Arsenal';
 import DieInTheJungle from './pages/DieInTheJungle';
+import DieInTheJungleAdmin from './pages/DieInTheJungleAdmin';
 import KabalAcademyMVP from './pages/KabalAcademyMVP';
 import KabalAcademyAdmin from './pages/KabalAcademyAdmin';
 import TrackRecord from './pages/TrackRecord';
@@ -53,6 +54,10 @@ export default function App() {
           <Route path="/academy/admin"            element={<KabalAcademyAdmin />} />
           <Route path="/academy/checkout"         element={<KabalCheckout />} />
 
+          {/* GAME MIRROR (available on team.* too) */}
+          <Route path="/diejungle"                element={<DieInTheJungle />} />
+          <Route path="/diejungle/admin"          element={<DieInTheJungleAdmin />} />
+
           {/* Fallback */}
           <Route path="*"                         element={<TeamHome />} />
         </Routes>
@@ -64,6 +69,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/diejungle" element={<DieInTheJungle />} />
+        <Route path="/diejungle/admin" element={<DieInTheJungleAdmin />} />
         <Route path="/trophy-room" element={<TrophyRoom />} />
         <Route path="*"          element={<LandingPage />} />
       </Routes>
