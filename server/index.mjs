@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
-import { randomUUID } from 'node:crypto';
-import { readFile, writeFile, access } from 'node:fs/promises';
+import { createHmac, randomUUID } from 'node:crypto';
+import { readFile, writeFile, access, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -11,7 +11,12 @@ const PORT = Number(process.env.ACADEMY_API_PORT || 8787);
 const dataFile = path.join(__dirname, 'data', 'academy-content.json');
 const compactFile = path.join(__dirname, '..', 'src', 'docs', 'memecoin-trading-guide-compact.md');
 const paymentsFile = path.join(__dirname, 'data', 'payments.json');
+const miniappFile = path.join(__dirname, 'data', 'miniapp.json');
+const miniappConfigFile = path.join(__dirname, 'data', 'miniapp-config.json');
+const miniappAssetsRoot = path.join(__dirname, '..', 'public', 'miniapp-assets');
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+const TELEGRAM_STRICT_AUTH = process.env.TELEGRAM_STRICT_AUTH === '1';
 const paymentWalletPool = (process.env.PAYMENT_WALLET_POOL || process.env.PAYMENT_WALLET || '')
   .split(',')
   .map((item) => item.trim())
@@ -139,7 +144,7 @@ function send(res, status, payload) {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,PUT,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Telegram-Init-Data',
   });
   res.end(JSON.stringify(payload));
 }
@@ -249,11 +254,285 @@ function parsePath(url = '/') {
   return url.split('?')[0];
 }
 
+function parseTelegramInitData(rawInitData = '') {
+  const params = new URLSearchParams(rawInitData);
+  const hash = params.get('hash') || '';
+  const authDate = Number(params.get('auth_date') || '0');
+  const items = [];
+  for (const [key, value] of params.entries()) {
+    if (key === 'hash') continue;
+    items.push([key, value]);
+  }
+  items.sort((a, b) => a[0].localeCompare(b[0]));
+  const dataCheckString = items.map(([key, value]) => `${key}=${value}`).join('\n');
+
+  let user = null;
+  try {
+    const rawUser = params.get('user');
+    if (rawUser) user = JSON.parse(rawUser);
+  } catch {
+    user = null;
+  }
+
+  return { hash, authDate, user, dataCheckString };
+}
+
+function verifyTelegramInitData(rawInitData = '') {
+  if (!rawInitData) return { ok: false, reason: 'missing-init-data' };
+  if (!TELEGRAM_BOT_TOKEN) return { ok: false, reason: 'missing-bot-token' };
+
+  const { hash, authDate, user, dataCheckString } = parseTelegramInitData(rawInitData);
+  if (!hash || !authDate || !dataCheckString) return { ok: false, reason: 'invalid-init-data-shape' };
+
+  const secret = createHmac('sha256', 'WebAppData').update(TELEGRAM_BOT_TOKEN).digest();
+  const expected = createHmac('sha256', secret).update(dataCheckString).digest('hex');
+  if (expected !== hash) return { ok: false, reason: 'invalid-signature' };
+
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - authDate) > 86400) return { ok: false, reason: 'auth-date-expired' };
+
+  return { ok: true, user };
+}
+
+function getMiniappAuth(req, bodyUserId = null) {
+  const rawInitData = String(req.headers['x-telegram-init-data'] || '');
+  const verified = verifyTelegramInitData(rawInitData);
+
+  if (verified.ok && verified.user?.id) {
+    return {
+      verified: true,
+      userId: String(verified.user.id),
+      username: verified.user.username || null,
+      reason: 'verified',
+    };
+  }
+
+  const fallbackUserId = bodyUserId ? String(bodyUserId) : 'guest';
+  return {
+    verified: false,
+    userId: fallbackUserId,
+    username: null,
+    reason: verified.reason || 'unverified',
+  };
+}
+
+function createEmptyMiniappConfig() {
+  return {
+    version: 2,
+    assets: {
+      monsters: {
+        mob: [],
+        champions: [],
+        boss: [],
+      },
+      backgrounds: {
+        jungle: [],
+        ruins: [],
+        temple: [],
+      },
+      zones: {
+        general: [],
+      },
+      events: {
+        general: [],
+      },
+    },
+    gameLogic: {
+      enemyHpScale: 1,
+      enemyDamageScale: 1,
+      scoreScale: 1,
+      randomEventChance: 0.2,
+      waveGrowthPerStage: 0.12,
+      bossHpMultiplier: 2.4,
+      bossDamageMultiplier: 1.8,
+      critChance: 0.12,
+      critMultiplier: 1.75,
+      dodgeChance: 0.08,
+      lifeSteal: 0.05,
+      shieldDecayPerTurn: 0.15,
+      comboWindowTurns: 2,
+      rerollCostScore: 20,
+      reviveHpRatio: 0.35,
+      eventIntensityScale: 1,
+      dropRateMultiplier: 1,
+    },
+    randomEvents: [],
+    visuals: {
+      backgroundUrl: '',
+      logoUrl: '',
+      storyFragmentImageUrl: '',
+    },
+    characters: {
+      playable: {},
+      emotionUrls: {},
+    },
+    narrative: {
+      kabalian: [],
+      kkm: [],
+    },
+    adminBacklog: [],
+    monsters: {
+      traitsCatalog: [],
+      customMonsters: [],
+    },
+    artifacts: {
+      customArtifacts: [],
+    },
+  };
+}
+
+async function getMiniappConfig() {
+  try {
+    await access(miniappConfigFile);
+    const raw = await readFile(miniappConfigFile, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    const seed = createEmptyMiniappConfig();
+    await writeFile(miniappConfigFile, JSON.stringify(seed, null, 2));
+    return seed;
+  }
+}
+
+async function saveMiniappConfig(config) {
+  config.updatedAt = new Date().toISOString();
+  await writeFile(miniappConfigFile, JSON.stringify(config, null, 2));
+}
+
+function mergeConfigSection(base = {}, patch = {}) {
+  const out = { ...base };
+  Object.entries(patch || {}).forEach(([key, value]) => {
+    if (value && typeof value === 'object' && !Array.isArray(value) && out[key] && typeof out[key] === 'object' && !Array.isArray(out[key])) {
+      out[key] = { ...out[key], ...value };
+    } else {
+      out[key] = value;
+    }
+  });
+  return out;
+}
+
+function slugifyName(name = 'asset') {
+  return String(name || 'asset')
+    .toLowerCase()
+    .replace(/\.[a-z0-9]+$/i, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60) || 'asset';
+}
+
+async function saveDataUrlAsset({ category, subcategory = '', fileName, dataUrl }) {
+  const match = String(dataUrl || '').match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) throw new Error('Invalid dataUrl image payload.');
+
+  const mime = match[1].toLowerCase();
+  const base64 = match[2];
+  const ext = mime.includes('png') ? 'png' : mime.includes('jpeg') || mime.includes('jpg') ? 'jpg' : mime.includes('webp') ? 'webp' : 'png';
+  const safeCategory = ['monsters', 'backgrounds', 'zones', 'events'].includes(category) ? category : 'misc';
+  const safeSubcategory = slugifyName(subcategory || 'general');
+  const folder = path.join(miniappAssetsRoot, safeCategory, safeSubcategory);
+  await mkdir(folder, { recursive: true });
+
+  const slug = slugifyName(fileName);
+  const finalName = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${slug}.${ext}`;
+  const fullPath = path.join(folder, finalName);
+  await writeFile(fullPath, Buffer.from(base64, 'base64'));
+
+  return {
+    id: randomUUID(),
+    category: safeCategory,
+    subcategory: safeSubcategory,
+    fileName: finalName,
+    originalName: fileName,
+    mime,
+    sizeBytes: Math.round(base64.length * 0.75),
+    url: `/miniapp-assets/${safeCategory}/${safeSubcategory}/${finalName}`,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+
+function createEmptyMiniappState() {
+  return {
+    version: 1,
+    runs: [],
+    referrals: [],
+    referralClaims: [],
+    statsByCode: {},
+    telemetry: [],
+  };
+}
+
+async function getMiniappState() {
+  try {
+    await access(miniappFile);
+    const raw = await readFile(miniappFile, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    const seed = createEmptyMiniappState();
+    await writeFile(miniappFile, JSON.stringify(seed, null, 2));
+    return seed;
+  }
+}
+
+async function saveMiniappState(state) {
+  state.updatedAt = new Date().toISOString();
+  await writeFile(miniappFile, JSON.stringify(state, null, 2));
+}
+
+function normalizeReferralCode(code = '') {
+  return String(code || '').trim().toLowerCase();
+}
+
+function upsertReferralStats(state, code) {
+  if (!state.statsByCode[code]) {
+    state.statsByCode[code] = {
+      code,
+      totalClaims: 0,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+  return state.statsByCode[code];
+}
+
+const writeRateLimit = new Map();
+
+function checkWriteRateLimit(req, limit = 120, windowMs = 60_000) {
+  const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0].trim();
+  const now = Date.now();
+  const bucket = writeRateLimit.get(ip) || { count: 0, resetAt: now + windowMs };
+  if (now > bucket.resetAt) {
+    bucket.count = 0;
+    bucket.resetAt = now + windowMs;
+  }
+  bucket.count += 1;
+  writeRateLimit.set(ip, bucket);
+  return { ok: bucket.count <= limit, remaining: Math.max(0, limit - bucket.count) };
+}
+
+
 const server = createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 200, { ok: true });
 
   const pathName = parsePath(req.url);
   const requestUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+
+  if (pathName.startsWith('/miniapp-assets/') && req.method === 'GET') {
+    try {
+      const local = path.join(__dirname, '..', 'public', pathName.replace(/^\/+/, ''));
+      const buf = await readFile(local);
+      const ext = path.extname(local).toLowerCase();
+      const contentType = ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.webp' ? 'image/webp' : 'application/octet-stream';
+      res.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'public, max-age=31536000, immutable' });
+      res.end(buf);
+      return;
+    } catch {
+      return send(res, 404, { ok: false, error: 'Asset not found' });
+    }
+  }
+
+  if (req.method === 'POST' && (pathName.startsWith('/api/runs') || pathName.startsWith('/api/referrals') || pathName.startsWith('/api/telemetry'))) {
+    const limit = checkWriteRateLimit(req);
+    if (!limit.ok) return send(res, 429, { ok: false, error: 'Too many requests. Slow down.' });
+  }
 
   if (pathName === '/api/academy/content' && req.method === 'GET') {
     const content = await getContent();
@@ -392,6 +671,238 @@ const server = createServer(async (req, res) => {
     const state = await getPaymentsState();
     const entitlement = state.entitlements.find((entry) => entry.productId === productId && keys.includes(entry.ownerKey));
     return send(res, 200, { ok: true, granted: Boolean(entitlement), entitlement: entitlement || null });
+  }
+
+  if (pathName === '/api/miniapp/auth/check' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const auth = getMiniappAuth(req, body.telegramUserId || body.userId || null);
+      if (TELEGRAM_STRICT_AUTH && !auth.verified) {
+        return send(res, 401, { ok: false, error: `telegram auth failed: ${auth.reason}` });
+      }
+      return send(res, 200, { ok: true, auth });
+    } catch (error) {
+      return send(res, 400, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathName === '/api/runs/finish' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      if (!body.runSeed || !Number.isFinite(Number(body.score)) || !Number.isFinite(Number(body.floor))) {
+        return send(res, 400, { ok: false, error: 'runSeed, score et floor requis.' });
+      }
+
+      const auth = getMiniappAuth(req, body.telegramUserId || null);
+      if (TELEGRAM_STRICT_AUTH && !auth.verified) {
+        return send(res, 401, { ok: false, error: `telegram auth failed: ${auth.reason}` });
+      }
+
+      const state = await getMiniappState();
+      const existing = state.runs.find((entry) => entry.telegramUserId === auth.userId && entry.runSeed === String(body.runSeed));
+      if (existing) {
+        return send(res, 200, { ok: true, deduped: true, run: existing });
+      }
+
+      const run = {
+        id: randomUUID(),
+        telegramUserId: auth.userId,
+        referralCodeUsed: normalizeReferralCode(body.referralCodeUsed || ''),
+        runSeed: String(body.runSeed),
+        score: Number(body.score),
+        floor: Number(body.floor),
+        characterId: body.characterId || 'kabalian',
+        authVerified: auth.verified,
+        createdAt: new Date().toISOString(),
+      };
+      state.runs.push(run);
+      state.runs = state.runs.sort((a, b) => b.score - a.score).slice(0, 2000);
+      await saveMiniappState(state);
+      return send(res, 200, { ok: true, run });
+    } catch (error) {
+      return send(res, 400, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathName === '/api/runs/leaderboard' && req.method === 'GET') {
+    const limit = Math.min(100, Math.max(1, Number(requestUrl.searchParams.get('limit') || 20)));
+    const state = await getMiniappState();
+    return send(res, 200, { ok: true, leaderboard: state.runs.slice(0, limit) });
+  }
+
+  if (pathName === '/api/referrals/claim' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const inviterCode = normalizeReferralCode(body.inviterCode);
+      const invitedUserId = body.invitedUserId ? String(body.invitedUserId) : '';
+      if (!inviterCode || !invitedUserId) {
+        return send(res, 400, { ok: false, error: 'inviterCode et invitedUserId requis.' });
+      }
+
+      const auth = getMiniappAuth(req, invitedUserId || null);
+      if (TELEGRAM_STRICT_AUTH && !auth.verified) {
+        return send(res, 401, { ok: false, error: `telegram auth failed: ${auth.reason}` });
+      }
+
+      const canonicalInvitedUserId = auth.userId;
+      const selfCode = normalizeReferralCode(`ref_${canonicalInvitedUserId}`);
+      if (inviterCode === selfCode) {
+        return send(res, 200, { ok: true, claimed: false, reason: 'self-referral-blocked' });
+      }
+
+      const state = await getMiniappState();
+      const duplicate = state.referralClaims.find((entry) => entry.invitedUserId === canonicalInvitedUserId);
+      if (duplicate) {
+        return send(res, 200, { ok: true, claimed: false, reason: 'already-claimed', claim: duplicate });
+      }
+
+      const claim = {
+        id: randomUUID(),
+        inviterCode,
+        invitedUserId: canonicalInvitedUserId,
+        authVerified: auth.verified,
+        createdAt: new Date().toISOString(),
+      };
+      state.referralClaims.push(claim);
+      state.referrals.push(claim);
+
+      const stats = upsertReferralStats(state, inviterCode);
+      stats.totalClaims += 1;
+      stats.updatedAt = new Date().toISOString();
+
+      await saveMiniappState(state);
+      return send(res, 200, { ok: true, claimed: true, claim, stats, auth: { verified: auth.verified, reason: auth.reason } });
+    } catch (error) {
+      return send(res, 400, { ok: false, error: error.message });
+    }
+  }
+
+  const referralStatsMatch = pathName.match(/^\/api\/referrals\/stats\/([a-zA-Z0-9_-]+)$/);
+  if (referralStatsMatch && req.method === 'GET') {
+    const code = normalizeReferralCode(referralStatsMatch[1]);
+    const state = await getMiniappState();
+    const stats = state.statsByCode?.[code] || { code, totalClaims: 0, updatedAt: null };
+    return send(res, 200, { ok: true, stats });
+  }
+
+  if (pathName === '/api/runs/friends-leaderboard' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const ids = Array.isArray(body.ids) ? body.ids.map((id) => String(id)).slice(0, 100) : [];
+      const state = await getMiniappState();
+      const filtered = state.runs.filter((run) => ids.includes(String(run.telegramUserId))).slice(0, 1000);
+      const bestByUser = [];
+      const byUser = new Map();
+      filtered.forEach((run) => {
+        const current = byUser.get(run.telegramUserId);
+        if (!current || run.score > current.score) byUser.set(run.telegramUserId, run);
+      });
+      byUser.forEach((value) => bestByUser.push(value));
+      bestByUser.sort((a, b) => b.score - a.score);
+      return send(res, 200, { ok: true, leaderboard: bestByUser.slice(0, 20) });
+    } catch (error) {
+      return send(res, 400, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathName === '/api/telemetry/event' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      if (!body.event) return send(res, 400, { ok: false, error: 'event requis.' });
+      const auth = getMiniappAuth(req, body.telegramUserId || null);
+      if (TELEGRAM_STRICT_AUTH && !auth.verified) {
+        return send(res, 401, { ok: false, error: `telegram auth failed: ${auth.reason}` });
+      }
+
+      const state = await getMiniappState();
+      state.telemetry.push({
+        id: randomUUID(),
+        event: String(body.event),
+        telegramUserId: auth.userId,
+        meta: body.meta && typeof body.meta === 'object' ? body.meta : {},
+        authVerified: auth.verified,
+        createdAt: new Date().toISOString(),
+      });
+      state.telemetry = state.telemetry.slice(-5000);
+      await saveMiniappState(state);
+      return send(res, 200, { ok: true });
+    } catch (error) {
+      return send(res, 400, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathName === '/api/telemetry/summary' && req.method === 'GET') {
+    const state = await getMiniappState();
+    const summary = state.telemetry.reduce((acc, row) => {
+      acc[row.event] = (acc[row.event] || 0) + 1;
+      return acc;
+    }, {});
+    return send(res, 200, { ok: true, summary, total: state.telemetry.length });
+  }
+
+  if (pathName === '/api/miniapp/config' && req.method === 'GET') {
+    const config = await getMiniappConfig();
+    return send(res, 200, { ok: true, config });
+  }
+
+  if (pathName === '/api/miniapp/config' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      const current = await getMiniappConfig();
+      const next = {
+        ...current,
+        ...body,
+        assets: mergeConfigSection(current.assets || {}, body.assets || {}),
+        gameLogic: mergeConfigSection(current.gameLogic || {}, body.gameLogic || {}),
+        randomEvents: Array.isArray(body.randomEvents) ? body.randomEvents : current.randomEvents,
+      };
+      await saveMiniappConfig(next);
+      return send(res, 200, { ok: true, config: next });
+    } catch (error) {
+      return send(res, 400, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathName === '/api/miniapp/assets/upload-batch' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const category = String(body.category || 'monsters');
+      const subcategory = String(body.subcategory || 'general');
+      const files = Array.isArray(body.files) ? body.files.slice(0, 30) : [];
+      if (!files.length) return send(res, 400, { ok: false, error: 'No files provided.' });
+
+      const uploaded = [];
+      for (const file of files) {
+        const item = await saveDataUrlAsset({
+          category,
+          subcategory,
+          fileName: file.name || 'asset.png',
+          dataUrl: file.dataUrl || '',
+        });
+        uploaded.push(item);
+      }
+
+      const config = await getMiniappConfig();
+      config.assets = config.assets || {};
+      const currentByCategory = config.assets[category];
+
+      if (currentByCategory && typeof currentByCategory === 'object' && !Array.isArray(currentByCategory)) {
+        const prev = Array.isArray(currentByCategory[subcategory]) ? currentByCategory[subcategory] : [];
+        config.assets[category] = {
+          ...currentByCategory,
+          [subcategory]: [...uploaded, ...prev].slice(0, 1000),
+        };
+      } else {
+        const prev = Array.isArray(config.assets[category]) ? config.assets[category] : [];
+        config.assets[category] = [...uploaded, ...prev].slice(0, 1000);
+      }
+
+      await saveMiniappConfig(config);
+
+      return send(res, 200, { ok: true, uploaded, config });
+    } catch (error) {
+      return send(res, 400, { ok: false, error: error.message });
+    }
   }
 
   if (pathName === '/health') return send(res, 200, { ok: true });
