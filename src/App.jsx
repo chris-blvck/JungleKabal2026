@@ -16,13 +16,17 @@ import KabalAcademyAdmin from './pages/KabalAcademyAdmin';
 import TrackRecord from './pages/TrackRecord';
 import TrophyRoom from './pages/TrophyRoom';
 import KabalCheckout from './pages/KabalCheckout';
+import TeamUrlDirectory from './pages/TeamUrlDirectory';
 
-const isTeamSubdomain =
-  typeof window !== 'undefined' &&
-  window.location.hostname.startsWith('team.');
+function isTeamHost() {
+  if (typeof window === 'undefined') return false;
+  const hostname = window.location.hostname.toLowerCase();
+  const normalized = hostname.startsWith('www.') ? hostname.slice(4) : hostname;
+  return normalized.startsWith('team.') || normalized.includes('.team.');
+}
 
 export default function App() {
-  if (isTeamSubdomain) {
+  if (isTeamHost()) {
     return (
       <BrowserRouter>
         <Routes>
@@ -52,6 +56,9 @@ export default function App() {
           <Route path="/academy"                  element={<KabalAcademyMVP />} />
           <Route path="/academy/admin"            element={<KabalAcademyAdmin />} />
           <Route path="/academy/checkout"         element={<KabalCheckout />} />
+
+          {/* DIRECTORY */}
+          <Route path="/url"                      element={<TeamUrlDirectory />} />
 
           {/* Fallback */}
           <Route path="*"                         element={<TeamHome />} />
