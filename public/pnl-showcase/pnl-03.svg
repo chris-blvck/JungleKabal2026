@@ -1,0 +1,19 @@
+<svg width="1280" height="800" viewBox="0 0 1280 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="800" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B160D"/>
+      <stop offset="1" stop-color="#11271A"/>
+    </linearGradient>
+    <linearGradient id="line" x1="180" y1="620" x2="1120" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#24C96B"/>
+      <stop offset="1" stop-color="#A8F8C9"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="800" fill="url(#bg)"/>
+  <rect x="50" y="50" width="1180" height="700" rx="22" stroke="#2A3B2D" stroke-width="2"/>
+  <text x="110" y="170" fill="#EED7A0" font-size="52" font-family="Arial" font-weight="700">Jungle Kabal PNL</text>
+  <text x="110" y="230" fill="#8C9A8E" font-size="28" font-family="Arial">Admin Showcase Snapshot</text>
+  <polyline points="180,610 310,560 420,580 540,490 680,520 790,430 930,450 1120,260" stroke="url(#line)" stroke-width="8" fill="none"/>
+  <circle cx="1120" cy="260" r="14" fill="#24C96B"/>
+  <text x="885" y="660" fill="#24C96B" font-size="58" font-family="Arial" font-weight="700">PROFIT</text>
+</svg>
