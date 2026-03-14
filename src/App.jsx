@@ -52,6 +52,7 @@ export default function App() {
           {/* ACADEMY */}
           <Route path="/academy"                  element={<KabalAcademyMVP />} />
           <Route path="/academy/admin"            element={<KabalAcademyAdmin />} />
+          <Route path="/academy/checkout"         element={<KabalCheckout />} />
 
           {/* Fallback */}
           <Route path="*"                         element={<TeamHome />} />
