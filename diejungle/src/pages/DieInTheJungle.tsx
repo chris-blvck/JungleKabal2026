@@ -76,9 +76,9 @@ const SHOP_GUY_URL = "https://i.postimg.cc/t4Wkm7Pr/Chat-GPT-Image-15-mars-2026-
 // Button image URLs — replace with real assets when available
 // Can be overridden via config.visuals.buttonImages from admin panel
 const BTN_IMAGES: Record<string, string> = {
-  roll:    'https://i.postimg.cc/9Q7ZFSQt/Chat-GPT-Image-14-mars-2026-23-43-10.png',
+  roll:    'https://i.postimg.cc/LsgK95Nh/Chat-GPT-Image-15-mars-2026-23-18-33.png',
   reroll:  '',
-  resolve: '',
+  resolve: 'https://i.postimg.cc/T37f2ZGX/82d42001-27b5-45f3-8f67-22d978a4ae54.png',
   restart: '',
 };
 
@@ -335,9 +335,9 @@ const TAG_EMOJIS = {
 };
 
 const LANE_IMAGES = {
-  0: "https://i.postimg.cc/xdqv6wsH/Chat-GPT-Image-Mar-12-2026-02-29-33-PM.png",
-  1: "https://i.postimg.cc/66CdbLhg/Chat-GPT-Image-Mar-12-2026-02-31-00-PM.png",
-  2: "https://i.postimg.cc/BvdqdFg9/Chat-GPT-Image-Mar-12-2026-02-24-25-PM.png",
+  0: "https://i.postimg.cc/65BXr95n/Chat-GPT-Image-15-mars-2026-23-23-55.png",
+  1: "https://i.postimg.cc/65BXr95n/Chat-GPT-Image-15-mars-2026-23-23-55.png",
+  2: "https://i.postimg.cc/65BXr95n/Chat-GPT-Image-15-mars-2026-23-23-55.png",
 };
 
 const ROW_INFO = [
@@ -1892,8 +1892,8 @@ function LifeBar({ label, current, max, tone, size = "md" }) {
   );
 }
 
-function ActionBtn({ imgSrc, label, onClick, disabled = false, pulse = false, className = "" }: {
-  imgSrc?: string; label: string; onClick?: () => void; disabled?: boolean; pulse?: boolean; className?: string;
+function ActionBtn({ imgSrc, label, onClick, disabled = false, pulse = false, className = "", imgClassName = "" }: {
+  imgSrc?: string; label: string; onClick?: () => void; disabled?: boolean; pulse?: boolean; className?: string; imgClassName?: string;
 }) {
   return (
     <button
@@ -1902,7 +1902,7 @@ function ActionBtn({ imgSrc, label, onClick, disabled = false, pulse = false, cl
       className={`relative transition-all select-none ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${pulse ? 'animate-pulse' : ''} ${className}`}
     >
       {imgSrc ? (
-        <img src={imgSrc} alt={label} className="h-12 w-auto max-w-[140px] object-contain drop-shadow-lg" />
+        <img src={imgSrc} alt={label} className={`h-12 w-auto max-w-[140px] object-contain drop-shadow-lg ${imgClassName}`} />
       ) : (
         <span className="inline-block rounded-2xl px-4 py-2.5 text-sm font-black">{label}</span>
       )}
@@ -3974,13 +3974,16 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
             ) : null}
             {(game.phase === "roll" || game.phase === "rolling") ? (
               BTN_IMAGES.roll ? (
-                <ActionBtn
-                  imgSrc={BTN_IMAGES.roll}
-                  label={game.rolling ? "Rolling..." : "ROLL"}
-                  onClick={startRoll}
-                  disabled={game.rolling}
-                  pulse={game.phase === "roll" && !game.rolling}
-                />
+                <div className="w-full flex justify-center">
+                  <ActionBtn
+                    imgSrc={BTN_IMAGES.roll}
+                    label={game.rolling ? "Rolling..." : "ROLL"}
+                    onClick={startRoll}
+                    disabled={game.rolling}
+                    pulse={game.phase === "roll" && !game.rolling}
+                    imgClassName="!h-24 !max-w-[280px]"
+                  />
+                </div>
               ) : (
                 <Button
                   onClick={startRoll}
