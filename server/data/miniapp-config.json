@@ -1,1 +1,117 @@
-{}
+{
+  "assets": [
+    { "id": "dice-1", "name": "Dice 1 (Attack)", "url": "https://i.postimg.cc/mk4Rdw2K/Dice-1.png", "category": "dice" },
+    { "id": "dice-2", "name": "Dice 2 (Attack)", "url": "https://i.postimg.cc/NFtYN4jq/Dice-2.png", "category": "dice" },
+    { "id": "dice-3", "name": "Dice 3 (Attack)", "url": "https://i.postimg.cc/4yGZ85xs/Dice-3.png", "category": "dice" },
+    { "id": "dice-4", "name": "Dice 4 (Attack)", "url": "https://i.postimg.cc/qqr0mLvJ/Dice-4.png", "category": "dice" },
+    { "id": "dice-5", "name": "Dice 5 (Attack)", "url": "https://i.postimg.cc/x8QYsR1j/Dice-5.png", "category": "dice" },
+    { "id": "dice-6", "name": "Dice 6 (Attack)", "url": "https://i.postimg.cc/gjpdMD2J/Dice-6.png", "category": "dice" },
+    { "id": "dice-health-1", "name": "Dice Health 1", "url": "https://i.postimg.cc/k4T1QSqL/Dice-health-1.png", "category": "dice" },
+    { "id": "dice-health-2", "name": "Dice Health 2", "url": "https://i.postimg.cc/hvhCpGGd/Dice-Health-2.png", "category": "dice" },
+    { "id": "dice-health-3", "name": "Dice Health 3", "url": "https://i.postimg.cc/BbthMvv1/Dice-Health-3.png", "category": "dice" },
+    { "id": "dice-health-4", "name": "Dice Health 4", "url": "https://i.postimg.cc/QCV60MM1/Dice-Health-4.png", "category": "dice" },
+    { "id": "dice-health-5", "name": "Dice Health 5", "url": "https://i.postimg.cc/brd63vv3/Dice-Helath-5.png", "category": "dice" },
+    { "id": "dice-health-6", "name": "Dice Health 6", "url": "https://i.postimg.cc/mkhd8rr1/Dice-Health-6.png", "category": "dice" },
+    { "id": "dice-shield-1", "name": "Dice Shield 1", "url": "https://i.postimg.cc/x8qstddp/Dice-shield-1.png", "category": "dice" },
+    { "id": "dice-shield-2", "name": "Dice Shield 2", "url": "https://i.postimg.cc/Zngwgh9P/Dice-Shield-2.png", "category": "dice" },
+    { "id": "dice-shield-4", "name": "Dice Shield 4", "url": "https://i.postimg.cc/L57x7Mq3/Dice-Shield-4.png", "category": "dice" },
+    { "id": "dice-shield-5", "name": "Dice Shield 5", "url": "https://i.postimg.cc/mkqmqGcp/Dice-Shield-5.png", "category": "dice" },
+    { "id": "dice-shield-6", "name": "Dice Shield 6", "url": "https://i.postimg.cc/90SLSj4K/Dice-Shield-6.png", "category": "dice" },
+    { "id": "monster-water-eel", "name": "Water Eel", "url": "https://i.postimg.cc/MHWQR1RF/Water-Eel.png", "category": "monsters" },
+    { "id": "monster-river-scum", "name": "River Scum", "url": "https://i.postimg.cc/prtBS9jQ/River-Scum.png", "category": "monsters" },
+    { "id": "monster-yeti", "name": "Yeti", "url": "https://i.postimg.cc/Y0gsGK6R/Yeti-1.png", "category": "monsters" },
+    { "id": "monster-carnivorous", "name": "Carnivorous Plant", "url": "https://i.postimg.cc/Kjv2tYYn/Carnivorous-4.png", "category": "monsters" },
+    { "id": "monster-magic-book", "name": "Magic Book", "url": "https://i.postimg.cc/XYDpJTQK/Magic-Book-1.png", "category": "monsters" },
+    { "id": "monster-krex", "name": "K-Rex (Boss)", "url": "https://i.postimg.cc/0Q3R0ZLZ/K-Rex.png", "category": "monsters" },
+    { "id": "monster-lokness", "name": "Lok Ness (Boss)", "url": "https://i.postimg.cc/Bb8hWWY7/Lok-Ness-2.png", "category": "monsters" },
+    { "id": "monster-water-monster", "name": "Water Monster", "url": "https://i.postimg.cc/nz9dgbw2/Water-Monster-1.png", "category": "monsters" },
+    { "id": "monster-ghost-yellow", "name": "Ghost Yellow", "url": "https://i.postimg.cc/B6J9Gv2n/Ghost-Yellow.png", "category": "monsters" },
+    { "id": "monster-carnivor-tree", "name": "Carnivor Tree", "url": "https://i.postimg.cc/qMwGmvv2/Carnivor-tree-5.png", "category": "monsters" },
+    { "id": "monster-jade-hydra", "name": "Jade Toxic Hydra", "url": "https://i.postimg.cc/MTYWSgrx/jade-toxic-hydra.png", "category": "monsters" },
+    { "id": "monster-torlin", "name": "Torlin (Boss)", "url": "https://i.postimg.cc/43B4T88f/Torlin.jpg", "category": "monsters" },
+    { "id": "monster-mr-carrillo", "name": "Mr. Carrillo (Boss)", "url": "https://i.postimg.cc/R0ndk8Cd/Mr-Carrillo.jpg", "category": "monsters" },
+    { "id": "companion-amber-sproutling", "name": "Amber Grove Sproutling", "url": "https://i.postimg.cc/5Ns6vQgw/amber-grove-sproutling.png", "category": "companions" },
+    { "id": "companion-jade-imp", "name": "Jade Toxic Imp", "url": "https://i.postimg.cc/gjftB2qh/jade-toxic-imp.png", "category": "companions" },
+    { "id": "companion-coral-shaman", "name": "Coral Jungle Shaman", "url": "https://i.postimg.cc/rp344R8S/coral-jungle-shaman.png", "category": "companions" },
+    { "id": "companion-jade-hoarder", "name": "Jade Spirit Hoarder", "url": "https://i.postimg.cc/nrswkD7p/jade-spirit-hoarder.png", "category": "companions" },
+    { "id": "companion-olive-gazer", "name": "Olive Toxic Gazer", "url": "https://i.postimg.cc/kXvWH5yw/olive-toxic-gazer.png", "category": "companions" },
+    { "id": "companion-golden-watcher", "name": "Golden Jungle Watcher", "url": "https://i.postimg.cc/2SCgpVNZ/golden-jungle-watcher.png", "category": "companions" },
+    { "id": "companion-chartreuse-sprite", "name": "Chartreuse Swamp Sprite", "url": "https://i.postimg.cc/mkGFXx1g/chartreuse-swamp-sprite.png", "category": "companions" },
+    { "id": "companion-golden-totem", "name": "Golden Toxic Totem", "url": "https://i.postimg.cc/jSvmRtRF/golden-toxic-totem.png", "category": "companions" },
+    { "id": "artifact-verdant-bone-wreath", "name": "Verdant Bone Wreath", "url": "https://i.postimg.cc/JnH23XZg/verdant-bone-wreath.png", "category": "artifacts" },
+    { "id": "artifact-golden-venom-serpent", "name": "Golden Venom Serpent", "url": "https://i.postimg.cc/ZRvMPNpM/golden-venom-serpent.png", "category": "artifacts" },
+    { "id": "artifact-golden-light-pods", "name": "Golden Light Pods", "url": "https://i.postimg.cc/JzKvRMRK/golden-light-pods.png", "category": "artifacts" },
+    { "id": "artifact-golden-spirit-lantern", "name": "Golden Spirit Lantern", "url": "https://i.postimg.cc/g24QGmGB/golden-spirit-lantern.png", "category": "artifacts" },
+    { "id": "artifact-golden-verdant-totem", "name": "Golden Verdant Totem", "url": "https://i.postimg.cc/mD1539C6/golden-verdant-totem.png", "category": "artifacts" },
+    { "id": "char-kabalian-face", "name": "Kabalian Face", "url": "https://i.postimg.cc/B6rBLmBt/Kabalian-Face.png", "category": "characters" },
+    { "id": "char-kkm-mascot", "name": "KKM Mascot", "url": "https://i.postimg.cc/Kv8zygVk/KKM-Mascot-2.png", "category": "characters" },
+    { "id": "char-kabalian-chosen", "name": "Kabalian Chosen One", "url": "https://i.postimg.cc/c4BM7sg5/Kabalian-Chosen-one.png", "category": "characters" },
+    { "id": "char-kkm-eazy", "name": "KKM Eazy Moni", "url": "https://i.postimg.cc/7PRxV34n/kkm-eazy-moni-transparent.png", "category": "characters" },
+    { "id": "char-kabalian-or-kkm", "name": "Kabalian or KKM", "url": "https://i.postimg.cc/DwMdGXHm/Kabalian-or-KKM.png", "category": "characters" },
+    { "id": "bg-desktop", "name": "Background Desktop", "url": "https://i.postimg.cc/YSmfqq2c/Background-desktop.png", "category": "backgrounds" },
+    { "id": "bg-website", "name": "Background Website", "url": "https://i.postimg.cc/4yfhQzR0/backgroudn-website.png", "category": "backgrounds" },
+    { "id": "logo-jk-full", "name": "Logo JK Transparent Full", "url": "https://i.postimg.cc/7YwD758t/Logo-JK-Transparent-full.png", "category": "logos" },
+    { "id": "logo-jaune-rond", "name": "Logo Jaune Rond", "url": "https://i.postimg.cc/bwvhC4v2/logo-jaune-rond.png", "category": "logos" },
+    { "id": "logo-jaune", "name": "Logo Jaune", "url": "https://i.postimg.cc/rwdjP9rb/logo-jaune.png", "category": "logos" },
+    { "id": "logo-eye-hologram", "name": "Logo Eye Hologram", "url": "https://i.postimg.cc/sD42KF0v/Logo-Eye-Hologram-Transparent.png", "category": "logos" },
+    { "id": "logo-kabal-flag", "name": "Kabal Flag V2", "url": "https://i.postimg.cc/Tw5kkF5b/Kabal-Flag-V2.png", "category": "logos" },
+    { "id": "logo-kabal-scouting", "name": "Kabal Scouting V2", "url": "https://i.postimg.cc/sfYcPc5f/Kabal-Scouting-v2.png", "category": "logos" },
+    { "id": "ui-divider-liane", "name": "Divider Liane", "url": "https://i.postimg.cc/XJxBYQrg/divider-liane.png", "category": "ui" },
+    { "id": "ui-divider-2", "name": "Divider 2", "url": "https://i.postimg.cc/mkJDPqB1/divider-2.png", "category": "ui" },
+    { "id": "ui-drums", "name": "Drums", "url": "https://i.postimg.cc/nzF5PPfy/Drums.png", "category": "ui" }
+  ],
+  "gameLogic": {
+    "startingHP": 30,
+    "maxHP": 50,
+    "startingGold": 3,
+    "shopRefreshCost": 2,
+    "handSize": 5,
+    "floorsPerAct": 5,
+    "totalActs": 3,
+    "xpPerKill": 10,
+    "xpPerFloor": 5,
+    "eliteSpawnFloor": 3,
+    "bossSpawnFloor": 5
+  },
+  "pools": {
+    "artifactWeights": { "gray": 4, "gold": 3, "chrome": 1 },
+    "starterWeights": { "gray": 6, "gold": 3, "chrome": 1 },
+    "shopItemEnabled": {},
+    "mapNodeWeights": { "combat": 3, "shop": 1, "rest": 1, "event": 1 }
+  },
+  "sounds": {},
+  "brandKit": {
+    "primaryColor": "#22c55e",
+    "secondaryColor": "#f59e0b",
+    "accentColor": "#8b5cf6",
+    "backgroundColor": "#0a0a0a",
+    "fontHeading": "Rajdhani",
+    "fontBody": "Inter",
+    "brandVoice": "Mysterious. Tribal. High-stakes."
+  },
+  "sprintItems": [],
+  "visuals": {
+    "backgroundUrl": "https://i.postimg.cc/YSmfqq2c/Background-desktop.png",
+    "logoUrl": "https://i.postimg.cc/7YwD758t/Logo-JK-Transparent-full.png",
+    "storyFragmentImageUrl": ""
+  },
+  "characters": {
+    "playable": {
+      "kabalian": {
+        "portraitUrl": "https://i.postimg.cc/c4BM7sg5/Kabalian-Chosen-one.png",
+        "faceUrl": "https://i.postimg.cc/B6rBLmBt/Kabalian-Face.png"
+      },
+      "kkm": {
+        "portraitUrl": "https://i.postimg.cc/7PRxV34n/kkm-eazy-moni-transparent.png",
+        "faceUrl": "https://i.postimg.cc/Kv8zygVk/KKM-Mascot-2.png"
+      }
+    },
+    "emotionUrls": {}
+  },
+  "narrative": {
+    "kabalian": [],
+    "kkm": []
+  },
+  "events": [],
+  "assetsMeta": {}
+}
