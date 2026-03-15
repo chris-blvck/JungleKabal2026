@@ -1294,6 +1294,8 @@ function makeInitialState() {
     shopInventory: null as ShopItem[] | null,
     // Saturation warning (shown when board will be full next turn)
     boardWillSaturateWarning: false,
+    // Track last floor where a boss was killed (for meta progression)
+    lastBossFloor: null as number | null,
   };
 }
 
@@ -1566,7 +1568,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
   function shareRun() {
     const characterName = game.player.characterId === "kkm" ? "KKM" : "Kabalian";
-    const text = `Reached Zone ${game.floor} in Die in the Jungle%0AScore: ${game.score}%0ACharacter: ${characterName}%0ASeed: ${game.runSeed}%0A%23KabalBlessing`;
+    const text = `Reached Zone ${game.floor} in DIE JUNGLE%0AScore: ${game.score}%0ACharacter: ${characterName}%0ASeed: ${game.runSeed}%0A%23KabalBlessing`;
     window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank", "noopener,noreferrer");
   }
 
@@ -1611,6 +1613,12 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     setGame((g) => {
       const player = { ...g.player };
       let lines = [];
+      // Fortress: restore fortress shield at start of next turn
+      if ((player._fortressShield || 0) > 0) {
+        player.shield = (player.shield || 0) + player._fortressShield;
+        lines.push(`🏰 Fortress: +${player._fortressShield} shield carried over`);
+        player._fortressShield = 0;
+      }
       if (player.selfBleed > 0) {
         player.hp -= player.selfBleed;
         lines.push(`🩸 Bleeding charm: lose ${player.selfBleed} HP`);
@@ -1941,6 +1949,9 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         }
       }
 
+      // Track boss floor for meta achievement (boss kill on this floor)
+      const lastBossFloor = (enemyDied && g.enemy.tier === "boss") ? g.floor : (g.lastBossFloor ?? null);
+
       return {
         ...g,
         score,
@@ -1970,6 +1981,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         scorePopups,
         comboPopup,
         lastOutcome,
+        lastBossFloor,
       };
     });
 
@@ -2306,7 +2318,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
     // Award XP/gems and update unlock tree
     const meta = loadMeta();
-    const bossZone = game.phase === 'victory' ? game.floor : undefined;
+    const bossZone = game.lastBossFloor ?? undefined;
     const { next } = recordRunEnd(meta, {
       score: game.score,
       floor: game.floor,
@@ -2427,7 +2439,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
             <div className="flex items-center gap-2">
               <img src={LOGO_URL} alt="Kabal logo" className="h-9 w-9 object-contain" />
               <div>
-                <h1 className="font-serif text-base italic tracking-wide text-amber-300 md:text-2xl">Die in the Jungle</h1>
+                <h1 className="font-serif text-base italic tracking-wide text-amber-300 md:text-2xl">DIE JUNGLE</h1>
                 <p className="text-[10px] text-zinc-100 md:text-xs">Roguelite run · intents · reroll · artifacts · endless zones</p>
               </div>
             </div>
@@ -2444,10 +2456,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Seed</div>
                 <div className="text-xs font-black text-cyan-200 md:text-sm">#{game.runSeed}</div>
               </div>
-              <Button onClick={connectWallet} className="rounded-xl bg-violet-500/25 px-2.5 py-2 text-white hover:bg-violet-500/40">
-                {walletAddress ? `🟣 ${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}` : "🟣 Connect Wallet"}
-              </Button>
-              <Button onClick={() => setGame((g) => ({ ...g, showHowToPlay: true }))} className="rounded-xl bg-white/10 px-2.5 py-2 text-white hover:bg-white/20">❓</Button>
+              <Button onClick={() => setGame((g) => ({ ...g, showHowToPlay: true }))} className="rounded-xl bg-white/10 px-2.5 py-2 text-white hover:bg-white/20">❓ Score</Button>
             </div>
           </div>
         </div>
@@ -3120,69 +3129,74 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   <div className="flex items-center gap-3">
                     <img src={LOGO_URL} alt="Kabal logo" className="h-10 w-10 object-contain" />
                     <div>
-                      <div className="font-serif text-xl italic text-amber-300 md:text-2xl">How to play</div>
-                      <div className="text-sm text-zinc-300">Updated prototype rules</div>
+                      <div className="font-serif text-xl italic text-amber-300 md:text-2xl">How to Score More</div>
+                      <div className="text-sm text-zinc-300">DIE JUNGLE — scoring guide</div>
                     </div>
                   </div>
                   <Button onClick={() => setGame((g) => ({ ...g, showHowToPlay: false }))} className="rounded-xl bg-white/10 px-4 py-2 text-white hover:bg-white/20">✕</Button>
                 </div>
-                {/* Quick tutorial */}
-                <div className="mb-3 space-y-1.5 text-sm text-white">
-                  <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-300">Quick start</div>
-                  <div>1️⃣ Press <span className="font-black text-amber-300">ROLL</span> to get your dice for the turn</div>
-                  <div>2️⃣ Tap a die to select it, then tap a board slot to place it</div>
-                  <div>3️⃣ Once happy, press <span className="font-black text-emerald-300">RESOLVE</span> — or place all dice to auto-resolve</div>
-                  <div>4️⃣ 🔁 You have 1 <span className="font-black text-amber-300">Reroll</span> per turn — tap a die first, then REROLL</div>
-                  <div>5️⃣ Kill all enemies in a zone to advance to the next one</div>
+
+                {/* Score multipliers */}
+                <div className="mb-3 rounded-xl border border-amber-300/20 bg-amber-950/20 p-3 space-y-1.5 text-[12px]">
+                  <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-amber-300">Score sources</div>
+                  <div>⚔️ <span className="font-black text-amber-200">Kill +120</span> — base score per enemy killed</div>
+                  <div>💥 <span className="font-black text-amber-200">Overkill</span> — excess damage × 5 bonus points</div>
+                  <div>⚡ <span className="font-black text-amber-200">One Shot +100</span> — kill enemy on their first intent</div>
+                  <div>🎯 <span className="font-black text-amber-200">No-hit streak</span> — multiplier grows every turn you don't take HP damage</div>
+                  <div>🌴 <span className="font-black text-amber-200">Zone mult</span> — deeper zones multiply all score (Zone 2 = ×1.2, Zone 3 = ×1.4...)</div>
+                  <div>✨ <span className="font-black text-amber-200">Perfect +150</span> — kill enemy without taking any HP damage this fight</div>
+                  <div>👑 <span className="font-black text-amber-200">Boss +500</span> — flat bonus on boss kill</div>
                 </div>
 
-                {/* HUD guide */}
-                <div className="mb-3 rounded-xl border border-cyan-300/20 bg-cyan-950/30 p-3 space-y-1.5 text-[12px] text-zinc-100">
-                  <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">HUD — what's on screen</div>
-                  <div>⚔️ <span className="font-black">Attack die</span> — black dice, deals damage (row multiplier applies)</div>
-                  <div>🛡️ <span className="font-black">Shield die</span> — white dice, adds shield this turn</div>
-                  <div>❤️ <span className="font-black">Heal die</span> — pink dice, restores HP</div>
-                  <div>🔥 <span className="font-black">Top row ×3</span> · ✨ <span className="font-black">Mid ×2</span> · 🪨 <span className="font-black">Bot ×1</span> — multipliers per row</div>
-                  <div>⏳ <span className="font-black">Cooldown</span> — used slots are locked for N turns; board saturates if all slots locked</div>
-                  <div>💀 <span className="font-black">Enemy intent</span> — shown above enemy; predicts next action</div>
-                  <div>⚡ <span className="font-black">Enemy charge</span> — bar fills each turn; at max = SURGE (heavy attack)</div>
+                {/* Top tips */}
+                <div className="mb-3 rounded-xl border border-emerald-300/20 bg-emerald-950/20 p-3 space-y-1.5 text-[12px]">
+                  <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300">Top tips to score high</div>
+                  <div>🎯 <span className="font-black">Don't get hit.</span> The no-hit streak multiplier is your biggest score lever.</div>
+                  <div>🔱 <span className="font-black">Pierce + Top row.</span> Top row ×3 multiplier + pierce ignores shield = massive overkill combos.</div>
+                  <div>☠️ <span className="font-black">Reset charge with Curse.</span> Face 1 attack resets enemy charge bar — never let them SURGE.</div>
+                  <div>⚡ <span className="font-black">One Shot on first intent.</span> Plan your board so enemy dies before they even act. +100 bonus.</div>
+                  <div>🌴 <span className="font-black">Survive deep.</span> Zone 5 = ×1.8 multiplier on every kill. Rush depth over kills.</div>
                 </div>
 
-                {/* Advanced guide toggle */}
+                {/* Quick rules */}
+                <div className="mb-3 rounded-xl border border-white/10 bg-black/30 p-3 space-y-1.5 text-[12px] text-zinc-200">
+                  <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-300">Quick rules</div>
+                  <div>1️⃣ ROLL → place dice on the 3×3 grid → RESOLVE</div>
+                  <div>🔥 <span className="font-black">Top row ×3</span> · ✨ <span className="font-black">Mid ×2</span> · 🪨 <span className="font-black">Bot ×1</span></div>
+                  <div>⏳ Used slots go on cooldown for a few turns</div>
+                  <div>🔁 <span className="font-black">Reroll</span> a die if you got a bad face — tap die first, then REROLL</div>
+                  <div>🗺️ Between fights: choose your path on the <span className="font-black">map</span> — shop, events, rest or fight</div>
+                </div>
+
+                {/* Build archetypes toggle */}
                 <button
                   onClick={() => setShowAdvancedGuide((v) => !v)}
                   className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[12px] font-black text-zinc-300 hover:bg-white/10"
                 >
-                  <span>📚 Advanced guide</span>
+                  <span>📚 Build archetypes</span>
                   <span>{showAdvancedGuide ? '▲' : '▼'}</span>
                 </button>
                 {showAdvancedGuide ? (
                   <div className="mt-2 space-y-3 rounded-xl border border-white/10 bg-black/40 p-3 text-[12px] text-zinc-100">
                     <div>
-                      <div className="mb-1 font-black text-violet-300">Enemy stats</div>
-                      <div className="space-y-0.5">
-                        <div>❤️ <span className="font-black">HP</span> — total life; regen enemies heal each turn</div>
-                        <div>🛡️ <span className="font-black">Shield</span> — absorbs damage; pierce attacks bypass it</div>
-                        <div>⚡ <span className="font-black">Charge</span> — how close to SURGE; reset with ☠️ Curse (face 1)</div>
-                        <div>🔥 <span className="font-black">Strength</span> — damage multiplier on attacks</div>
-                        <div>⚙️ <span className="font-black">Intents</span> — Attack / Shield / Regen / Charging shown 1 turn ahead</div>
-                      </div>
+                      <div className="mb-1 font-black text-red-300">⚔️ Berserker — highest score potential</div>
+                      <div>Stack top row (×3) attack slots + Pierce artifacts. Kill enemies before they act = One Shot bonuses + perfect runs.</div>
                     </div>
                     <div>
-                      <div className="mb-1 font-black text-amber-300">Special dice faces</div>
-                      <div className="space-y-0.5">
-                        <div>☠️ <span className="font-black">Curse</span> (⚔️ face 1) — deals damage + resets enemy charge bar</div>
-                        <div>🔱 <span className="font-black">Pierce</span> (⚔️ face 6) — deals damage and ignores enemy shield</div>
-                        <div>💚 <span className="font-black">Nurture</span> (❤️ face 6) — heals for double value</div>
-                        <div>🏰 <span className="font-black">Fortress</span> (🛡️ face 6) — shield carries over to next turn</div>
-                      </div>
+                      <div className="mb-1 font-black text-cyan-300">🛡️ Fortress — consistent deep runs</div>
+                      <div>Shield dice + Fortress face (🛡️6) + regen artifacts. Shield carries over turns. Outlast everything for zone depth bonus.</div>
                     </div>
                     <div>
-                      <div className="mb-1 font-black text-emerald-300">Build archetypes</div>
-                      <div className="space-y-1">
-                        <div><span className="font-black text-red-300">⚔️ Berserker</span> — stack top row (×3) attack slots + pierce artifacts. One-shot enemies before they charge.</div>
-                        <div><span className="font-black text-cyan-300">🛡️ Fortress</span> — shield dice + fortress face + regen artifacts. Outlast and grind enemies down slowly.</div>
-                        <div><span className="font-black text-violet-300">✨ Surge Control</span> — use curse (face 1) to reset enemy charge every turn. Combine mid-row ×2 for consistent damage without dying to SURGE.</div>
+                      <div className="mb-1 font-black text-violet-300">✨ Surge Control — safe & reliable</div>
+                      <div>Use Curse (⚔️ face 1) to reset enemy charge every turn. Mid-row ×2 for consistent damage. Never die to SURGE. No-hit streak ×.</div>
+                    </div>
+                    <div>
+                      <div className="mb-1 font-black text-amber-300">Special dice faces (unlock required)</div>
+                      <div className="space-y-0.5 text-zinc-300">
+                        <div>☠️ <span className="font-black text-white">Curse</span> (⚔️1) — damage + resets enemy charge bar</div>
+                        <div>🔱 <span className="font-black text-white">Pierce</span> (⚔️6) — ignores enemy shield</div>
+                        <div>💚 <span className="font-black text-white">Nurture</span> (❤️6) — heals double</div>
+                        <div>🏰 <span className="font-black text-white">Fortress</span> (🛡️6) — shield persists next turn</div>
                       </div>
                     </div>
                   </div>
