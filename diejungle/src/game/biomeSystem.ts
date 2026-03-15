@@ -13,11 +13,11 @@ export interface Biome {
 // Background URLs — use placeholder or config-provided URLs
 // These can be overridden by config.visuals.biomeBackgrounds from the admin panel
 export const BIOME_DEFAULT_BACKGROUNDS: Record<BiomeId, string> = {
-  jungle: 'https://i.postimg.cc/YSmfqq2c/Background-desktop.png', // existing bg
-  ruins:  '', // PENDING: ruins bg
-  temple: '', // PENDING: temple bg
-  abyss:  '', // PENDING: abyss bg
-  void:   '', // PENDING: void bg
+  jungle: 'https://i.postimg.cc/hGqqmWDN/Chat-GPT-Image-15-mars-2026-00-24-52.png', // zone 1 — always first combat
+  ruins:  'https://i.postimg.cc/QCz2xvnC/Chat-GPT-Image-15-mars-2026-01-27-54.png',  // zone 2
+  temple: 'https://i.postimg.cc/7PQ8VTPg/Chat-GPT-Image-15-mars-2026-01-36-50.png',  // zone 3
+  abyss:  'https://i.postimg.cc/sf0dcZf7/Chat-GPT-Image-15-mars-2026-10-55-43.png',  // zone 4
+  void:   'https://i.postimg.cc/hGqqmWDN/Chat-GPT-Image-15-mars-2026-00-24-52.png',  // PENDING: void bg (reuse jungle for now)
 };
 
 export const BIOMES: Record<BiomeId, Biome> = {

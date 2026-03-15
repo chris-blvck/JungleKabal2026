@@ -78,21 +78,48 @@ const ASSET_SCHEMA = {
   events: ['general'],
 };
 
-const TABS = [
-  { id: 'testgame', label: '🎮 Test & Presets' },
-  { id: 'metaeditor', label: '🧬 Meta Editor' },
-  { id: 'cheatmode', label: '🔧 Cheat Mode' },
-  { id: 'gamelogic', label: '⚙️ Game Logic' },
-  { id: 'dicecosmetics', label: '🎲 Dice Cosmetics' },
-  { id: 'enemies', label: '👾 Enemies' },
-  { id: 'artifacts', label: '📦 Artifacts' },
-  { id: 'assets', label: '🖼️ Assets' },
-  { id: 'avatars', label: '🎭 Avatars' },
-  { id: 'narrative', label: '📖 Narrative' },
-  { id: 'advanced', label: '🔬 Advanced' },
-  { id: 'roadmap', label: '🗺️ Roadmap' },
-  { id: 'contentqueue', label: '📅 Content Queue' },
+const TAB_GROUPS = [
+  {
+    label: '⚡ Core',
+    description: 'Tester le jeu, ajuster la difficulté, tricher',
+    tabs: [
+      { id: 'testgame', label: '🎮 Test & Presets', help: 'Lance des presets de test rapides. Applique un preset puis ouvre /diejungle. Chaque preset configure le méta-état (XP, gems, unlocks) au lancement.' },
+      { id: 'cheatmode', label: '🔧 Cheat Mode', help: 'Injecte directement HP, coins, XP, ou force une phase de jeu en cours. Utilise uniquement en dev — aucun effet sur les vrais runs joueurs.' },
+      { id: 'gamelogic', label: '⚙️ Game Logic', help: 'Paramètres numériques du moteur de jeu : multiplicateurs de dégâts, scaling par zone, economy. Chaque param a une plage safe indiquée. Sauvegarde puis recharge le jeu.' },
+    ],
+  },
+  {
+    label: '🎨 Contenu',
+    description: 'Enemis, artefacts, dés, méta-progression',
+    tabs: [
+      { id: 'metaeditor', label: '🧬 Meta Editor', help: 'Modifie directement le méta-JSON du joueur stocké en localStorage : XP, gems, unlocks débloqués. Utile pour simuler des états avancés sans jouer.' },
+      { id: 'enemies', label: '👾 Enemies', help: 'Catalogue des ennemis existants (lecture seule). Voir leurs stats, tiers, modificateurs. Ajouter des ennemis custom via le JSON en bas.' },
+      { id: 'artifacts', label: '📦 Artifacts', help: 'Liste des artefacts/reliques du pool. Ajouter des artefacts custom avec image, effets, rareté. Ils entrent dans le pool de shop et de récompenses boss.' },
+      { id: 'dicecosmetics', label: '🎲 Dice Cosmetics', help: 'Coller des URLs d\'images pour chaque face de dé (1-6) par type (attack/shield/heal) et par personnage. Les dés custom remplacent les carrés de couleur par défaut.' },
+    ],
+  },
+  {
+    label: '🖼️ Visuels',
+    description: 'Assets, images, avatars, backgrounds',
+    tabs: [
+      { id: 'assets', label: '🖼️ Bibliothèque Assets', help: 'Upload des images par catégorie (monsters, backgrounds, events…). Les assets uploadés sont stockés sur le serveur et accessibles par URL. Ajoute des tags pour retrouver facilement.' },
+      { id: 'avatars', label: '🎭 Avatars & Visuals', help: 'URLs des avatars par personnage, images de boutons (roll/resolve/restart), backgrounds par biome. Coller une URL et Sauvegarder. Prend effet immédiatement en jeu.' },
+    ],
+  },
+  {
+    label: '🔬 Ops',
+    description: 'Narrative, roadmap, backlog, config avancée',
+    tabs: [
+      { id: 'narrative', label: '📖 Narrative', help: 'Dialogues et textes de lore par personnage. Utilisés dans les écrans d\'intro de run et les bulles de dialogue en jeu.' },
+      { id: 'advanced', label: '🔬 Advanced', help: 'Config JSON brute. Réservé aux devs. Modifier directement le payload envoyé au serveur. Attention : une erreur JSON peut casser la config.' },
+      { id: 'roadmap', label: '🗺️ Roadmap', help: 'Vue d\'ensemble des features done, en cours, et backlog. Mise à jour à chaque sprint. Référence pour l\'équipe.' },
+      { id: 'sprints', label: '⚡ Sprint Tracker', help: 'Master list des sprints planifiés avec leurs features condensées. Vue rapide de la roadmap d\'exécution.' },
+      { id: 'contentqueue', label: '📅 Content Queue', help: 'File de contenu planifié : nouvelles features, assets à livrer, events à créer. Priorisable et assignable.' },
+    ],
+  },
 ];
+// Flat list for backward compat
+const TABS = TAB_GROUPS.flatMap(g => g.tabs);
 
 const GAME_LOGIC_GROUPS = {
   difficulty: {
@@ -172,80 +199,96 @@ const ROADMAP = [
       { label: 'Core roguelite combat loop (roll → place → resolve)', done: true },
       { label: 'Zone-based branching map with fog of war', done: true },
       { label: 'Shop, event, rest nodes on map', done: true },
-      { label: 'Meta progression system (XP + gems + unlock tree)', done: true },
+      { label: 'Meta progression system (XP + gems + unlock tree, 20 levels)', done: true },
       { label: 'Companion system (Gecko 🦎, Croak 🐊, L\'Œil 👁️)', done: true },
       { label: 'Companion active ability button in combat UI', done: true },
       { label: 'Special dice faces: Pierce, Echo, Nurture, Fortress', done: true },
       { label: 'SURGE mechanic (3 same type → bonus)', done: true },
       { label: 'Lane conditionals (top heal → reset CD, bot → coins)', done: true },
       { label: 'Enemy intents + modifiers (venom, thorns, regen, berserk, stoneSkin, swift)', done: true },
-      { label: '2 playable characters (Kabalian + KKM with stats)', done: true },
+      { label: '3 playable characters: Kabalian ⚔️, KKM 🤖, K-REX 🦖', done: true },
+      { label: 'K-REX mechanics: STOMP passive + TREMOR ability', done: true },
+      { label: 'Golden Kabal Dice: 10% per combat, player chooses type (attack/shield/heal), value 6', done: true },
       { label: 'Score system + leaderboard (local)', done: true },
       { label: 'Telegram SDK integration (init, user, expand)', done: true },
-      { label: 'Admin panel (test presets, meta editor, game logic, enemies viewer, cheat mode)', done: true },
+      { label: 'Admin panel: test presets, meta editor, game logic, enemies viewer, cheat mode', done: true },
+      { label: 'Admin panel: 🎲 Dice Cosmetics tab (per-character dice image sets)', done: true },
+      { label: 'Admin panel: ⚙️ Game Logic parameter map (visual guide, safe ranges)', done: true },
       { label: 'Backend API (config, assets, runs, referrals, leaderboard)', done: true },
       { label: 'Fortress shield persistence across turns', done: true },
-      { label: 'Boss zone achievement tracking fixed', done: true },
-      { label: 'AngelOpsDashboard routing fixed', done: true },
+      { label: 'Weapons system: 6 archetypes, passives + specials, Arsenal UI, pre-run equip', done: true },
+      { label: 'Relic system: slots, passive effects, pre-run pick', done: true },
+      { label: 'Pre-run flow: character → weapon → relic → confirm', done: true },
+      { label: 'XP panel, score in header, coins display', done: true },
+      { label: 'Stat caps (ATK, shield, heal max)', done: true },
       { label: 'Standalone export: diejungle/ sub-project for diejungle.fun', done: true },
+      { label: 'Fix: map navigation blocked during combat (combatMapView guard)', done: true },
     ],
   },
   {
     section: '🔧 In Progress / Next Sprint',
     color: 'amber',
     items: [
-      { label: 'Map doesn\'t refresh visually after combat — map state update bug', done: false },
-      { label: 'Shop node on map (guaranteed every zone) + BOSS node at end of zone', done: false },
-      { label: 'Zone visited history / breadcrumb panel on map', done: false },
-      { label: 'Remove wallet connect button from game UI', done: false },
-      { label: '"How to Score More" guide (replaces How to Play)', done: false },
-      { label: 'Post-combat loot popup (choose: Max HP +2 / Mana / Gold coin) — fast, non-disruptive', done: false },
-      { label: 'Free artifact after each Boss kill', done: false },
-      { label: 'Random events: big image + text + 2-3 choices (or auto-reward) — fully visual', done: false },
-      { label: 'Biome system — ZONES = Biomes with unique backgrounds + biome-specific enemies', done: false },
-      { label: 'Biome changes after each boss (random, changes game background dynamically)', done: false },
-      { label: 'Companion selection screen before run start', done: false },
-      { label: 'KKM properly gated by meta unlock (character_kkm)', done: false },
-      { label: 'Profile/unlock screen (spend gems, view unlock tree)', done: false },
+      { label: 'Map doesn\'t refresh visually after combat — node not marked visited', done: false },
+      { label: 'Shop node guaranteed every zone + BOSS node at end of zone', done: false },
+      { label: 'Post-combat loot popup: choose Max HP +2 / Relic / +1 Gold (auto-dismiss 3s)', done: false },
+      { label: 'Free artifact/relic after each Boss kill (3-choice popup)', done: false },
+      { label: 'Random events: big image + lore text + 2-3 choices, shown on map node', done: false },
+      { label: 'Biome system: each zone = biome (jungle/ruins/temple/void) with own background', done: false },
+      { label: 'Biome changes dynamically after each boss kill', done: false },
+      { label: 'Profile/unlock screen: spend gems, view unlock tree visually', done: false },
+      { label: 'Telegram Mini App synced to diejungle/ codebase', done: false },
       { label: 'Telegram Mini App hosted on diejungle.fun', done: false },
-      { label: 'Namecheap DNS → Vercel domain migration for diejungle.fun', done: false },
+      { label: 'K-REX: replace placeholder avatar with real K-REX character art', done: false },
+      { label: 'Golden Kabal Dice: create dedicated golden dice skin (6 faces, 3 types)', done: false },
+    ],
+  },
+  {
+    section: '🎨 Assets Needed — Production Blockers',
+    color: 'rose',
+    items: [
+      { label: '🗺️ MAP: custom background image for the map screen (zone overview art)', done: false },
+      { label: '🗺️ MAP: node icons (custom art for mob / elite / boss / shop / event / rest)', done: false },
+      { label: '🗺️ MAP: fog-of-war texture / overlay for hidden nodes', done: false },
+      { label: '🦖 K-REX: character avatar (idle + emotion variants: focus/hurt/victory)', done: false },
+      { label: '✨ GOLDEN DICE: 6-face dice skin for each type (attack gold / shield gold / heal gold)', done: false },
+      { label: '⚔️ WEAPONS: icon art per weapon archetype (sword, staff, bow, shield, dagger, totem)', done: false },
+      { label: '🌿 BIOME: jungle background (deep jungle, night)', done: false },
+      { label: '🏛️ BIOME: ruins background (Ka ruins, cracked stone)', done: false },
+      { label: '⛩️ BIOME: temple background (dark temple interior)', done: false },
+      { label: '🌑 BIOME: abyss background (void, darkness)', done: false },
+      { label: '🎭 EVENTS: 5-10 event illustrations (random event node art)', done: false },
+      { label: '🛒 SHOP: shopkeeper art update (current placeholder ok for now)', done: false },
     ],
   },
   {
     section: '🎮 Game Design — Confirmed Direction',
     color: 'violet',
     items: [
-      { label: 'BIOMES: each zone = biome (jungle / ruins / temple / void / ...) with own background image', done: false },
-      { label: 'BIOMES: biome-specific enemy pool (certain enemies only appear in certain biomes)', done: false },
-      { label: 'BIOMES: biome is random after each boss, changing the visual atmosphere', done: false },
-      { label: 'LOOT after each mob kill: fast popup — choose Max HP +2 / Mana charge / +1 Gold', done: false },
-      { label: 'LOOT: popup must not break combat rhythm — 2 sec tap then auto-dismiss', done: false },
-      { label: 'BOSS reward: guaranteed free artifact pick (3 choices)', done: false },
-      { label: 'EVENTS: big image + lore text + 1-3 choices — sometimes pure auto-reward (no choice)', done: false },
+      { label: 'BIOMES: biome-specific enemy pool (certain enemies only in certain biomes)', done: false },
+      { label: 'LOOT: popup must not break combat rhythm — 3 sec tap then auto-dismiss', done: false },
       { label: 'EVENTS: visible on map as special node with image thumbnail', done: false },
-      { label: 'MAP: shop guaranteed on every zone, before the boss', done: false },
       { label: 'MAP: zone history breadcrumbs — show biomes visited and boss kills', done: false },
-      { label: 'WEAPON system: 6 archetypes × 3 variants × 4 rarities = 72 weapons to design', done: false },
       { label: 'MANA: resource for special abilities (companions + weapons use mana)', done: false },
       { label: 'Daily seed competitive run + daily score posted in Telegram channel', done: false },
       { label: 'Referral → +150 gems visible in profile (gems as flex currency)', done: false },
+      { label: 'KKM unlock properly gated by character_kkm meta flag', done: false },
     ],
   },
   {
     section: '📋 Backlog',
     color: 'zinc',
     items: [
-      { label: 'Weapon system — equip weapons with passives + specials in combat', done: false },
       { label: 'Share card auto-generated end of run (score + zone + artifacts + "Beat my score" CTA)', done: false },
       { label: 'Friend leaderboard (global + social graph)', done: false },
       { label: 'Seasons with limited relic pool and season badges', done: false },
       { label: 'Visual FX polish — hit flash, impact rings, lane-aware emitters', done: false },
-      { label: 'Special dice faces visual badge on die card', done: false },
       { label: 'Server-side score verification / anti-cheat', done: false },
       { label: 'Mobile safe-area adjustment for Telegram in-app browser', done: false },
       { label: 'Boss zone 4 — full enemy pool', done: false },
-      { label: 'More complex enemy intents per zone (charge+curse same turn, conditional heal < 30% HP)', done: false },
-      { label: 'Custom enemies/artifacts from admin that merge with hardcoded pools', done: false },
+      { label: 'More complex enemy intents per zone (charge+curse same turn, conditional heal < 30%)', done: false },
+      { label: 'Custom enemies/artifacts from admin merge into hardcoded pools at runtime', done: false },
+      { label: 'Telegram miniapp: sync codebase from diejungle/ then deploy', done: false },
     ],
   },
 ];
@@ -255,10 +298,12 @@ const KNOWN_ISSUES = [
   { status: 'fixed', label: 'AngelOpsDashboard import missing in App.jsx — runtime crash', date: '2026-03-15' },
   { status: 'fixed', label: 'Boss zone achievement never tracked (phase === "victory" never true)', date: '2026-03-15' },
   { status: 'fixed', label: 'Fortress shield tracked but never applied on next turn', date: '2026-03-15' },
+  { status: 'fixed', label: 'Wallet connect button removed from game UI', date: '2026-03-15' },
+  { status: 'fixed', label: 'Weapon system now fully integrated (pre-run equip + combat passives/specials)', date: '2026-03-15' },
+  { status: 'fixed', label: 'Companion selection screen added (pre-run flow)', date: '2026-03-15' },
+  { status: 'fixed', label: 'Map clickable during combat — player could skip to next node mid-fight', date: '2026-03-15' },
   { status: 'open', label: 'Companion Croak missing achievementRequired — gem-only unlock', date: '2026-03-15' },
   { status: 'open', label: 'KKM character not gated by character_kkm unlock — always available', date: '2026-03-15' },
-  { status: 'open', label: 'Weapon system imported but zero usage in game code', date: '2026-03-15' },
-  { status: 'open', label: 'Companion selection screen missing before run start', date: '2026-03-15' },
   { status: 'open', label: 'Echo dice face (value 5) defined but behavior unclear', date: '2026-03-15' },
   { status: 'open', label: 'Curse hasCurse flag set but never read — dead code', date: '2026-03-15' },
   { status: 'open', label: 'Zone scaling caps at zone 4 — endless mode needs infinite scaling', date: '2026-03-15' },
@@ -266,9 +311,12 @@ const KNOWN_ISSUES = [
   { status: 'open', label: 'Map doesn\'t visually refresh after combat (node not marked visited)', date: '2026-03-15' },
   { status: 'open', label: 'No shop node guaranteed on map — player can miss shop entirely', date: '2026-03-15' },
   { status: 'open', label: 'No boss node at end of zone — zone structure is random', date: '2026-03-15' },
-  { status: 'open', label: 'Wallet connect button still visible — needs removal', date: '2026-03-15' },
-  { status: 'open', label: 'Post-combat loot choice missing (Max HP / Mana / Gold)', date: '2026-03-15' },
   { status: 'open', label: 'No biome system — all zones use same background', date: '2026-03-15' },
+  { status: 'open', label: 'K-REX using KKM placeholder avatar — needs real K-REX art', date: '2026-03-15' },
+  { status: 'open', label: 'Golden Kabal Dice has no dedicated skin — uses regular dice visuals', date: '2026-03-15' },
+  { status: 'open', label: 'No PAUSE button — player cannot pause mid-run (Sprint 2)', date: '2026-03-15' },
+  { status: 'open', label: 'No tutorial for first-time players — discovery is fully self-serve (Sprint 4)', date: '2026-03-15' },
+  { status: 'open', label: 'No post-run share card — no Twitter/Telegram share flow (Sprint 5)', date: '2026-03-15' },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -280,6 +328,111 @@ async function toDataUrl(file) {
     reader.readAsDataURL(file);
   });
 }
+
+// ─── Sprint Plan ───────────────────────────────────────────────────────────────
+const SPRINT_PLAN = [
+  {
+    id: 'S0',
+    label: '✅ Sprint 0 — Foundation',
+    status: 'done',
+    color: 'emerald',
+    items: [
+      { done: true,  label: 'Core combat loop (roll → place → resolve)' },
+      { done: true,  label: 'Zone map with fog of war, shop/event/rest nodes' },
+      { done: true,  label: 'Meta progression: XP + gems + 20-level unlock tree' },
+      { done: true,  label: '3 characters: Kabalian, KKM, K-REX' },
+      { done: true,  label: 'Companions: Gecko, Croak, L\'Œil' },
+      { done: true,  label: 'Weapons: 6 archetypes, pre-run equip, passives + specials' },
+      { done: true,  label: 'Relics: slots, passive effects, pre-run pick' },
+      { done: true,  label: 'Enemy intents + 6 modifiers (venom, thorns, regen…)' },
+      { done: true,  label: 'Admin panel: tabs, presets, meta editor, game logic, enemies' },
+      { done: true,  label: 'Backend API: config, assets, runs, referrals, leaderboard' },
+      { done: true,  label: 'Biome system: 4 backgrounds (jungle/ruins/temple/abyss)' },
+      { done: true,  label: 'Shop: shopkeeper + player character + dialogue bubble' },
+      { done: true,  label: 'Enemy details drawer (tap to expand)' },
+      { done: true,  label: 'Map blocked during combat (combatMapView guard)' },
+      { done: true,  label: 'Admin: tab groups Core/Content/Visuals/Ops + help banners' },
+      { done: true,  label: 'Admin: Asset Library with configured URLs visual grid' },
+      { done: true,  label: 'Sound system placeholder (sound.ts, 25 keys, no-op)' },
+    ],
+  },
+  {
+    id: 'S1',
+    label: '🔄 Sprint 1 — Ka Power + Kill Rewards + Lanes',
+    status: 'active',
+    color: 'amber',
+    items: [
+      { done: false, label: 'Ka Power System: fragments (◆◆◆◆), Kabalian=Ka Rage ⚡, KKM=Ka Fortress 🛡️, K-REX=Ka Stomp 🦶' },
+      { done: false, label: 'Kill Rewards: mob=auto random, elite=2/3 choix, boss=4/6 choix' },
+      { done: false, label: 'Dynamic Lanes: bonus/malus aléatoires après chaque resolve (20% malus, garantie ATK+/HEAL+)' },
+      { done: false, label: 'Player GAUCHE / Enemy DROITE (swap arena)' },
+      { done: false, label: 'Karnivor rename (Carnivor Plant → Karnivor)' },
+    ],
+  },
+  {
+    id: 'S2',
+    label: '🟡 Sprint 2 — Game Feel',
+    status: 'planned',
+    color: 'yellow',
+    items: [
+      { done: false, label: 'Countdown 7s par tour: barre sous grille, rouge < 3s, skip auto si 0' },
+      { done: false, label: 'Dice multiplier preview: badge rouge/bleu/jaune sur slot (valeur × mult)' },
+      { done: false, label: 'Haptic: die=light, kill=success, boss=heavy×8/4s, SURGE=rigid×3' },
+      { done: false, label: 'ROLL + RESOLVE pulsent et glowent quand c\'est leur tour' },
+      { done: false, label: '⏸️ Bouton PAUSE: ouvre overlay pause (continue / quit / settings)' },
+      { done: false, label: 'Shield reset entre ennemis, HP ne remonte pas' },
+      { done: false, label: 'UI compact: reroll petit, weapons 2 slots petits, free CD petit badge' },
+    ],
+  },
+  {
+    id: 'S3',
+    label: '🟠 Sprint 3 — Navigation & Settings',
+    status: 'planned',
+    color: 'orange',
+    items: [
+      { done: false, label: 'Settings panel: auto-resolve toggle, sound mixer, Leave & Save, Leave no save' },
+      { done: false, label: 'Map à gauche de How to Play dans la nav secondaire' },
+      { done: false, label: 'Jungle Coin Shop rename (in-run, ephémère)' },
+      { done: false, label: 'Gem Store rename (permanent: cosmetics + armes)' },
+      { done: false, label: 'Sound: brancher sound.ts, BGM par biome, SFX sur chaque action' },
+    ],
+  },
+  {
+    id: 'S4',
+    label: '🔵 Sprint 4 — Tutorial',
+    status: 'planned',
+    color: 'blue',
+    items: [
+      { done: false, label: 'Tuto premier jeu: mandatory, no cooldown, dés fixés, 5 tooltips séquentiels' },
+      { done: false, label: 'Tuto avancé: accessible depuis How to Play (lanes, SURGE, builds, économie)' },
+      { done: false, label: 'Objectif du jeu visible en tuto + règles' },
+    ],
+  },
+  {
+    id: 'S5',
+    label: '🟣 Sprint 5 — Social & Meta',
+    status: 'planned',
+    color: 'violet',
+    items: [
+      { done: false, label: 'Share card post-run: canvas (score, titre, zone, artifacts) → Twitter + Telegram Story, +1 gem/24h' },
+      { done: false, label: 'Gem Store items: cosmetics + armes permanentes (pas pay-to-win)' },
+      { done: false, label: 'Token bridge placeholder: $KABAL TON bridge UI (smart contract = hors scope)' },
+    ],
+  },
+  {
+    id: 'S6',
+    label: '⚫ Sprint 6 — Polish & Assets',
+    status: 'planned',
+    color: 'zinc',
+    items: [
+      { done: false, label: 'Map visuelle: background custom + node icons custom par type' },
+      { done: false, label: 'Die placeholder full-size dans chaque case de grille' },
+      { done: false, label: 'K-REX: remplacer placeholder avatar par vraie illustration' },
+      { done: false, label: 'Golden Dice: skin dédié pour le Golden Kabal Dice' },
+      { done: false, label: 'Biome Void: background dédié (en attente asset)' },
+    ],
+  },
+];
 
 function ensureStructuredAssets(rawAssets = {}) {
   const out = { ...EMPTY_CONFIG.assets };
@@ -572,15 +725,31 @@ export default function DieInTheJungleAdmin() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-        {/* Tab Bar */}
-        <div className="flex flex-wrap gap-1.5">
-          {TABS.map((tab) => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${activeTab === tab.id ? 'bg-amber-500/25 border-amber-400/50 text-amber-200' : 'bg-zinc-800/60 border-zinc-700 text-zinc-300 hover:bg-zinc-700/60'}`}>
-              {tab.label}
-            </button>
+        {/* Tab Bar — grouped */}
+        <div className="space-y-2">
+          {TAB_GROUPS.map((group) => (
+            <div key={group.label} className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500 min-w-[64px]">{group.label}</span>
+              {group.tabs.map((tab) => (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${activeTab === tab.id ? 'bg-amber-500/25 border-amber-400/50 text-amber-200' : 'bg-zinc-800/60 border-zinc-700 text-zinc-300 hover:bg-zinc-700/60'}`}>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           ))}
         </div>
+
+        {/* Active tab tutorial banner */}
+        {(() => {
+          const activeDef = TABS.find(t => t.id === activeTab);
+          return activeDef?.help ? (
+            <div className="rounded-xl border border-sky-400/20 bg-sky-900/15 px-4 py-2.5 flex items-start gap-2 text-[12px] text-sky-200">
+              <span className="shrink-0 text-sky-400 font-black">?</span>
+              <span>{activeDef.help}</span>
+            </div>
+          ) : null;
+        })()}
 
         {/* ── TEST GAME ───────────────────────────────────────────────────────────── */}
         {activeTab === 'testgame' && (
@@ -1178,46 +1347,146 @@ export default function DieInTheJungleAdmin() {
 
         {/* ── ASSETS ──────────────────────────────────────────────────────────────── */}
         {activeTab === 'assets' && (
-          <section className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-4">
-            <h2 className="text-xl font-semibold">🖼️ Asset Manager</h2>
-            <div className="flex flex-wrap items-end gap-3">
+          <section className="space-y-5">
+
+            {/* ── Configured URLs (always visible) ── */}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-4">
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Category</label>
-                <select value={category} onChange={(e) => setCategory(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm">
-                  {Object.keys(ASSET_SCHEMA).map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
+                <h2 className="text-xl font-semibold">📌 Assets configurés (URLs actives)</h2>
+                <p className="text-zinc-400 text-sm mt-1">Toutes les images actuellement utilisées en jeu. Pour modifier, va dans <strong>Avatars & Visuals</strong>.</p>
               </div>
+
+              {/* Biome backgrounds */}
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Subcategory</label>
-                <select value={subcategory} onChange={(e) => setSubcategory(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm">
-                  {availableSubcategories.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
+                <div className="text-xs font-black uppercase tracking-[0.14em] text-emerald-400 mb-2">🌿 Backgrounds Biomes</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { id: 'jungle', label: '🌿 Jungle' },
+                    { id: 'ruins',  label: '🏛️ Ruins' },
+                    { id: 'temple', label: '⛩️ Temple' },
+                    { id: 'abyss',  label: '🌑 Abyss' },
+                    { id: 'void',   label: '⚡ Void' },
+                  ].map(b => {
+                    const url = config.visuals?.biomeBackgrounds?.[b.id] || {
+                      jungle: 'https://i.postimg.cc/hGqqmWDN/Chat-GPT-Image-15-mars-2026-00-24-52.png',
+                      ruins:  'https://i.postimg.cc/QCz2xvnC/Chat-GPT-Image-15-mars-2026-01-27-54.png',
+                      temple: 'https://i.postimg.cc/7PQ8VTPg/Chat-GPT-Image-15-mars-2026-01-36-50.png',
+                      abyss:  'https://i.postimg.cc/sf0dcZf7/Chat-GPT-Image-15-mars-2026-10-55-43.png',
+                      void:   'https://i.postimg.cc/hGqqmWDN/Chat-GPT-Image-15-mars-2026-00-24-52.png',
+                    }[b.id] || '';
+                    return (
+                      <figure key={b.id} className="rounded-xl overflow-hidden border border-zinc-700 bg-zinc-800">
+                        {url ? (
+                          <img src={url} alt={b.label} className="w-full h-20 object-cover" />
+                        ) : (
+                          <div className="w-full h-20 flex items-center justify-center bg-zinc-800 text-zinc-600 text-xs">Pas d'image</div>
+                        )}
+                        <figcaption className="px-2 py-1 text-[10px] font-bold text-zinc-300">{b.label}</figcaption>
+                        {url ? <div className="px-2 pb-1 text-[8px] text-zinc-600 truncate">{url.split('/').pop()}</div> : null}
+                      </figure>
+                    );
+                  })}
+                </div>
               </div>
+
+              {/* Button images */}
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Upload (max 30)</label>
-                <input type="file" accept="image/*" multiple onChange={onUpload} disabled={loading} className="text-sm" />
+                <div className="text-xs font-black uppercase tracking-[0.14em] text-amber-400 mb-2">🎮 Boutons d'Action</div>
+                <div className="flex flex-wrap gap-3">
+                  {['roll', 'reroll', 'resolve', 'restart'].map(key => {
+                    const url = config.visuals?.buttonImages?.[key] || (key === 'roll' ? 'https://i.postimg.cc/9Q7ZFSQt/Chat-GPT-Image-14-mars-2026-23-43-10.png' : '');
+                    return (
+                      <figure key={key} className="rounded-xl border border-zinc-700 bg-zinc-800 p-2 text-center min-w-[80px]">
+                        {url ? (
+                          <img src={url} alt={key} className="h-12 w-auto mx-auto object-contain" />
+                        ) : (
+                          <div className="h-12 flex items-center justify-center text-zinc-600 text-xs">vide</div>
+                        )}
+                        <figcaption className="mt-1 text-[10px] font-bold text-zinc-400 uppercase">{key}</figcaption>
+                      </figure>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Logo + Shop */}
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.14em] text-violet-400 mb-2">🎭 Personnages & Logo</div>
+                <div className="flex flex-wrap gap-3">
+                  {[
+                    { label: 'Logo DIE JUNGLE', url: 'https://i.postimg.cc/pTXBTZ79/Chat-GPT-Image-15-mars-2026-00-13-27.png' },
+                    { label: 'Shop Guy',        url: 'https://i.postimg.cc/t4Wkm7Pr/Chat-GPT-Image-15-mars-2026-19-30-40.png' },
+                    { label: 'Kabalian',        url: config.characters?.playable?.kabalian?.avatar || 'https://i.postimg.cc/B6rBLmBt/Kabalian-Face.png' },
+                    { label: 'KKM',             url: config.characters?.playable?.kkm?.avatar || 'https://i.postimg.cc/Kv8zygVk/KKM-Mascot-2.png' },
+                  ].map(item => (
+                    <figure key={item.label} className="rounded-xl border border-zinc-700 bg-zinc-800 p-2 text-center w-[90px]">
+                      {item.url ? (
+                        <img src={item.url} alt={item.label} className="h-16 w-full object-contain rounded" />
+                      ) : (
+                        <div className="h-16 flex items-center justify-center text-zinc-600 text-xs">manquant</div>
+                      )}
+                      <figcaption className="mt-1 text-[9px] font-bold text-zinc-300 leading-tight">{item.label}</figcaption>
+                    </figure>
+                  ))}
+                </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {assetBucket.slice(0, 120).map((asset) => {
-                const key = asset.id || asset.url;
-                const meta = config.assetsMeta?.[key] || {};
-                return (
-                  <figure key={key} className="rounded border border-zinc-700 bg-zinc-800 p-2 space-y-2">
-                    <img src={asset.url} alt={asset.originalName || asset.fileName || 'asset'} className="w-full h-24 object-cover rounded" />
-                    <figcaption className="text-[10px] text-zinc-300 truncate">{asset.originalName || asset.fileName}</figcaption>
-                    <input placeholder="tags: poison,boss" value={meta.tags || ''} onChange={(e) => updateAssetMeta(asset, { tags: e.target.value })} className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-2 py-1" />
-                    <select value={meta.status || 'active'} onChange={(e) => updateAssetMeta(asset, { status: e.target.value })} className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-2 py-1">
-                      <option value="active">active</option>
-                      <option value="draft">draft</option>
-                      <option value="deprecated">deprecated</option>
-                    </select>
-                  </figure>
-                );
-              })}
-              {assetBucket.length === 0 && <div className="col-span-full text-zinc-500 text-sm">No assets in this bucket yet. Upload some above.</div>}
+
+            {/* ── Upload Manager ── */}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-4">
+              <div>
+                <h2 className="text-xl font-semibold">⬆️ Upload d'Assets</h2>
+                <p className="text-zinc-400 text-sm mt-1">Upload des images vers le serveur par catégorie. Max 30 fichiers à la fois. Formats: PNG, JPG, WebP.</p>
+              </div>
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Catégorie</label>
+                  <select value={category} onChange={(e) => setCategory(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm">
+                    {Object.keys(ASSET_SCHEMA).map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Sous-catégorie</label>
+                  <select value={subcategory} onChange={(e) => setSubcategory(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm">
+                    {availableSubcategories.map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Fichiers (max 30)</label>
+                  <input type="file" accept="image/*" multiple onChange={onUpload} disabled={loading} className="text-sm text-zinc-300" />
+                </div>
+              </div>
+
+              {/* Uploaded assets grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {assetBucket.slice(0, 120).map((asset) => {
+                  const key = asset.id || asset.url;
+                  const meta = config.assetsMeta?.[key] || {};
+                  return (
+                    <figure key={key} className="rounded-xl border border-zinc-700 bg-zinc-800 overflow-hidden">
+                      <img src={asset.url} alt={asset.originalName || asset.fileName || 'asset'} className="w-full h-20 object-cover" />
+                      <div className="p-2 space-y-1.5">
+                        <figcaption className="text-[10px] text-zinc-300 truncate font-medium">{asset.originalName || asset.fileName}</figcaption>
+                        <input placeholder="tags: poison,boss" value={meta.tags || ''} onChange={(e) => updateAssetMeta(asset, { tags: e.target.value })} className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-2 py-1" />
+                        <select value={meta.status || 'active'} onChange={(e) => updateAssetMeta(asset, { status: e.target.value })} className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-2 py-1">
+                          <option value="active">active</option>
+                          <option value="draft">draft</option>
+                          <option value="deprecated">deprecated</option>
+                        </select>
+                      </div>
+                    </figure>
+                  );
+                })}
+                {assetBucket.length === 0 && (
+                  <div className="col-span-full rounded-xl border border-dashed border-zinc-700 p-8 text-center space-y-1">
+                    <div className="text-2xl">📂</div>
+                    <div className="text-zinc-400 text-sm">Aucun asset uploadé dans ce bucket.</div>
+                    <div className="text-zinc-600 text-xs">Choisis une catégorie, sélectionne des fichiers et upload.</div>
+                  </div>
+                )}
+              </div>
+              <button onClick={() => saveConfig(config)} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Sauvegarder les métadonnées</button>
             </div>
-            <button onClick={() => saveConfig(config)} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Save asset metadata</button>
           </section>
         )}
 
@@ -1367,6 +1636,92 @@ export default function DieInTheJungleAdmin() {
                     </div>
                     <div className="h-3 rounded-full bg-zinc-800 overflow-hidden">
                       <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* ── SPRINT TRACKER ───────────────────────────────────────────────────── */}
+        {activeTab === 'sprints' && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold">⚡ Sprint Tracker</h2>
+                <p className="text-zinc-400 text-sm mt-0.5">Master list des sprints — condensé pour l'équipe.</p>
+              </div>
+              <div className="text-right text-xs text-zinc-500">
+                {SPRINT_PLAN.reduce((t, s) => t + s.items.length, 0)} features totales ·{' '}
+                {SPRINT_PLAN.reduce((t, s) => t + s.items.filter(i => i.done).length, 0)} done
+              </div>
+            </div>
+
+            {SPRINT_PLAN.map((sprint) => {
+              const doneCount = sprint.items.filter(i => i.done).length;
+              const pct = Math.round((doneCount / sprint.items.length) * 100);
+              const statusColors = {
+                done:    'border-emerald-700 bg-emerald-950/30',
+                active:  'border-amber-600 bg-amber-950/30',
+                planned: 'border-zinc-700 bg-zinc-900/50',
+              };
+              const headerColors = {
+                done:    'text-emerald-300',
+                active:  'text-amber-300',
+                planned: 'text-zinc-400',
+              };
+              const barColors = {
+                done:    'from-emerald-500 to-emerald-400',
+                active:  'from-amber-500 to-yellow-400',
+                planned: 'from-zinc-600 to-zinc-500',
+              };
+              return (
+                <div key={sprint.id} className={`rounded-xl border ${statusColors[sprint.status]} p-4 space-y-3`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className={`font-bold text-base ${headerColors[sprint.status]}`}>{sprint.label}</div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {sprint.status === 'active' && (
+                        <span className="rounded-full border border-amber-400/50 bg-amber-500/20 px-2 py-0.5 text-[10px] font-black text-amber-300 animate-pulse">EN COURS</span>
+                      )}
+                      <span className="text-xs text-zinc-400">{doneCount}/{sprint.items.length}</span>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                    <div className={`h-full rounded-full bg-gradient-to-r ${barColors[sprint.status]} transition-all`} style={{ width: `${pct}%` }} />
+                  </div>
+
+                  {/* Items */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+                    {sprint.items.map((item, i) => (
+                      <div key={i} className="flex items-start gap-2 py-0.5">
+                        <span className="shrink-0 text-sm mt-0.5">{item.done ? '✅' : sprint.status === 'active' ? '🔄' : '⬜'}</span>
+                        <span className={`text-sm ${item.done ? 'text-zinc-500 line-through' : sprint.status === 'planned' ? 'text-zinc-500' : 'text-zinc-300'}`}>
+                          {item.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Total progress */}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-4">
+              {(() => {
+                const all = SPRINT_PLAN.flatMap(s => s.items);
+                const done = all.filter(i => i.done).length;
+                const pct = Math.round((done / all.length) * 100);
+                return (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-zinc-300 font-medium">Progression totale</span>
+                      <span className="font-black text-zinc-300">{done} / {all.length} ({pct}%)</span>
+                    </div>
+                    <div className="h-3 rounded-full bg-zinc-800 overflow-hidden">
+                      <div className="h-full rounded-full bg-gradient-to-r from-violet-500 via-amber-400 to-emerald-400 transition-all" style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                 );

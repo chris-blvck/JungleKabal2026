@@ -70,12 +70,13 @@ import {
   getStaffLegendaryHealBonus,
 } from "@/game/weapons";
 
-const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
+const BG_URL = "https://i.postimg.cc/hGqqmWDN/Chat-GPT-Image-15-mars-2026-00-24-52.png";
+const SHOP_GUY_URL = "https://i.postimg.cc/t4Wkm7Pr/Chat-GPT-Image-15-mars-2026-19-30-40.png";
 
 // Button image URLs — replace with real assets when available
 // Can be overridden via config.visuals.buttonImages from admin panel
 const BTN_IMAGES: Record<string, string> = {
-  roll:    '',
+  roll:    'https://i.postimg.cc/9Q7ZFSQt/Chat-GPT-Image-14-mars-2026-23-43-10.png',
   reroll:  '',
   resolve: '',
   restart: '',
@@ -93,7 +94,7 @@ type DieInTheJungleProps = {
   onBeforeRestart?: () => boolean;
 };
 
-const LOGO_URL = "https://i.postimg.cc/rwdjP9rb/logo-jaune.png";
+const LOGO_URL = "https://i.postimg.cc/pTXBTZ79/Chat-GPT-Image-15-mars-2026-00-13-27.png";
 const PLAYER_AVATAR_URL = "https://i.postimg.cc/B6rBLmBt/Kabalian-Face.png";
 const KKM_AVATAR_URL = "https://i.postimg.cc/Kv8zygVk/KKM-Mascot-2.png";
 const STORY_FRAGMENT_IMAGE_URL = "https://i.postimg.cc/DwMdGXHm/Kabalian-or-KKM.png";
@@ -1565,6 +1566,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const [meta, setMeta] = useState<MetaProgressionState>(loadMeta);
   const [showXpPanel, setShowXpPanel] = useState(false);
   const [showPlayerDrawer, setShowPlayerDrawer] = useState(false);
+  const [showEnemyDrawer, setShowEnemyDrawer] = useState(false);
   const [lastRunReward, setLastRunReward] = useState<RunReward | null>(null);
   const [leaderboard, setLeaderboard] = useState<Array<{ name: string; score: number; floor: number; date: string; seed: number }>>(() => {
     try { const raw = localStorage.getItem('jungle_kabal_leaderboard_v1'); return raw ? JSON.parse(raw) : []; } catch { return []; }
@@ -2364,6 +2366,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   function enterMapNode(nodeId: string) {
     setGame((g) => {
       if (!g.mapLayers) return g;
+      // Block navigation if map opened mid-combat — view only
+      if (g.combatMapView) return g;
       const allNodes = g.mapLayers.flatMap((l) => l.nodes);
       const node = allNodes.find((n) => n.id === nodeId);
       if (!node || node.visited) return g;
@@ -2870,33 +2874,36 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
             <div className="flex items-center justify-between gap-1 h-full">
               {/* Enemy half */}
               <div className="flex flex-1 flex-col items-center gap-0.5 min-w-0">
-                <motion.img
-                  ref={enemyAnchorRef}
-                  src={game.enemy.image}
-                  alt={game.enemy.name}
-                  animate={game.enemyHitPulse ? { scale: [1, 1.12, 0.96, 1], filter: ["brightness(1)", "brightness(1.55)", "brightness(1)"] } : game.enemyAttackPulse ? { x: [0, -10, 10, -8, 8, 0], scale: [1, 1.06, 1] } : intent.type === "attack" ? { scale: [1, 1.03, 1], x: [0, -2, 2, 0] } : { scale: 1, x: 0 }}
-                  transition={{ duration: 0.45 }}
-                  className="h-16 w-full object-contain contrast-110 saturate-110 drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)]"
-                />
-                <div className="truncate text-[9px] font-black text-rose-100 leading-none">{game.enemy.emoji} {game.enemy.name}{game.enemy.elite ? ` ${"⭐".repeat(game.enemy.eliteStars || 1)}` : ""}</div>
+                <button onClick={() => setShowEnemyDrawer(v => !v)} className="relative h-16 w-full" aria-label="Enemy info">
+                  <motion.img
+                    ref={enemyAnchorRef}
+                    src={game.enemy.image}
+                    alt={game.enemy.name}
+                    animate={game.enemyHitPulse ? { scale: [1, 1.12, 0.96, 1], filter: ["brightness(1)", "brightness(1.55)", "brightness(1)"] } : game.enemyAttackPulse ? { x: [0, -10, 10, -8, 8, 0], scale: [1, 1.06, 1] } : intent.type === "attack" ? { scale: [1, 1.03, 1], x: [0, -2, 2, 0] } : { scale: 1, x: 0 }}
+                    transition={{ duration: 0.45 }}
+                    className="h-full w-full object-contain contrast-110 saturate-110 drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)]"
+                  />
+                  <span className="absolute bottom-0.5 left-0.5 rounded bg-black/60 px-1 text-[7px] text-zinc-300">tap &#x25BE;</span>
+                </button>
+                <div className="truncate text-[10px] font-black text-rose-100 leading-none">{game.enemy.emoji} {game.enemy.name}{game.enemy.elite ? ` ${"⭐".repeat(game.enemy.eliteStars || 1)}` : ""}</div>
                 <div className="flex w-full items-center gap-0.5">
                   <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
                     <div className="h-full rounded-full bg-rose-500 transition-all duration-300" style={{ width: `${Math.max(0, Math.min(100, (game.enemy.hp / game.enemy.maxHp) * 100))}%` }} />
                   </div>
-                  <span className="text-[8px] font-black text-rose-300 shrink-0">{game.enemy.hp}/{game.enemy.maxHp}</span>
+                  <span className="text-[9px] font-black text-rose-300 shrink-0">{game.enemy.hp}/{game.enemy.maxHp}</span>
                 </div>
                 <div className="flex items-center gap-0.5 flex-wrap justify-center">
-                  <span className={`rounded-full border px-1.5 py-0.5 text-[8px] font-black leading-none ${intentMeta(intent.type).color} border-current/30 bg-black/40`}>
+                  <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-black leading-none ${intentMeta(intent.type).color} border-current/30 bg-black/40`}>
                     {intentMeta(intent.type).emoji} {intent.type} {intent.value}
                   </span>
                   {(game.enemy.shield || 0) > 0 && (
-                    <span className="rounded-full border border-rose-400/30 bg-rose-900/40 px-1 py-0.5 text-[8px] text-rose-200">&#x1F6E1;{game.enemy.shield}</span>
+                    <span className="rounded-full border border-rose-400/30 bg-rose-900/40 px-1 py-0.5 text-[9px] text-rose-200">&#x1F6E1;{game.enemy.shield}</span>
                   )}
                   {(game.enemy.charge || 0) > 0 && (
                     <motion.span
                       animate={{ scale: [1, 1.1, 1], opacity: [0.85, 1, 0.85] }}
                       transition={{ duration: 0.9, repeat: Infinity }}
-                      className="rounded-full border border-amber-400/50 bg-amber-600/30 px-1 py-0.5 text-[8px] font-black text-amber-100"
+                      className="rounded-full border border-amber-400/50 bg-amber-600/30 px-1 py-0.5 text-[9px] font-black text-amber-100"
                     >
                       &#x26A1;+{game.enemy.charge}
                     </motion.span>
@@ -2926,24 +2933,88 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   />
                   <span className="absolute bottom-0.5 right-0.5 rounded bg-black/60 px-1 text-[7px] text-zinc-300">tap &#x25BE;</span>
                 </button>
-                <div className="truncate text-[9px] font-black text-cyan-100 leading-none">
+                <div className="truncate text-[10px] font-black text-cyan-100 leading-none">
                   {game.player.PLAYER_CHARACTERS?.[game.player.characterId]?.name ?? game.player.characterId}
                 </div>
                 <div className="flex w-full items-center gap-0.5">
                   <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
                     <div className="h-full rounded-full bg-cyan-500 transition-all duration-300" style={{ width: `${Math.max(0, Math.min(100, (game.player.hp / game.player.maxHp) * 100))}%` }} />
                   </div>
-                  <span className="text-[8px] font-black text-cyan-300 shrink-0">{game.player.hp}/{game.player.maxHp}</span>
+                  <span className="text-[9px] font-black text-cyan-300 shrink-0">{game.player.hp}/{game.player.maxHp}</span>
                 </div>
                 <div className="flex items-center gap-0.5 flex-wrap justify-center">
                   {(game.player.shield || 0) > 0 && (
-                    <span className="rounded-full border border-cyan-400/30 bg-cyan-900/40 px-1.5 py-0.5 text-[8px] font-black text-cyan-200">&#x1F6E1;&#xFE0F;{game.player.shield}</span>
+                    <span className="rounded-full border border-cyan-400/30 bg-cyan-900/40 px-1.5 py-0.5 text-[9px] font-black text-cyan-200">&#x1F6E1;&#xFE0F;{game.player.shield}</span>
                   )}
-                  <span className="rounded-full border border-amber-400/20 bg-amber-900/20 px-1.5 py-0.5 text-[8px] text-amber-300">&#x1F501;{game.player.rerollsLeft}</span>
+                  <span className="rounded-full border border-amber-400/20 bg-amber-900/20 px-1.5 py-0.5 text-[9px] text-amber-300">&#x1F501;{game.player.rerollsLeft}</span>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* ── Enemy Drawer ─────────────────────────────────────── */}
+          <AnimatePresence>
+            {showEnemyDrawer && game.enemy && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="shrink-0 overflow-hidden rounded-[14px] border border-rose-400/20 bg-rose-950/40"
+              >
+                <div className="px-2 py-1.5">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-rose-300">
+                      {game.enemy.emoji} {game.enemy.name} — Détails
+                    </span>
+                    <button onClick={() => setShowEnemyDrawer(false)} className="text-[10px] text-zinc-400 hover:text-white">&#x2715;</button>
+                  </div>
+                  <div className="flex flex-wrap gap-1 text-[9px]">
+                    <span className="rounded-full border border-white/10 bg-black/40 px-2 py-0.5 text-zinc-200">
+                      {game.enemy.tier === "boss" ? "👑 Boss" : game.enemy.tier === "medium" ? "⚔️ Champion" : "💀 Mob"}
+                    </span>
+                    <span className="rounded-full border border-rose-400/20 bg-rose-900/20 px-2 py-0.5 text-rose-300">
+                      ❤️ {game.enemy.hp}/{game.enemy.maxHp} HP
+                    </span>
+                    {(game.enemy.atk || game.enemy.atkMin) ? (
+                      <span className="rounded-full border border-rose-400/20 bg-rose-900/20 px-2 py-0.5 text-rose-300">
+                        ⚔️ {game.enemy.atkMin ?? game.enemy.atk}–{game.enemy.atkMax ?? game.enemy.atk} ATK
+                      </span>
+                    ) : null}
+                    {(game.enemy.shield || 0) > 0 && (
+                      <span className="rounded-full border border-cyan-400/20 bg-cyan-900/20 px-2 py-0.5 text-cyan-300">
+                        🛡️ {game.enemy.shield} shield
+                      </span>
+                    )}
+                    {(game.enemy.charge || 0) > 0 && (
+                      <span className="rounded-full border border-amber-400/20 bg-amber-900/20 px-2 py-0.5 text-amber-300">
+                        ⚡ +{game.enemy.charge} charge
+                      </span>
+                    )}
+                    {game.enemy.modifier && game.enemy.modifier !== "none" && (() => {
+                      const mod = MODIFIERS[game.enemy.modifier] || null;
+                      return mod ? (
+                        <span className="rounded-full border border-violet-400/30 bg-violet-900/30 px-2 py-0.5 text-violet-300">
+                          ✨ {mod.name} — {mod.desc}
+                        </span>
+                      ) : null;
+                    })()}
+                    {game.enemy.elite && (
+                      <span className="rounded-full border border-amber-400/40 bg-amber-800/30 px-2 py-0.5 text-amber-200 font-black">
+                        {"⭐".repeat(game.enemy.eliteStars || 1)} Élite
+                      </span>
+                    )}
+                  </div>
+                  {/* Next intent preview */}
+                  <div className="mt-1 flex items-center gap-1 rounded-[10px] border border-rose-400/15 bg-black/30 px-2 py-1 text-[9px]">
+                    <span className="text-zinc-400">Prochain intent :</span>
+                    <span className={`font-black ${intentMeta(intent.type).color}`}>
+                      {intentMeta(intent.type).emoji} {intent.type} {intent.value}
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* ── Player Drawer (slide-up sheet) ───────────────────── */}
           <AnimatePresence>
@@ -2991,7 +3062,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           {/* ── Band 3: DICE ROW ──────────────────────────────────── */}
           <div className="shrink-0 flex items-center justify-center gap-1.5 py-0.5" style={{ minHeight: 48 }}>
             {game.phase === "place" ? (
-              <button onClick={() => shiftSelectedDie(-1)} className="h-10 rounded-xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-3 text-white hover:from-zinc-700">&#x2B05;&#xFE0F;</button>
+              <button onClick={() => shiftSelectedDie(-1)} className="h-10 rounded-xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-3 text-white font-black hover:from-zinc-700">&lt;</button>
             ) : null}
             {game.dice.some((d) => d !== null) ? (
               game.dice.map((die, i) => die !== null ? (
@@ -3007,7 +3078,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
               <div className="text-[11px] text-zinc-100">&#x1F3B2; No dice yet. Press <span className="font-black text-amber-300">ROLL</span>.</div>
             )}
             {game.phase === "place" ? (
-              <button onClick={() => shiftSelectedDie(1)} className="h-10 rounded-xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-3 text-white hover:from-zinc-700">&#x27A1;&#xFE0F;</button>
+              <button onClick={() => shiftSelectedDie(1)} className="h-10 rounded-xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-3 text-white font-black hover:from-zinc-700">&gt;</button>
             ) : null}
           </div>
 
@@ -3206,10 +3277,10 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
             ) : null}
             {(game.phase === "roll" || game.phase === "place") && game.mapLayers && (
               <Button
-                onClick={() => setGame(g => ({ ...g, phase: 'map' }))}
+                onClick={() => setGame(g => ({ ...g, prevCombatPhase: g.phase, phase: 'map', combatMapView: true }))}
                 className="rounded-xl border border-amber-400/25 bg-amber-900/30 px-2 py-2 text-xs font-black text-amber-200 hover:bg-amber-900/50"
               >
-                &#x1F5FA;&#xFE0F;
+                🗺️
               </Button>
             )}
             {(game.phase === "gameover" || game.phase === "victory") ? (
@@ -3280,7 +3351,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 onClick={() => setGame((g) => ({ ...g, showAllLogs: !g.showAllLogs }))}
                 className="rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-white hover:bg-white/20"
               >
-                {game.showAllLogs ? "&#x25B2;" : "&#x25BC;"}
+                {game.showAllLogs ? "▲" : "▼"}
               </button>
             </div>
           </div>
@@ -3306,13 +3377,6 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         </div>
         {/* ── END COMBAT 6-BAND LAYOUT ──────────────────────────── */}
 
-        {/* Route card row (always visible below combat bands) */}
-        <div className="shrink-0 my-1 grid max-w-[360px] grid-cols-5 gap-1 mx-auto">
-          {game.route.map((enemy, index) => {
-            const state = index < game.room ? "done" : index === game.room ? "current" : "hidden";
-            return <RouteCard key={`${enemy.name}-${index}`} enemy={enemy} state={state} />;
-          })}
-        </div>
 
 
 
@@ -3592,6 +3656,19 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                     <div className="rounded-xl border border-amber-300/20 bg-black/40 px-2 py-1 text-[10px] text-amber-200">Room {game.room + 1}</div>
                   </div>
 
+                  {/* Combat view-only banner */}
+                  {game.combatMapView && (
+                    <div className="mb-3 rounded-xl border border-rose-400/40 bg-rose-950/60 px-3 py-2 flex items-center justify-between gap-2">
+                      <button
+                        onClick={() => setGame(g => ({ ...g, phase: g.prevCombatPhase || 'place', combatMapView: false, prevCombatPhase: null }))}
+                        className="flex items-center gap-2 rounded-lg border border-rose-400/50 bg-rose-700/60 px-3 py-1.5 text-sm font-black text-rose-100 hover:bg-rose-600/70 active:scale-95 transition"
+                      >
+                        ← Retour au combat
+                      </button>
+                      <span className="text-[10px] text-rose-400">⚔️ Map — vue seule</span>
+                    </div>
+                  )}
+
                   {/* Map layers */}
                   <div className="mb-3 space-y-2 overflow-y-auto" style={{ maxHeight: '55vh' }}>
                     {game.mapLayers.map((layer) => (
@@ -3613,9 +3690,9 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                           return (
                             <button
                               key={node.id}
-                              disabled={!isAvailable}
-                              onClick={() => isAvailable && enterMapNode(node.id)}
-                              className={`flex min-w-[72px] flex-col items-center rounded-2xl border p-2 transition ${borderClass}`}
+                              disabled={!isAvailable || game.combatMapView}
+                              onClick={() => isAvailable && !game.combatMapView && enterMapNode(node.id)}
+                              className={`flex min-w-[72px] flex-col items-center rounded-2xl border p-2 transition ${borderClass} ${game.combatMapView && isAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                               {isRevealed || isDone ? (
                                 <>
@@ -3680,14 +3757,42 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           {game.phase === "shop" && game.shopInventory ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
               <div className="w-full max-w-sm rounded-[28px] border border-amber-300/20 bg-zinc-950/98 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
-                <div className="mb-1 flex items-center justify-between">
-                  <div>
-                    <div className="font-serif text-xl italic text-amber-300">🛒 Jungle Shop</div>
-                    <div className="text-[11px] text-zinc-400">Zone {game.floor} · Your coins: <span className="text-amber-300 font-black">{game.player.coins || 0}</span></div>
+
+                {/* Shop header with characters */}
+                <div className="mb-3 flex items-end gap-3">
+                  {/* Shop guy */}
+                  <img
+                    src={SHOP_GUY_URL}
+                    alt="Shopkeeper"
+                    className="h-20 w-20 shrink-0 rounded-2xl border border-amber-300/20 object-cover shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
+                  />
+                  {/* Dialogue + player */}
+                  <div className="flex-1 min-w-0">
+                    {/* Shopkeeper dialogue */}
+                    <div className="mb-2 rounded-2xl rounded-bl-sm border border-amber-300/25 bg-amber-900/20 px-3 py-2 text-xs text-amber-200 italic relative">
+                      "Bienvenue, guerrier… Mes reliques valent chaque pièce — <span className="font-black not-italic">🪙 {game.player.coins || 0}</span> en poche."
+                      <div className="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 border-b border-l border-amber-300/25 bg-amber-900/20" />
+                    </div>
+                    {/* Player character small + zone */}
+                    <div className="flex items-center gap-2">
+                      <img
+                        src={avatarUrl}
+                        alt="player"
+                        className="h-8 w-8 rounded-xl border border-white/15 object-contain bg-black/30"
+                      />
+                      <div>
+                        <div className="text-[10px] font-black text-cyan-200">
+                          {game.player.PLAYER_CHARACTERS?.[game.player.characterId]?.name ?? game.player.characterId}
+                        </div>
+                        <div className="text-[9px] text-zinc-400">Zone {game.floor} · ❤️ {game.player.hp}/{game.player.maxHp}</div>
+                      </div>
+                      <button onClick={handleShopLeave} className="ml-auto rounded-xl border border-white/15 bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20">Partir</button>
+                    </div>
                   </div>
-                  <button onClick={handleShopLeave} className="rounded-xl border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20">Leave</button>
                 </div>
-                <div className="mt-3 space-y-2">
+
+                {/* Items */}
+                <div className="space-y-2">
                   {game.shopInventory.map((item, idx) => (
                     <div key={item.id} className="flex items-center justify-between gap-2 rounded-xl border border-white/15 bg-black/40 p-3">
                       <div className="flex-1">
@@ -3997,7 +4102,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   <div className="mb-3 space-y-1">
                     <div className="text-[10px] font-black uppercase tracking-[0.16em] text-violet-300">Unlocked</div>
                     {lastRunReward.newUnlocks.map((id) => {
-                      const def = UNLOCKS.find(u => u.id === id);
+                      const def = UNLOCKS[id];
                       return def ? (
                         <div key={id} className="flex items-center gap-2 rounded-xl border border-violet-400/25 bg-violet-950/25 px-3 py-2 text-xs">
                           <span>✨</span>
@@ -4101,8 +4206,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   </div>
                 </div>
                 <div className="space-y-2">
-                  {UNLOCKS.map((unlock) => {
-                    const isUnlocked = meta.unlocks.includes(unlock.id);
+                  {Object.values(UNLOCKS).map((unlock) => {
+                    const isUnlocked = (meta.unlocks ?? []).includes(unlock.id);
                     const canAfford = meta.gems >= unlock.gemCost;
                     return (
                       <div
