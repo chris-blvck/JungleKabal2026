@@ -102,6 +102,8 @@ export default function Arsenal() {
   }
 
   function removeTool(id) {
+    const tool = customTools.find(t => t.id === id);
+    if (!window.confirm(`Supprimer "${tool?.name}" ?`)) return;
     setCustomTools(prev => prev.filter(t => t.id !== id));
   }
 

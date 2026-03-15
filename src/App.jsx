@@ -9,6 +9,7 @@ import KabalKredo from './pages/KabalKredo';
 import WarRoom from './pages/WarRoom';
 import CRMAngel from './pages/CRMAngel';
 import SprintBoard from './pages/SprintBoard';
+import OpsBoard from './pages/OpsBoard';
 import Arsenal from './pages/Arsenal';
 import DieInTheJungle from './pages/DieInTheJungle';
 import DieInTheJunglePromo from './pages/DieInTheJunglePromo';
@@ -21,6 +22,12 @@ import TrophyRoom from './pages/TrophyRoom';
 import KabalCheckout from './pages/KabalCheckout';
 import TelegramMiniApp from './pages/TelegramMiniApp';
 import AngelOpsDashboard from './pages/AngelOpsDashboard';
+import CoinFactory from './pages/CoinFactory';
+import SignalBoard from './pages/SignalBoard';
+import KKMDashboard from './pages/KKMDashboard';
+import AuthGate from './components/AuthGate';
+import WeeklyReport from './pages/WeeklyReport';
+import PriceAlerts from './pages/PriceAlerts';
 
 const isTeamContext =
   typeof window !== 'undefined' &&
@@ -34,6 +41,7 @@ const isTeamContext =
 export default function App() {
   if (isTeamContext) {
     return (
+      <AuthGate>
       <BrowserRouter>
         <Routes>
           {/* Home */}
@@ -56,6 +64,12 @@ export default function App() {
 
           {/* INTERNAL */}
           <Route path="/sprint-board"             element={<SprintBoard />} />
+          <Route path="/ops-board"               element={<OpsBoard />} />
+          <Route path="/coin-factory"             element={<CoinFactory />} />
+          <Route path="/signal-board"             element={<SignalBoard />} />
+          <Route path="/kkm-dashboard"            element={<KKMDashboard />} />
+          <Route path="/weekly-report"            element={<WeeklyReport />} />
+          <Route path="/price-alerts"             element={<PriceAlerts />} />
 
           {/* ARSENAL */}
           <Route path="/arsenal"                  element={<Arsenal />} />
@@ -75,6 +89,7 @@ export default function App() {
           <Route path="*"                         element={<TeamHome />} />
         </Routes>
       </BrowserRouter>
+      </AuthGate>
     );
   }
 

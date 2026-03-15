@@ -133,6 +133,8 @@ export default function SprintBoard() {
   }
 
   function deleteGoal(id) {
+    const goal = goals.find(g => g.id === id);
+    if (!window.confirm(`Supprimer "${goal?.title}" ?`)) return;
     setGoals(prev => prev.filter(g => g.id !== id));
   }
 
@@ -149,9 +151,18 @@ export default function SprintBoard() {
     <Shell title={<>SPRINT <span style={{ color: JK.gold }}>BOARD</span></>} subtitle="90-Day Goals · March – May 2026 · Epoch 1 · Partagé avec toute l'équipe" maxWidth={960}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <button onClick={() => navigate("/")} style={{ background: "transparent", border: "none", color: JK.muted, cursor: "pointer", fontSize: 12, letterSpacing: 1, padding: 0, fontFamily: "inherit" }}>← BACK TO HQ</button>
-        <span style={{ fontSize: 10, color: saving ? G : saveStatus === "saved" ? JK.green : saveStatus === "error" ? JK.red : "#333", letterSpacing: 1 }}>
-          {saving ? "⏳ Sauvegarde…" : saveStatus === "saved" ? "✓ Sauvegardé" : saveStatus === "error" ? "✕ Erreur de sauvegarde" : ""}
-        </span>
+        {(saving || saveStatus) && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            background: saving ? "rgba(245,166,35,0.08)" : saveStatus === "saved" ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)",
+            border: `1px solid ${saving ? G + "33" : saveStatus === "saved" ? JK.green + "33" : JK.red + "33"}`,
+            borderRadius: 8, padding: "6px 12px",
+            fontSize: 11, fontWeight: 600, letterSpacing: 0.5,
+            color: saving ? G : saveStatus === "saved" ? JK.green : JK.red,
+          }}>
+            {saving ? "⏳ Sauvegarde…" : saveStatus === "saved" ? "✓ Sauvegardé" : "✕ Erreur de sauvegarde"}
+          </div>
+        )}
       </div>
 
       {/* Sprint progress bar */}
@@ -229,9 +240,17 @@ export default function SprintBoard() {
       )}
 
       {/* Goals grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-        {goals.map(g => <GoalCard key={g.id} goal={g} onUpdate={updateGoal} onDelete={deleteGoal} />)}
-      </div>
+      {goals.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "48px 24px", border: `1px dashed rgba(245,166,35,0.2)`, borderRadius: 16 }}>
+          <div style={{ fontSize: 40, marginBottom: 14 }}>🎯</div>
+          <div style={{ fontFamily: "'Cinzel',serif", fontSize: 13, color: G, letterSpacing: 2, marginBottom: 8 }}>NO GOALS YET</div>
+          <div style={{ fontSize: 12, color: JK.muted }}>Click <strong style={{ color: G }}>+ ADD GOAL</strong> to set your first sprint objective</div>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+          {goals.map(g => <GoalCard key={g.id} goal={g} onUpdate={updateGoal} onDelete={deleteGoal} />)}
+        </div>
+      )}
     </Shell>
   );
 }

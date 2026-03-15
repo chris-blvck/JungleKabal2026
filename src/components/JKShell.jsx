@@ -211,39 +211,56 @@ const NAV_ITEMS = [
   { label: "CRM",       path: "/crm-angel",            icon: "👼" },
   { label: "Arsenal",   path: "/arsenal",              icon: "🛠" },
   { label: "Academy",   path: "/academy",              icon: "🎓" },
+  { label: "Factory",   path: "/coin-factory",         icon: "🪙" },
+  { label: "Signals",   path: "/signal-board",         icon: "📡" },
+  { label: "KKM",       path: "/kkm-dashboard",        icon: "💎" },
+  { label: "Ops",       path: "/ops-board",            icon: "📋" },
+  { label: "Report",    path: "/weekly-report",        icon: "📊" },
+  { label: "Alerts",    path: "/price-alerts",         icon: "🔔" },
 ];
 
 export function JKTopNav() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [open, setOpen] = useState(false);
   return (
     <div style={{
       position: "sticky", top: 0, zIndex: 200,
-      background: "rgba(13,13,13,0.96)", backdropFilter: "blur(16px)",
+      background: "rgba(13,13,13,0.97)", backdropFilter: "blur(20px)",
       borderBottom: `1px solid rgba(245,166,35,0.12)`,
-      padding: "0 20px",
+      padding: "0 16px",
     }}>
-      {/* Desktop nav */}
-      <div style={{ display: "flex", alignItems: "center", gap: 4, height: 42, overflowX: "auto" }}>
-        {NAV_ITEMS.map(({ label, path, icon }) => {
-          const active = location.pathname === path;
-          return (
-            <button key={path} onClick={() => navigate(path)} style={{
-              background: active ? "rgba(245,166,35,0.15)" : "transparent",
-              border: `1px solid ${active ? "rgba(245,166,35,0.4)" : "transparent"}`,
-              borderRadius: 7, padding: "5px 11px",
-              color: active ? JK.gold : "#555",
-              fontFamily: "'Cinzel', serif",
-              fontSize: 9, fontWeight: 700, letterSpacing: 1.5,
-              cursor: "pointer", whiteSpace: "nowrap",
-              transition: "all 0.15s",
-              display: "flex", alignItems: "center", gap: 5,
-            }}>
-              <span style={{ fontSize: 11 }}>{icon}</span> {label}
-            </button>
-          );
-        })}
+      <div style={{ display: "flex", alignItems: "center", gap: 0, height: 46 }}>
+        {/* Logo */}
+        <div onClick={() => navigate("/")} style={{ display: "flex", alignItems: "center", gap: 8, marginRight: 12, cursor: "pointer", flexShrink: 0 }}>
+          <img
+            src="https://i.postimg.cc/fTGb8PWH/logo-jaune-rond.png"
+            alt="JK"
+            style={{ width: 26, height: 26, objectFit: "contain", filter: "drop-shadow(0 0 6px rgba(245,166,35,0.5))" }}
+          />
+          <span style={{ fontFamily: "'Cinzel', serif", fontSize: 8, fontWeight: 700, letterSpacing: 3, color: JK.gold, opacity: 0.8, whiteSpace: "nowrap" }}>JUNGLE KABAL</span>
+        </div>
+        <div style={{ width: 1, height: 22, background: "rgba(245,166,35,0.15)", marginRight: 12, flexShrink: 0 }} />
+        {/* Nav items */}
+        <div style={{ display: "flex", alignItems: "center", gap: 2, overflowX: "auto", flex: 1 }}>
+          {NAV_ITEMS.map(({ label, path, icon }) => {
+            const active = location.pathname === path;
+            return (
+              <button key={path} onClick={() => navigate(path)} style={{
+                background: active ? "rgba(245,166,35,0.15)" : "transparent",
+                border: `1px solid ${active ? "rgba(245,166,35,0.4)" : "transparent"}`,
+                borderRadius: 7, padding: "5px 10px",
+                color: active ? JK.gold : "#555",
+                fontFamily: "'Cinzel', serif",
+                fontSize: 9, fontWeight: 700, letterSpacing: 1.5,
+                cursor: "pointer", whiteSpace: "nowrap",
+                transition: "all 0.15s",
+                display: "flex", alignItems: "center", gap: 5,
+              }}>
+                <span style={{ fontSize: 11 }}>{icon}</span> {label}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -268,6 +285,13 @@ export default function Shell({ children, title, subtitle, maxWidth = 780 }) {
         strong.gold { color: #F5A623; }
         strong.green { color: #22C55E; }
         strong.red { color: #EF4444; }
+        @keyframes marqueeScroll {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(245,166,35,0.25); border-radius: 2px; }
       `}</style>
 
       <JKTopNav />
@@ -282,19 +306,24 @@ export default function Shell({ children, title, subtitle, maxWidth = 780 }) {
       {/* Header */}
       <div style={{
         position: "relative", zIndex: 1,
-        textAlign: "center", padding: "40px 20px 28px",
+        textAlign: "center", padding: "36px 20px 24px",
       }}>
+        <img
+          src="https://i.postimg.cc/d0vVYTyf/Logo-JK-Transparent-full.png"
+          alt="Jungle Kabal"
+          style={{ height: 48, objectFit: "contain", marginBottom: 14, filter: `drop-shadow(0 0 20px ${JK.gold}44)` }}
+        />
         <div style={{
           fontFamily: "'Cinzel', serif",
           fontSize: 9, letterSpacing: 4,
-          color: JK.gold, opacity: 0.7,
-          textTransform: "uppercase", marginBottom: 10,
+          color: JK.gold, opacity: 0.6,
+          textTransform: "uppercase", marginBottom: 8,
         }}>
-          Jungle Kabal · Private Syndicate
+          Private Syndicate
         </div>
         <h1 style={{
           fontFamily: "'Cinzel Decorative', serif",
-          fontSize: 36, fontWeight: 900,
+          fontSize: 34, fontWeight: 900,
           letterSpacing: 2, lineHeight: 1.1,
           textShadow: `0 0 40px ${JK.gold}44`,
         }}>
