@@ -1536,6 +1536,9 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const [selectedStartCompanion, setSelectedStartCompanion] = useState<Companion | null>(null);
   const [meta, setMeta] = useState<MetaProgressionState>(loadMeta);
   const [lastRunReward, setLastRunReward] = useState<RunReward | null>(null);
+  const [leaderboard, setLeaderboard] = useState<Array<{ name: string; score: number; floor: number; date: string; seed: number }>>(() => {
+    try { const raw = localStorage.getItem('jungle_kabal_leaderboard_v1'); return raw ? JSON.parse(raw) : []; } catch { return []; }
+  });
 
   const activeDieIndex = useMemo(() => {
     if (game.selectedDieIndex !== null && game.dice[game.selectedDieIndex] !== null) return game.selectedDieIndex;
@@ -1712,6 +1715,44 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     }, 700);
   }
 
+  function submitToLeaderboard(score: number, floor: number, seed: number) {
+    const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+    const name = tgUser?.first_name || tgUser?.username || 'Kabalian';
+    const entry = { name, score, floor, date: new Date().toLocaleDateString(), seed };
+    setLeaderboard((prev) => {
+      const next = [entry, ...prev].sort((a, b) => b.score - a.score).slice(0, 10);
+      try { localStorage.setItem('jungle_kabal_leaderboard_v1', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }
+
+  // Spend 1 reroll to free the longest-blocked cooldown slot
+  function freeCooldownSlot() {
+    if (game.phase !== "place") return;
+    if (game.player.rerollsLeft <= 0) return;
+    // Find slot with highest cooldown value
+    let bestY = -1, bestX = -1, bestVal = 0;
+    for (let y = 0; y < 3; y++) {
+      for (let x = 0; x < 3; x++) {
+        if (game.cooldowns[y][x] > bestVal) {
+          bestVal = game.cooldowns[y][x];
+          bestY = y; bestX = x;
+        }
+      }
+    }
+    if (bestY === -1) return; // no blocked slots
+    setGame((g) => {
+      const newCooldowns = g.cooldowns.map((row, ry) => row.map((v, rx) => ry === bestY && rx === bestX ? 0 : v));
+      return {
+        ...g,
+        cooldowns: newCooldowns,
+        player: { ...g.player, rerollsLeft: g.player.rerollsLeft - 1 },
+        actionFlash: { id: Date.now(), text: `🔓 Slot (${bestY},${bestX}) freed!`, tone: "sky" },
+        log: [`🔓 Free CD: slot row${bestY + 1} col${bestX + 1} freed (-1 reroll)`, ...g.log].slice(0, 40),
+      };
+    });
+  }
+
   function rerollActiveDie() {
     if (game.phase !== "place") return;
     if (game.player.rerollsLeft <= 0) return;
@@ -1865,13 +1906,13 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
       if (totals.attack > 0) {
         enemyHitPulse = Date.now();
-        damagePopups.push({ id: `${Date.now()}-enemy-hit`, target: "enemy", tone: "damage", text: `-${totals.attack}`, ...getPopupPosition("enemy") });
+        damagePopups.push({ id: `${Date.now()}-enemy-hit`, target: "enemy", tone: "damage", text: `⚔️ -${totals.attack}`, ...getPopupPosition("enemy") });
       }
       if (totals.heal > 0) {
-        damagePopups.push({ id: `${Date.now()}-player-heal`, target: "player", tone: "heal", text: `+${totals.heal}`, ...getPopupPosition("player") });
+        damagePopups.push({ id: `${Date.now()}-player-heal`, target: "player", tone: "heal", text: `❤️ +${totals.heal}`, yShift: 0, ...getPopupPosition("player") });
       }
       if (totals.shield > 0) {
-        damagePopups.push({ id: `${Date.now()}-player-shield`, target: "player", tone: "shield", text: `🛡️ +${totals.shield}`, ...getPopupPosition("player") });
+        damagePopups.push({ id: `${Date.now()}-player-shield`, target: "player", tone: "shield", text: `🛡️ +${totals.shield}`, yShift: totals.heal > 0 ? 1 : 0, ...getPopupPosition("player") });
       }
 
       if (!enemyDied) {
@@ -1890,10 +1931,10 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
             hpDamageTaken = hpLoss;
             const shieldBlocked = Math.max(0, preRetaliationShield - player.shield - hpLoss);
             if (hpLoss > 0) {
-              damagePopups.push({ id: `${Date.now()}-player-hit`, target: "player", tone: "damage", text: `-${hpLoss}`, ...getPopupPosition("player") });
+              damagePopups.push({ id: `${Date.now()}-player-hit`, target: "player", tone: "damage", text: `💥 -${hpLoss}`, yShift: 0, ...getPopupPosition("player") });
             }
             if (shieldBlocked > 0) {
-              damagePopups.push({ id: `${Date.now()}-player-block`, target: "player", tone: "shield", text: `🛡️ ${shieldBlocked}`, ...getPopupPosition("player") });
+              damagePopups.push({ id: `${Date.now()}-player-block`, target: "player", tone: "shield", text: `🛡️ -${shieldBlocked}`, yShift: hpLoss > 0 ? 1 : 0, ...getPopupPosition("player") });
             }
           }
         }
@@ -2463,6 +2504,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     saveMeta(next);
     setMeta(next);
     setLastRunReward(reward);
+    submitToLeaderboard(game.score, game.floor, game.runSeed);
 
     if (onRunEnded) {
       onRunEnded({
@@ -2638,8 +2680,19 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 />
                 <div className="text-xs font-black md:text-sm">{game.enemy.emoji} {game.enemy.name}{game.enemy.elite ? ` ${"⭐".repeat(game.enemy.eliteStars || 1)}` : ""}</div>
                 <div className="text-[9px] text-zinc-300">{game.enemy.mood}</div>
-                <div className="rounded-full border border-white/10 bg-black/45 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-zinc-200">
-                  {getTierLabel(game.enemy)}
+                <div className="flex items-center gap-1.5">
+                  <div className="rounded-full border border-white/10 bg-black/45 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-zinc-200">
+                    {getTierLabel(game.enemy)}
+                  </div>
+                  {(game.enemy.charge || 0) > 0 && (
+                    <motion.div
+                      animate={{ scale: [1, 1.1, 1], opacity: [0.85, 1, 0.85] }}
+                      transition={{ duration: 0.9, repeat: Infinity }}
+                      className="rounded-full border border-rose-400/70 bg-rose-600/50 px-2 py-1 text-[9px] font-black text-rose-100"
+                    >
+                      ⚡ +{game.enemy.charge} READY
+                    </motion.div>
+                  )}
                 </div>
                 <LifeBar label="Enemy HP" current={game.enemy.hp} max={game.enemy.maxHp} tone="enemy" size={game.enemy.maxHp >= 55 ? "lg" : "md"} />
               </div>
@@ -2656,6 +2709,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
               <CompactStat label="Streak" value={`${game.winStreak}`} accent="text-emerald-300" />
               <CompactStat label="No-hit" value={`${game.noHitTurns}T · x${streakMultiplier.toFixed(1)}`} accent="text-lime-300" />
               <CompactStat label="Enemy Shield" value={`${game.enemy.shield || 0}`} accent="text-rose-200" />
+              <CompactStat label="🪙 Coins" value={`${game.player.coins || 0}`} accent="text-yellow-300" />
+              <CompactStat label="💎 Gems" value={`${meta.gems}`} accent="text-violet-300" />
               <div className="rounded-[16px] border border-white/10 bg-black/35 p-2 text-center">
                 <div className="text-[9px] uppercase tracking-[0.16em] text-zinc-300">Outcome</div>
                 <div className="mt-1 text-xs font-black text-cyan-100">{game.lastOutcome || "—"}</div>
@@ -2787,18 +2842,30 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
               )
             ) : null}
             {game.phase === "place" ? (
-              BTN_IMAGES.reroll ? (
-                <ActionBtn
-                  imgSrc={BTN_IMAGES.reroll}
-                  label="🔁 REROLL"
-                  onClick={rerollActiveDie}
-                  disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null}
-                />
-              ) : (
-                <Button onClick={rerollActiveDie} disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null} className="rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-700/90 to-zinc-900 px-5 py-2.5 text-sm font-black text-white hover:from-zinc-600 hover:to-zinc-800 disabled:opacity-40">
-                  🔁 REROLL
-                </Button>
-              )
+              <div className="flex w-full gap-2">
+                {BTN_IMAGES.reroll ? (
+                  <ActionBtn
+                    imgSrc={BTN_IMAGES.reroll}
+                    label="🔁 REROLL"
+                    onClick={rerollActiveDie}
+                    disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null}
+                  />
+                ) : (
+                  <Button onClick={rerollActiveDie} disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null} className="flex-1 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-700/90 to-zinc-900 px-3 py-2.5 text-sm font-black text-white hover:from-zinc-600 hover:to-zinc-800 disabled:opacity-40">
+                    🔁 REROLL
+                  </Button>
+                )}
+                {game.cooldowns.some(row => row.some(v => v > 0)) && (
+                  <Button
+                    onClick={freeCooldownSlot}
+                    disabled={game.player.rerollsLeft <= 0}
+                    title="Spend 1 reroll to free the most blocked cooldown slot"
+                    className="flex-1 rounded-2xl border border-sky-400/30 bg-gradient-to-b from-sky-800/50 to-sky-900/70 px-3 py-2.5 text-sm font-black text-sky-200 hover:from-sky-700/60 hover:to-sky-800/80 disabled:opacity-40"
+                  >
+                    🔓 FREE CD
+                  </Button>
+                )}
+              </div>
             ) : null}
             {resolvePreview ? (
               <div className="w-full rounded-2xl border border-white/10 bg-zinc-900/80 px-3 py-2 text-[11px]">
@@ -2831,6 +2898,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                       <div className="flex flex-col items-center gap-0.5">
                         <span className="text-[10px] text-zinc-500">Shield</span>
                         <span className="font-black text-sky-300">+{resolvePreview.totals.shield}</span>
+                        <span className="text-[9px] text-sky-400/70">blocks first</span>
                       </div>
                     </>
                   )}
@@ -3027,8 +3095,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
               initial={{ opacity: 0, y: 12, scale: 0.8 }}
               animate={{ opacity: 1, y: -12, scale: 1.15 }}
               exit={{ opacity: 0, y: -24, scale: 0.9 }}
-              style={{ left: popup.left, top: popup.top }}
-              className={`pointer-events-none fixed z-50 rounded-xl border px-4 py-2 text-3xl font-black shadow-[0_20px_60px_rgba(0,0,0,0.5)] ${
+              style={{ left: popup.left, top: `calc(${popup.top} - ${(popup.yShift || 0) * 44}px)` }}
+              className={`pointer-events-none fixed z-50 rounded-xl border px-4 py-2 text-2xl font-black shadow-[0_20px_60px_rgba(0,0,0,0.5)] ${
                 popup.tone === "damage"
                   ? "border-rose-300/60 bg-rose-600/35 text-rose-100"
                   : popup.tone === "heal"
@@ -3667,6 +3735,28 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           ) : null}
         </AnimatePresence>
       </div>
+
+      {/* ── Leaderboard (bottom of page) ──────────────────────────────────── */}
+      {leaderboard.length > 0 && (
+        <div className="mx-auto mt-4 w-full max-w-xl px-3 pb-6">
+          <div className="rounded-2xl border border-violet-300/20 bg-zinc-900/80 p-4">
+            <div className="mb-3 text-center text-xs font-black uppercase tracking-widest text-violet-300">🏆 Top Runs</div>
+            <div className="space-y-1.5">
+              {leaderboard.slice(0, 5).map((entry, i) => (
+                <div key={i} className="flex items-center justify-between rounded-xl border border-white/8 bg-black/30 px-3 py-2 text-xs">
+                  <span className={`font-black w-5 text-center ${i === 0 ? 'text-amber-300' : i === 1 ? 'text-zinc-300' : i === 2 ? 'text-orange-400' : 'text-zinc-500'}`}>
+                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
+                  </span>
+                  <span className="flex-1 ml-2 text-zinc-200 truncate">{entry.name}</span>
+                  <span className="font-black text-violet-300">{entry.score.toLocaleString()}</span>
+                  <span className="ml-2 text-zinc-500">Z{entry.floor}</span>
+                  <span className="ml-2 text-zinc-600">{entry.date}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
