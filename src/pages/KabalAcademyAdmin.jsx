@@ -18,6 +18,35 @@ const packTemplates = [
   { id: "pack-agent-lab", title: "KKM Agent Lab", description: "Création de formations par team/agents.", audience: "team", accessType: "token-gated", priceLabel: "Accès team", coverImage: DEFAULT_COVER, workflowStatus: "published" },
 ];
 
+const roadmapWaves = [
+  { wave: "Wave 1", title: "Live replays hub", status: "done", emoji: "🎥" },
+  { wave: "Wave 2", title: "Player pro + timestamps", status: "next", emoji: "⏯️" },
+  { wave: "Wave 3", title: "XP, streaks, badges", status: "in_progress", emoji: "🏆" },
+  { wave: "Wave 4", title: "Quêtes hebdo + leaderboard", status: "next", emoji: "🧭" },
+  { wave: "Wave 5", title: "Draft → Review → Publish", status: "next", emoji: "🛠️" },
+  { wave: "Wave 6", title: "Analytics completion + dropoff", status: "next", emoji: "📈" },
+  { wave: "Wave 7", title: "Token gate + entitlements", status: "next", emoji: "🔐" },
+  { wave: "Wave 8", title: "Telegram Mini App native", status: "next", emoji: "📲" },
+  { wave: "Wave 9", title: "IA assistant coach", status: "vision", emoji: "🤖" },
+  { wave: "Wave 10", title: "Battle pass saisonnier", status: "vision", emoji: "🎮" },
+  { wave: "Wave 11", title: "Signals room", status: "vision", emoji: "📡" },
+  { wave: "Wave 12", title: "Creator economy", status: "vision", emoji: "🧱" },
+];
+
+const statusClass = {
+  done: "bg-emerald-400/20 text-emerald-200 border-emerald-300/30",
+  in_progress: "bg-amber-400/20 text-amber-200 border-amber-300/30",
+  next: "bg-sky-400/20 text-sky-200 border-sky-300/30",
+  vision: "bg-fuchsia-400/20 text-fuchsia-200 border-fuchsia-300/30",
+};
+
+const masterExecutionBoard = [
+  { lane: "Content velocity", owner: "Admin Ops", items: ["Upload-first media flow", "Bulk translation", "Quality checklist"] },
+  { lane: "Learner retention", owner: "Product", items: ["Next best lesson", "Quest loops", "Value score"] },
+  { lane: "Monetization", owner: "Growth", items: ["Token entitlements", "Premium replays", "Season pass"] },
+  { lane: "Distribution", owner: "Community", items: ["Telegram mini app", "Referral links", "Coach collabs"] },
+];
+
 function createModule() {
   return { id: `m-${Date.now()}`, title: "Nouveau module", description: "", lessons: [] };
 }
@@ -65,6 +94,8 @@ export default function KabalAcademyAdmin() {
   const [selectedPackId, setSelectedPackId] = useState(seed.packs[0]?.id || "pack-beta-season");
   const [newBlockType, setNewBlockType] = useState("text");
   const [expandedModules, setExpandedModules] = useState(new Set());
+  const [translateLang, setTranslateLang] = useState("en");
+  const [translating, setTranslating] = useState(false);
 
   useEffect(() => {
     try {
@@ -95,6 +126,22 @@ export default function KabalAcademyAdmin() {
   const selectedLesson = selectedModule?.lessons.find((lesson) => lesson.id === selectedLessonId) || selectedModule?.lessons?.[0];
   const selectedPack = content.packs?.find((pack) => pack.id === selectedPackId) || content.packs?.[0];
   const liveReplays = getLiveReplays(content);
+
+  const modulesWithoutLessons = content.modules.filter((module) => !(module.lessons || []).length).length;
+  const lessonsWithoutContent = content.modules.flatMap((module) => module.lessons || []).filter((lesson) => !(lesson.content || "").trim()).length;
+  const packsWithoutCover = (content.packs || []).filter((pack) => !(pack.coverImage || "").trim()).length;
+  const draftPacks = (content.packs || []).filter((pack) => (pack.workflowStatus || "published") === "draft").length;
+  const replaysWithoutUrl = liveReplays.filter((replay) => !(replay.url || "").trim()).length;
+  const packsWithoutModules = (content.packs || []).filter((pack) => !(pack.moduleIds || []).length).length;
+
+  const publishChecks = [
+    { key: "modules", label: "Modules avec contenu", ok: modulesWithoutLessons === 0 && lessonsWithoutContent === 0 },
+    { key: "covers", label: "Covers packs", ok: packsWithoutCover === 0 },
+    { key: "mapping", label: "Mapping modules/pack", ok: packsWithoutModules === 0 },
+    { key: "replays", label: "URLs replay", ok: replaysWithoutUrl === 0 },
+  ];
+  const publishReadyCount = publishChecks.filter((item) => item.ok).length;
+  const publishReadiness = Math.round((publishReadyCount / publishChecks.length) * 100);
 
   const patchContent = (updater) => setContent((prev) => updater(structuredClone(prev)));
 
@@ -145,10 +192,133 @@ export default function KabalAcademyAdmin() {
     setSelectedPackId(fallback?.id || "");
   };
 
+  const setPackCoverFromFile = (file) => {
+    if (!file || !selectedPack) return;
+    const reader = new FileReader();
+    reader.onload = () => patchContent((draft) => {
+      const pack = draft.packs.find((item) => item.id === selectedPack.id);
+      if (pack) pack.coverImage = String(reader.result || "");
+      return draft;
+    });
+    reader.readAsDataURL(file);
+  };
+
+  const setBlockContentFromFile = (blockId, file) => {
+    if (!file || !selectedModule || !selectedLesson) return;
+    const reader = new FileReader();
+    reader.onload = () => patchContent((draft) => {
+      const module = draft.modules.find((item) => item.id === selectedModule.id);
+      const lesson = module?.lessons.find((item) => item.id === selectedLesson.id);
+      const block = lesson?.blocks.find((item) => item.id === blockId);
+      if (block) block.content = String(reader.result || "");
+      return draft;
+    });
+    reader.readAsDataURL(file);
+  };
+
+  const translateText = async (text, targetLang) => {
+    const trimmed = String(text || "").trim();
+    if (!trimmed) return "";
+    const resp = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(trimmed)}&langpair=fr|${encodeURIComponent(targetLang)}`);
+    const data = await resp.json();
+    return data?.responseData?.translatedText || trimmed;
+  };
+
+  const translateLessonContent = async () => {
+    if (!selectedModule || !selectedLesson) return;
+    setTranslating(true);
+    try {
+      const translated = await translateText(selectedLesson.content || "", translateLang);
+      patchContent((draft) => {
+        const module = draft.modules.find((item) => item.id === selectedModule.id);
+        const lesson = module?.lessons.find((item) => item.id === selectedLesson.id);
+        if (lesson) lesson.content = translated;
+        return draft;
+      });
+    } catch (error) {
+      console.error("translation_failed", error);
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  const translateBlockContent = async (blockId, text) => {
+    setTranslating(true);
+    try {
+      const translated = await translateText(text || "", translateLang);
+      patchContent((draft) => {
+        const module = draft.modules.find((item) => item.id === selectedModule.id);
+        const lesson = module?.lessons.find((item) => item.id === selectedLesson.id);
+        const block = lesson?.blocks.find((item) => item.id === blockId);
+        if (block) block.content = translated;
+        return draft;
+      });
+    } catch (error) {
+      console.error("translation_failed", error);
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  const autoFixDraftData = () => {
+    patchContent((draft) => {
+      const fallbackCover = DEFAULT_COVER;
+      draft.packs = (draft.packs || []).map((pack) => ({
+        ...pack,
+        coverImage: (pack.coverImage || "").trim() ? pack.coverImage : fallbackCover,
+        moduleIds: (pack.moduleIds || []).length ? pack.moduleIds : (draft.modules[0] ? [draft.modules[0].id] : []),
+      }));
+      draft.liveReplays = (draft.liveReplays || []).map((replay) => ({
+        ...replay,
+        url: (replay.url || "").trim() ? replay.url : "https://example.com/replay",
+      }));
+      draft.modules = (draft.modules || []).map((module) => ({
+        ...module,
+        lessons: (module.lessons || []).map((lesson) => ({
+          ...lesson,
+          content: (lesson.content || "").trim() ? lesson.content : "Contenu à compléter.",
+        })),
+      }));
+      return draft;
+    });
+  };
+
+  const translateWholeLesson = async () => {
+    if (!selectedModule || !selectedLesson) return;
+    setTranslating(true);
+    try {
+      const titleTranslated = await translateText(selectedLesson.title || "", translateLang);
+      const contentTranslated = await translateText(selectedLesson.content || "", translateLang);
+      const translatedBlocks = await Promise.all((selectedLesson.blocks || []).map(async (block) => ({
+        id: block.id,
+        content: await translateText(block.content || "", translateLang),
+      })));
+
+      patchContent((draft) => {
+        const module = draft.modules.find((item) => item.id === selectedModule.id);
+        const lesson = module?.lessons.find((item) => item.id === selectedLesson.id);
+        if (!lesson) return draft;
+        lesson.title = titleTranslated || lesson.title;
+        lesson.content = contentTranslated || lesson.content;
+        lesson.blocks = (lesson.blocks || []).map((block) => {
+          const translated = translatedBlocks.find((item) => item.id === block.id);
+          return translated ? { ...block, content: translated.content || block.content } : block;
+        });
+        return draft;
+      });
+    } catch (error) {
+      console.error("translation_whole_lesson_failed", error);
+    } finally {
+      setTranslating(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#1f2937_0%,_#090909_50%)] px-4 py-6 text-white lg:px-8">
+    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_#231f10_0%,_#090909_50%)] px-4 py-6 text-white lg:px-8">
+      <div className="pointer-events-none absolute -left-20 top-12 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
+      <div className="pointer-events-none absolute -right-20 top-1/3 h-80 w-80 rounded-full bg-yellow-300/10 blur-3xl" />
       <div className="mx-auto max-w-7xl space-y-4">
-        <Card className="border-amber-300/20 bg-gradient-to-br from-white/10 to-white/5">
+        <Card className="border-amber-300/20 bg-gradient-to-br from-amber-300/10 via-white/5 to-black/40 shadow-[0_0_60px_rgba(245,158,11,0.1)]">
           <CardHeader><CardTitle><span className="inline-flex items-center gap-2"><img src={JK_LOGO_ROUND} alt="JK" className="h-5 w-5 rounded-full opacity-85" />Academy Admin · Builder</span></CardTitle></CardHeader>
           <CardContent className="flex flex-wrap items-center gap-3">
             <Button onClick={saveAll} className="bg-amber-400 text-black hover:bg-amber-300">{saving ? "Sauvegarde..." : "Sauvegarder et publier"}</Button>
@@ -164,24 +334,50 @@ export default function KabalAcademyAdmin() {
           </CardContent>
         </Card>
 
-        <Card className="border-white/10 bg-white/5">
-          <CardHeader><CardTitle>Roadmap Session (next waves)</CardTitle></CardHeader>
-          <CardContent className="grid gap-2 md:grid-cols-2 lg:grid-cols-3 text-sm">
-            {[
-              "🎥 Wave 1: Live replays hub ✅",
-              "⏯️ Wave 2: Player pro + timestamps",
-              "🏆 Wave 3: XP, streaks, badges",
-              "🧭 Wave 4: Quêtes hebdo + leaderboard",
-              "🛠️ Wave 5: Draft -> Review -> Publish",
-              "📈 Wave 6: Analytics completion + dropoff",
-              "🔐 Wave 7: Token gate + entitlements",
-              "📲 Wave 8: Telegram Mini App native",
-              "🤖 Wave 9: IA assistant coach contextuel",
-            ].map((item) => <div key={item} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-zinc-300">{item}</div>)}
+        <Card className="border-fuchsia-300/20 bg-gradient-to-br from-fuchsia-400/10 via-amber-300/10 to-black/40">
+          <CardHeader><CardTitle>🎛️ Delivery cockpit</CardTitle></CardHeader>
+          <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5 text-sm">
+            <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">Modules sans leçons: <span className="font-semibold">{modulesWithoutLessons}</span></div>
+            <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">Leçons sans contenu: <span className="font-semibold">{lessonsWithoutContent}</span></div>
+            <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">Packs sans cover: <span className="font-semibold">{packsWithoutCover}</span></div>
+            <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">Packs draft: <span className="font-semibold">{draftPacks}</span></div>
+            <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">Replays sans URL: <span className="font-semibold">{replaysWithoutUrl}</span></div>
           </CardContent>
         </Card>
 
-        <Card className="border-amber-300/20 bg-gradient-to-br from-amber-400/10 to-black/30">
+        <Card className="border-emerald-300/20 bg-gradient-to-br from-emerald-400/10 to-black/40">
+          <CardHeader><CardTitle>✅ Publish readiness</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <p className="text-zinc-300">Préparation release</p>
+              <p className="font-semibold text-emerald-200">{publishReadiness}%</p>
+            </div>
+            <div className="h-2 rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-r from-emerald-300 to-amber-300" style={{ width: `${publishReadiness}%` }} /></div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {publishChecks.map((check) => <div key={check.key} className={`rounded-xl border px-3 py-2 text-xs ${check.ok ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-200" : "border-red-300/30 bg-red-400/10 text-red-200"}`}>{check.ok ? "✅" : "⚠️"} {check.label}</div>)}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={autoFixDraftData}>Auto-fix rapide</Button>
+              <Button onClick={saveAll} className="bg-emerald-400 text-black hover:bg-emerald-300">Save release</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-amber-300/20 bg-gradient-to-br from-amber-300/10 to-black/40">
+          <CardHeader><CardTitle>Roadmap Session (next waves)</CardTitle></CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 text-sm">
+            {roadmapWaves.map((item) => <div key={item.wave} className="rounded-xl border border-amber-200/20 bg-black/25 px-3 py-2 text-zinc-200"><div className="mb-1 flex items-center justify-between"><p className="text-xs text-zinc-400">{item.wave}</p><span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase ${statusClass[item.status] || "border-white/10 bg-white/10 text-zinc-300"}`}>{item.status}</span></div><p>{item.emoji} {item.title}</p></div>)}
+          </CardContent>
+        </Card>
+
+        <Card className="border-sky-300/20 bg-gradient-to-br from-sky-400/10 to-black/40">
+          <CardHeader><CardTitle>🧠 Master list updates · execution now</CardTitle></CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2">
+            {masterExecutionBoard.map((lane) => <div key={lane.lane} className="rounded-xl border border-white/10 bg-black/25 p-3"><div className="mb-2 flex items-center justify-between"><p className="font-semibold">{lane.lane}</p><span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase text-zinc-300">{lane.owner}</span></div><ul className="space-y-1 text-xs text-zinc-300">{lane.items.map((item) => <li key={item}>• {item}</li>)}</ul></div>)}
+          </CardContent>
+        </Card>
+
+        <Card className="border-amber-300/20 bg-gradient-to-br from-amber-400/15 to-black/40">
           <CardHeader><CardTitle>Session Max Ops</CardTitle></CardHeader>
           <CardContent className="grid gap-2 md:grid-cols-2 lg:grid-cols-4 text-sm">
             {[
@@ -234,7 +430,10 @@ export default function KabalAcademyAdmin() {
 
                   <Input value={selectedPack.title || ""} onChange={(e) => patchContent((draft) => { const pack = draft.packs.find((item) => item.id === selectedPack.id); pack.title = e.target.value; return draft; })} placeholder="Titre pack" />
                   <Textarea value={selectedPack.description || ""} onChange={(e) => patchContent((draft) => { const pack = draft.packs.find((item) => item.id === selectedPack.id); pack.description = e.target.value; return draft; })} className="min-h-[80px]" placeholder="Description pack" />
-                  <Input value={selectedPack.coverImage || ""} onChange={(e) => patchContent((draft) => { const pack = draft.packs.find((item) => item.id === selectedPack.id); pack.coverImage = e.target.value; return draft; })} placeholder="URL image du pack" />
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <Input value={selectedPack.coverImage || ""} onChange={(e) => patchContent((draft) => { const pack = draft.packs.find((item) => item.id === selectedPack.id); pack.coverImage = e.target.value; return draft; })} placeholder="URL image du pack" />
+                    <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg border border-amber-300/30 bg-amber-400/10 px-3 text-xs text-amber-200">Upload cover<input type="file" accept="image/*" className="hidden" onChange={(e) => setPackCoverFromFile(e.target.files?.[0])} /></label>
+                  </div>
                   <div className="grid gap-3 md:grid-cols-4">
                     <select value={selectedPack.accessType || "open"} onChange={(e) => patchContent((draft) => { const pack = draft.packs.find((item) => item.id === selectedPack.id); pack.accessType = e.target.value; return draft; })} className="h-10 rounded-lg border border-white/15 bg-black/30 px-3 text-sm"><option value="open">Open</option><option value="token-gated">Token-gated</option></select>
                     <select value={selectedPack.audience || "public"} onChange={(e) => patchContent((draft) => { const pack = draft.packs.find((item) => item.id === selectedPack.id); pack.audience = e.target.value; return draft; })} className="h-10 rounded-lg border border-white/15 bg-black/30 px-3 text-sm"><option value="public">Public</option><option value="team">Team</option></select>
@@ -293,18 +492,118 @@ export default function KabalAcademyAdmin() {
             </Card>
 
             {selectedModule && selectedLesson && (
-              <Card className="border-white/10 bg-white/5">
-                <CardHeader><CardTitle>Édition lesson</CardTitle></CardHeader>
+              <Card className="border-amber-300/20 bg-gradient-to-br from-amber-300/10 to-black/40">
+                <CardHeader><CardTitle>Édition lesson · Studio</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 md:grid-cols-2"><Input value={selectedModule.title} onChange={(e) => patchContent((draft) => { draft.modules.find((module) => module.id === selectedModule.id).title = e.target.value; return draft; })} placeholder="Titre module" /><Input value={selectedLesson.duration || ""} onChange={(e) => patchContent((draft) => { const module = draft.modules.find((item) => item.id === selectedModule.id); module.lessons.find((lesson) => lesson.id === selectedLesson.id).duration = e.target.value; return draft; })} placeholder="Durée (ex: 8 min)" /></div>
                   <Input value={selectedLesson.title} onChange={(e) => patchContent((draft) => { const module = draft.modules.find((item) => item.id === selectedModule.id); module.lessons.find((lesson) => lesson.id === selectedLesson.id).title = e.target.value; return draft; })} placeholder="Titre lesson" />
-                  <Textarea value={selectedLesson.content || ""} onChange={(e) => patchContent((draft) => { const module = draft.modules.find((item) => item.id === selectedModule.id); module.lessons.find((lesson) => lesson.id === selectedLesson.id).content = e.target.value; return draft; })} className="min-h-[140px]" placeholder="Contenu principal" />
+                  <div className="rounded-xl border border-amber-300/20 bg-black/20 p-3">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-zinc-400">Auto-translate (gratuit)</span>
+                      <select value={translateLang} onChange={(e) => setTranslateLang(e.target.value)} className="h-8 rounded-lg border border-white/15 bg-black/30 px-2 text-xs">
+                        <option value="en">English</option><option value="es">Español</option><option value="pt">Português</option><option value="it">Italiano</option><option value="de">Deutsch</option><option value="ar">العربية</option>
+                      </select>
+                      <button onClick={translateLessonContent} disabled={translating} className="rounded-lg border border-amber-300/30 bg-amber-400/10 px-2 py-1 text-xs text-amber-200 disabled:opacity-40">{translating ? "Traduction..." : "Traduire le contenu"}</button>
+                      <button onClick={translateWholeLesson} disabled={translating} className="rounded-lg border border-fuchsia-300/30 bg-fuchsia-400/10 px-2 py-1 text-xs text-fuchsia-200 disabled:opacity-40">{translating ? "Traduction..." : "Traduire toute la lesson"}</button>
+                    </div>
+                    <Textarea value={selectedLesson.content || ""} onChange={(e) => patchContent((draft) => { const module = draft.modules.find((item) => item.id === selectedModule.id); module.lessons.find((lesson) => lesson.id === selectedLesson.id).content = e.target.value; return draft; })} className="min-h-[140px]" placeholder="Contenu principal" />
+                  </div>
 
                   <div className="rounded-xl border border-white/10 p-3">
-                    <div className="mb-2 flex items-center gap-2"><select value={newBlockType} onChange={(e) => setNewBlockType(e.target.value)} className="h-9 rounded-lg border border-white/15 bg-black/30 px-3 text-sm"><option value="text">Texte</option><option value="image">Image</option><option value="video">Vidéo</option><option value="audio">Audio</option><option value="quiz">Quiz</option><option value="gamified">Gamifié</option></select><Button onClick={() => patchContent((draft) => { const module = draft.modules.find((item) => item.id === selectedModule.id); const lesson = module.lessons.find((item) => item.id === selectedLesson.id); lesson.blocks = lesson.blocks || []; lesson.blocks.push(createBlock(newBlockType)); return draft; })}>+ Bloc</Button></div>
+                    <div className="mb-2 flex items-center gap-2"><select value={newBlockType} onChange={(e) => setNewBlockType(e.target.value)} className="h-9 rounded-lg border border-white/15 bg-black/30 px-3 text-sm"><option value="text">Texte</option><option value="image">Image</option><option value="video">Vidéo</option><option value="audio">Audio</option><option value="quiz">Quiz</option><option value="gamified">Gamifié</option></select><Button onClick={() => patchContent((draft) => { const module = draft.modules.find((item) => item.id === selectedModule.id); const lesson = module.lessons.find((item) => item.id === selectedLesson.id); lesson.blocks = lesson.blocks || []; lesson.blocks.push(createBlock(newBlockType)); return draft; })}>+ Bloc</Button></div>                    <div className="space-y-3">
+                      {(selectedLesson.blocks || []).map((block) => (
+                        <div key={block.id} className="rounded-lg border border-white/10 p-3">
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-xs uppercase text-zinc-400">{block.type}</span>
+                            <button
+                              className="text-xs text-red-300"
+                              onClick={() => patchContent((draft) => {
+                                const module = draft.modules.find((item) => item.id === selectedModule.id);
+                                const lesson = module.lessons.find((item) => item.id === selectedLesson.id);
+                                lesson.blocks = (lesson.blocks || []).filter((item) => item.id !== block.id);
+                                return draft;
+                              })}
+                            >
+                              Supprimer
+                            </button>
+                          </div>
 
-                    <div className="space-y-3">
-                      {(selectedLesson.blocks || []).map((block) => <div key={block.id} className="rounded-lg border border-white/10 p-3"><div className="mb-2 flex items-center justify-between"><span className="text-xs uppercase text-zinc-400">{block.type}</span><button className="text-xs text-red-300" onClick={() => patchContent((draft) => { const module = draft.modules.find((item) => item.id === selectedModule.id); const lesson = module.lessons.find((item) => item.id === selectedLesson.id); lesson.blocks = (lesson.blocks || []).filter((item) => item.id !== block.id); return draft; })}>Supprimer</button></div>{(block.type === "text" || block.type === "gamified") && <Textarea value={block.content || ""} onChange={(e) => patchContent((draft) => { const module = draft.modules.find((item) => item.id === selectedModule.id); const lesson = module.lessons.find((item) => item.id === selectedLesson.id); lesson.blocks.find((item) => item.id === block.id).content = e.target.value; return draft; })} className="min-h-[90px]" placeholder="Contenu bloc" />}{(block.type === "image" || block.type === "video" || block.type === "audio") && <Input value={block.content || ""} onChange={(e) => patchContent((draft) => { const module = draft.modules.find((item) => item.id === selectedModule.id); const lesson = module.lessons.find((item) => item.id === selectedLesson.id); lesson.blocks.find((item) => item.id === block.id).content = e.target.value; return draft; })} placeholder={block.type === "image" ? "URL image" : block.type === "video" ? "URL vidéo (youtube embed)" : "URL audio (mp3, m4a...)"} />}{block.type === "audio" && <div className="mt-2"><label className="text-xs text-zinc-400">Upload audio (optionnel)</label><input type="file" accept="audio/*" className="mt-1 block w-full text-xs" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => patchContent((draft) => { const module = draft.modules.find((item) => item.id === selectedModule.id); const lesson = module.lessons.find((item) => item.id === selectedLesson.id); lesson.blocks.find((item) => item.id === block.id).content = String(reader.result || ""); return draft; }); reader.readAsDataURL(file); }} /></div>}{block.type === "quiz" && <div className="space-y-2"><Input value={block.content || ""} onChange={(e) => patchContent((draft) => { const module = draft.modules.find((item) => item.id === selectedModule.id); const lesson = module.lessons.find((item) => item.id === selectedLesson.id); lesson.blocks.find((item) => item.id === block.id).content = e.target.value; return draft; })} placeholder="Question" />{(block.options || []).map((option, idx) => <div key={`${block.id}-${idx}`} className="flex items-center gap-2"><input type="radio" checked={(block.answer || 0) === idx} onChange={() => patchContent((draft) => { const module = draft.modules.find((item) => item.id === selectedModule.id); const lesson = module.lessons.find((item) => item.id === selectedLesson.id); lesson.blocks.find((item) => item.id === block.id).answer = idx; return draft; })} /><Input value={option} onChange={(e) => patchContent((draft) => { const module = draft.modules.find((item) => item.id === selectedModule.id); const lesson = module.lessons.find((item) => item.id === selectedLesson.id); lesson.blocks.find((item) => item.id === block.id).options[idx] = e.target.value; return draft; })} placeholder={`Option ${idx + 1}`} /></div>)}</div>}</div>)}
+                          {(block.type === "text" || block.type === "gamified") && (
+                            <div className="space-y-2">
+                              <Textarea
+                                value={block.content || ""}
+                                onChange={(e) => patchContent((draft) => {
+                                  const module = draft.modules.find((item) => item.id === selectedModule.id);
+                                  const lesson = module.lessons.find((item) => item.id === selectedLesson.id);
+                                  lesson.blocks.find((item) => item.id === block.id).content = e.target.value;
+                                  return draft;
+                                })}
+                                className="min-h-[90px]"
+                                placeholder="Contenu bloc"
+                              />
+                              <button onClick={() => translateBlockContent(block.id, block.content)} disabled={translating} className="rounded-lg border border-amber-300/30 bg-amber-400/10 px-2 py-1 text-[11px] text-amber-200 disabled:opacity-40">{translating ? "Traduction..." : "Traduire ce bloc"}</button>
+                            </div>
+                          )}
+
+                          {(block.type === "image" || block.type === "video" || block.type === "audio") && (
+                            <div className="space-y-2">
+                              <Input
+                                value={block.content || ""}
+                                onChange={(e) => patchContent((draft) => {
+                                  const module = draft.modules.find((item) => item.id === selectedModule.id);
+                                  const lesson = module.lessons.find((item) => item.id === selectedLesson.id);
+                                  lesson.blocks.find((item) => item.id === block.id).content = e.target.value;
+                                  return draft;
+                                })}
+                                placeholder={block.type === "image" ? "URL image" : block.type === "video" ? "URL vidéo (youtube embed)" : "URL audio (mp3, m4a...)"}
+                              />
+                              <label className="inline-flex cursor-pointer items-center rounded-lg border border-white/20 bg-white/5 px-2 py-1 text-[11px] text-zinc-300">
+                                Upload fichier
+                                <input type="file" accept={block.type === "image" ? "image/*" : block.type === "video" ? "video/*" : "audio/*"} className="hidden" onChange={(e) => setBlockContentFromFile(block.id, e.target.files?.[0])} />
+                              </label>
+                            </div>
+                          )}
+
+                          {block.type === "quiz" && (
+                            <div className="space-y-2">
+                              <Input
+                                value={block.content || ""}
+                                onChange={(e) => patchContent((draft) => {
+                                  const module = draft.modules.find((item) => item.id === selectedModule.id);
+                                  const lesson = module.lessons.find((item) => item.id === selectedLesson.id);
+                                  lesson.blocks.find((item) => item.id === block.id).content = e.target.value;
+                                  return draft;
+                                })}
+                                placeholder="Question"
+                              />
+                              {(block.options || []).map((option, idx) => (
+                                <div key={`${block.id}-${idx}`} className="flex items-center gap-2">
+                                  <input
+                                    type="radio"
+                                    checked={(block.answer || 0) === idx}
+                                    onChange={() => patchContent((draft) => {
+                                      const module = draft.modules.find((item) => item.id === selectedModule.id);
+                                      const lesson = module.lessons.find((item) => item.id === selectedLesson.id);
+                                      lesson.blocks.find((item) => item.id === block.id).answer = idx;
+                                      return draft;
+                                    })}
+                                  />
+                                  <Input
+                                    value={option}
+                                    onChange={(e) => patchContent((draft) => {
+                                      const module = draft.modules.find((item) => item.id === selectedModule.id);
+                                      const lesson = module.lessons.find((item) => item.id === selectedLesson.id);
+                                      lesson.blocks.find((item) => item.id === block.id).options[idx] = e.target.value;
+                                      return draft;
+                                    })}
+                                    placeholder={`Option ${idx + 1}`}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </CardContent>

@@ -12,6 +12,8 @@ const CORS_ALLOW_ORIGIN = process.env.CORS_ALLOW_ORIGIN || '*';
 const WRITE_RATE_LIMIT_WINDOW_MS = Number(process.env.ANGEL_OPS_RATE_LIMIT_WINDOW_MS || 60_000);
 const WRITE_RATE_LIMIT_MAX = Number(process.env.ANGEL_OPS_RATE_LIMIT_MAX || 60);
 const dataFile = path.join(__dirname, 'data', 'academy-content.json');
+const leaderboardFile = path.join(__dirname, 'data', 'academy-leaderboard.json');
+const notificationsFile = path.join(__dirname, 'data', 'academy-notifications.json');
 const compactFile = path.join(__dirname, '..', 'src', 'docs', 'memecoin-trading-guide-compact.md');
 const paymentsFile = path.join(__dirname, 'data', 'payments.json');
 const catalogFile = path.join(__dirname, 'data', 'product-catalog.json');
@@ -26,6 +28,13 @@ const paymentWalletPool = (process.env.PAYMENT_WALLET_POOL || process.env.PAYMEN
   .split(',')
   .map((item) => item.trim())
   .filter(Boolean);
+
+const defaultLeaderboard = [
+  { rank: 1, name: 'Rex', points: 1420, streak: 12 },
+  { rank: 2, name: 'Mina', points: 1360, streak: 10 },
+  { rank: 3, name: 'Kuro', points: 1210, streak: 8 },
+  { rank: 4, name: 'Nova', points: 980, streak: 6 },
+];
 
 function parseCompactCourse(raw) {
   const lines = raw.split('\n');
@@ -210,117 +219,13 @@ async function getContent() {
   }
 }
 
-async function getCatalog() {
-  const raw = await readFile(catalogFile, 'utf8');
-  return JSON.parse(raw);
-}
-
-function createEmptyPaymentsState() {
-  return {
-    version: 1,
-    walletCursor: 0,
-    payments: [],
-    entitlements: [],
-    telemetry: {
-      events: {
-        catalogView: 0,
-        addToCart: 0,
-        paymentCreate: 0,
-        paymentConfirm: 0,
-      },
-      rpc: {
-        success: 0,
-        failure: 0,
-        lastOkAt: null,
-        lastErrorAt: null,
-        lastErrorMessage: null,
-      },
-      fraud: {
-        replayBlocked: 0,
-        rateLimited: 0,
-      },
-      updatedAt: new Date().toISOString(),
-    },
-  };
-}
-
-function ensureStateShape(state) {
-  if (!state.telemetry) state.telemetry = createEmptyPaymentsState().telemetry;
-  if (!state.telemetry.events) state.telemetry.events = createEmptyPaymentsState().telemetry.events;
-  if (!state.telemetry.rpc) state.telemetry.rpc = createEmptyPaymentsState().telemetry.rpc;
-  if (!state.telemetry.fraud) state.telemetry.fraud = createEmptyPaymentsState().telemetry.fraud;
-  if (!state.telemetry.updatedAt) state.telemetry.updatedAt = new Date().toISOString();
-  return state;
-}
-
-
-async function getWaitlistState() {
+async function getLeaderboard() {
   try {
-    await access(waitlistFile);
-    const raw = await readFile(waitlistFile, 'utf8');
+    await access(leaderboardFile);
+    const raw = await readFile(leaderboardFile, 'utf8');
     return JSON.parse(raw);
   } catch {
-    const seed = { version: 1, entries: [] };
-    await writeFile(waitlistFile, JSON.stringify(seed, null, 2));
-    return seed;
-  }
-}
-
-async function saveWaitlistState(state) {
-  state.updatedAt = new Date().toISOString();
-  await writeFile(waitlistFile, JSON.stringify(state, null, 2));
-}
-
-async function getPaymentsState() {
-  try {
-    await access(paymentsFile);
-    const raw = await readFile(paymentsFile, 'utf8');
-    return ensureStateShape(JSON.parse(raw));
-  } catch {
-    const seed = createEmptyPaymentsState();
-    await writeFile(paymentsFile, JSON.stringify(seed, null, 2));
-    return seed;
-  }
-}
-
-async function savePaymentsState(state) {
-  ensureStateShape(state);
-  state.telemetry.updatedAt = new Date().toISOString();
-  state.updatedAt = new Date().toISOString();
-  await writeFile(paymentsFile, JSON.stringify(state, null, 2));
-}
-
-function trackEvent(state, eventName) {
-  ensureStateShape(state);
-  const current = Number(state.telemetry.events[eventName] || 0);
-  state.telemetry.events[eventName] = current + 1;
-}
-
-function trackRpcSuccess(state) {
-  ensureStateShape(state);
-  state.telemetry.rpc.success = Number(state.telemetry.rpc.success || 0) + 1;
-  state.telemetry.rpc.lastOkAt = new Date().toISOString();
-}
-
-function trackRpcFailure(state, message) {
-  ensureStateShape(state);
-  state.telemetry.rpc.failure = Number(state.telemetry.rpc.failure || 0) + 1;
-  state.telemetry.rpc.lastErrorAt = new Date().toISOString();
-  state.telemetry.rpc.lastErrorMessage = String(message || 'unknown');
-}
-
-const rateLimitStore = new Map();
-
-function isRateLimited(req, scope = 'default') {
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
-  const key = `${scope}:${ip}`;
-  const now = Date.now();
-  const windowMs = 60_000;
-  const limit = Number.isFinite(API_RATE_LIMIT_PER_MINUTE) && API_RATE_LIMIT_PER_MINUTE > 0 ? API_RATE_LIMIT_PER_MINUTE : 90;
-  const entry = rateLimitStore.get(key);
-  if (!entry || now - entry.start >= windowMs) {
-    rateLimitStore.set(key, { start: now, count: 1 });
-    return false;
+    return defaultLeaderboard;
   }
   entry.count += 1;
   rateLimitStore.set(key, entry);
@@ -337,312 +242,39 @@ function send(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
-async function readJsonBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', (chunk) => {
-      body += chunk;
-    });
-    req.on('end', () => {
-      try {
-        resolve(JSON.parse(body || '{}'));
-      } catch {
-        reject(new Error('Invalid JSON body'));
-      }
-    });
-  });
-}
-
-function sanitizePayment(payment) {
-  if (!payment) return null;
-  return {
-    id: payment.id,
-    productIds: payment.productIds || [payment.productId],
-    lineItems: payment.lineItems || [],
-    amountSol: payment.amountSol,
-    receiverWallet: payment.receiverWallet,
-    reference: payment.reference,
-    status: payment.status,
-    source: payment.source,
-    buyerWallet: payment.buyerWallet,
-    telegramId: payment.telegramId,
-    createdAt: payment.createdAt,
-    confirmedAt: payment.confirmedAt,
-    txSignature: payment.txSignature,
-    expiresAt: payment.expiresAt,
-  };
-}
-
-
-function isPaymentExpired(payment) {
-  if (!payment?.expiresAt) return false;
-  return Date.now() >= new Date(payment.expiresAt).getTime();
-}
-
-function touchPaymentStatus(payment) {
-  if (!payment || payment.status === 'confirmed' || payment.status === 'expired') return;
-  if (isPaymentExpired(payment)) payment.status = 'expired';
-}
-
-function createExpiresAtIso() {
-  const minutes = Number.isFinite(PAYMENT_EXPIRY_MINUTES) && PAYMENT_EXPIRY_MINUTES > 0 ? PAYMENT_EXPIRY_MINUTES : 15;
-  return new Date(Date.now() + minutes * 60_000).toISOString();
-}
-
-
-function normalizePaymentStatuses(state) {
-  let changed = false;
-  state.payments.forEach((payment) => {
-    const previous = payment.status;
-    touchPaymentStatus(payment);
-    if (payment.status !== previous) changed = true;
-  });
-  return changed;
-}
-
-function paymentMatchesOwner(payment, ownerKeys) {
-  if (!ownerKeys.length) return false;
-  const walletKey = payment.buyerWallet ? `wallet:${payment.buyerWallet}` : null;
-  const telegramKey = payment.telegramId ? `telegram:${payment.telegramId}` : null;
-  return ownerKeys.includes(walletKey) || ownerKeys.includes(telegramKey);
-}
-
-function readOwnerKeysFromQuery(requestUrl) {
-  const wallet = requestUrl.searchParams.get('wallet');
-  const telegramId = requestUrl.searchParams.get('telegramId');
-  const keys = [];
-  if (wallet) keys.push(`wallet:${wallet}`);
-  if (telegramId) keys.push(`telegram:${telegramId}`);
-  return keys;
-}
-
-function nextReceiverWallet(state) {
-  if (!paymentWalletPool.length) {
-    throw new Error('Aucun wallet de réception configuré. Ajouter PAYMENT_WALLET ou PAYMENT_WALLET_POOL.');
-  }
-  const index = state.walletCursor % paymentWalletPool.length;
-  state.walletCursor += 1;
-  return paymentWalletPool[index];
-}
-
-async function verifySolanaPayment(state, { signature, receiverWallet, amountSol, buyerWallet }) {
-  const response = await fetch(SOLANA_RPC_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'getTransaction',
-      params: [signature, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0 }],
-    }),
-  });
-
-  const payload = await response.json();
-  if (!payload.result) {
-    trackRpcFailure(state, payload.error?.message || 'Transaction introuvable sur le RPC Solana.');
-    throw new Error('Transaction introuvable sur le RPC Solana.');
-  }
-
-  const tx = payload.result;
-  if (tx.meta?.err) {
-    trackRpcFailure(state, 'Transaction en erreur onchain.');
-    throw new Error('Transaction en erreur onchain.');
-  }
-
-  const transfers = tx.transaction?.message?.instructions?.filter(
-    (ix) => ix.program === 'system' && ix.parsed?.type === 'transfer',
-  ) || [];
-
-  const minLamports = Math.round(Number(amountSol) * 1_000_000_000);
-  const matchingTransfer = transfers.find((ix) => {
-    const info = ix.parsed?.info || {};
-    const amountOk = Number(info.lamports || 0) >= minLamports;
-    const receiverOk = info.destination === receiverWallet;
-    const senderOk = buyerWallet ? info.source === buyerWallet : true;
-    return amountOk && receiverOk && senderOk;
-  });
-
-  if (!matchingTransfer) {
-    trackRpcFailure(state, 'Aucun transfer SOL valide trouvé (wallet ou montant incorrect).');
-    throw new Error('Aucun transfer SOL valide trouvé (wallet ou montant incorrect).');
-  }
-  trackRpcSuccess(state);
-}
-
-
-async function detectPaymentSignature(state, payment) {
-  const response = await fetch(SOLANA_RPC_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'getSignaturesForAddress',
-      params: [payment.receiverWallet, { limit: 35 }],
-    }),
-  });
-
-  const payload = await response.json();
-  if (!response.ok || payload.error) {
-    trackRpcFailure(state, payload.error?.message || `RPC error ${response.status}`);
-    return null;
-  }
-  trackRpcSuccess(state);
-  const signatures = payload.result || [];
-  const createdAt = new Date(payment.createdAt || Date.now()).getTime();
-
-  for (const entry of signatures) {
-    const signature = entry?.signature;
-    if (!signature) continue;
-    const blockTimeMs = entry.blockTime ? Number(entry.blockTime) * 1000 : Date.now();
-    if (blockTimeMs + 30_000 < createdAt) continue;
-
-    try {
-      await verifySolanaPayment(state, {
-        signature,
-        receiverWallet: payment.receiverWallet,
-        amountSol: payment.amountSol,
-        buyerWallet: payment.buyerWallet,
-      });
-      return signature;
-    } catch {
-      // ignore non-matching transactions
-    }
-  }
-  return null;
-}
-
-function finalizeConfirmedPayment(state, payment, signature) {
-  const existingWithSignature = state.payments.find((entry) => entry.id !== payment.id && entry.txSignature === signature && entry.status === 'confirmed');
-  if (existingWithSignature) {
-    ensureStateShape(state);
-    state.telemetry.fraud.replayBlocked = Number(state.telemetry.fraud.replayBlocked || 0) + 1;
-    throw new Error('Signature déjà utilisée (replay bloqué).');
-  }
-  payment.status = 'confirmed';
-  payment.txSignature = signature;
-  payment.confirmedAt = new Date().toISOString();
-  grantEntitlement(state, payment);
-}
-
-function grantEntitlement(state, payment) {
-  const keys = [];
-  if (payment.telegramId) keys.push(`telegram:${payment.telegramId}`);
-  if (payment.buyerWallet) keys.push(`wallet:${payment.buyerWallet}`);
-
-  const productIds = payment.productIds || [payment.productId].filter(Boolean);
-
-  keys.forEach((ownerKey) => {
-    productIds.forEach((productId) => {
-      const existing = state.entitlements.find((entry) => entry.ownerKey === ownerKey && entry.productId === productId);
-      if (!existing) {
-        state.entitlements.push({
-          id: randomUUID(),
-          ownerKey,
-          productId,
-          paymentId: payment.id,
-          createdAt: new Date().toISOString(),
-        });
-      }
-    });
-  });
-}
-
-async function sendTelegramMessage(chatId, text, replyMarkup) {
-  if (!TELEGRAM_BOT_TOKEN) {
-    return { sent: false, reason: 'TELEGRAM_BOT_TOKEN missing' };
-  }
-
-  const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: 'HTML',
-      reply_markup: replyMarkup,
-    }),
-  });
-
-  if (!response.ok) {
-    const payload = await response.text();
-    throw new Error(`Telegram sendMessage failed: ${payload}`);
-  }
-
-  return { sent: true };
-}
-
-function getMiniAppUrl(productId) {
-  if (!TELEGRAM_MINI_APP_URL) return null;
-  const url = new URL(TELEGRAM_MINI_APP_URL);
-  if (productId) url.searchParams.set('productId', productId);
-  return url.toString();
-}
-
-function parsePath(url = '/') {
-  return url.split('?')[0];
-}
-
-async function resolveCartItems(productIds) {
-  const catalog = await getCatalog();
-  const productsById = new Map(catalog.products.map((p) => [p.id, p]));
-  const uniqueIds = [...new Set((productIds || []).filter(Boolean))];
-  const lineItems = uniqueIds.map((id) => productsById.get(id)).filter(Boolean);
-
-  if (!lineItems.length) {
-    throw new Error('Panier vide ou produits invalides.');
-  }
-
-  const missingIds = uniqueIds.filter((id) => !productsById.has(id));
-  if (missingIds.length) {
-    throw new Error(`Produits introuvables: ${missingIds.join(', ')}`);
-  }
-
-  const amountSol = lineItems.reduce((sum, item) => sum + Number(item.amountSol || 0), 0);
-
-  return {
-    productIds: lineItems.map((item) => item.id),
-    lineItems: lineItems.map((item) => ({
-      id: item.id,
-      name: item.name,
-      amountSol: Number(item.amountSol),
-      type: item.type,
-      categoryId: item.categoryId,
-    })),
-    amountSol: Number(amountSol.toFixed(4)),
-  };
-}
-
-
-let autoDetectSweepInProgress = false;
-
-async function runAutoDetectSweep() {
-  if (autoDetectSweepInProgress) return { changed: 0, scanned: 0 };
-  autoDetectSweepInProgress = true;
+async function getNotifications() {
   try {
-    const state = await getPaymentsState();
-    const pending = state.payments.filter((payment) => payment.status === 'pending');
-    let changed = 0;
-
-    for (const payment of pending) {
-      touchPaymentStatus(payment);
-      if (payment.status !== 'pending') {
-        changed += 1;
-        continue;
-      }
-      const signature = await detectPaymentSignature(state, payment);
-      if (signature) {
-        finalizeConfirmedPayment(state, payment, signature);
-        trackEvent(state, 'paymentConfirm');
-        changed += 1;
-      }
-    }
-
-    if (changed) await savePaymentsState(state);
-    return { changed, scanned: pending.length };
-  } finally {
-    autoDetectSweepInProgress = false;
+    await access(notificationsFile);
+    const raw = await readFile(notificationsFile, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    return [];
   }
+}
+
+function computeOpsSnapshot(content) {
+  const modules = content.modules || [];
+  const lessons = modules.flatMap((module) => module.lessons || []);
+  const packs = content.packs || [];
+  const replays = content.liveReplays || [];
+  return {
+    modulesWithoutLessons: modules.filter((module) => !(module.lessons || []).length).length,
+    lessonsWithoutContent: lessons.filter((lesson) => !(lesson.content || '').trim()).length,
+    packsWithoutCover: packs.filter((pack) => !(pack.coverImage || '').trim()).length,
+    packsWithoutModules: packs.filter((pack) => !(pack.moduleIds || []).length).length,
+    replaysWithoutUrl: replays.filter((replay) => !(replay.url || '').trim()).length,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function send(res, status, payload) {
+  res.writeHead(status, {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,PUT,POST,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  });
+  res.end(JSON.stringify(payload));
 }
 
 const server = createServer(async (req, res) => {
@@ -955,45 +587,44 @@ const server = createServer(async (req, res) => {
     }
   }
 
-
-  if (pathName === '/api/waitlist/subscribe' && req.method === 'POST') {
-    try {
-      const body = await readJsonBody(req);
-      if (!body.productId || !body.email) {
-        return send(res, 400, { ok: false, error: 'productId and email are required.' });
-      }
-
-      const waitlist = await getWaitlistState();
-      const exists = waitlist.entries.find((entry) => entry.productId === body.productId && entry.email.toLowerCase() === String(body.email).toLowerCase());
-      if (!exists) {
-        waitlist.entries.push({
-          id: randomUUID(),
-          productId: body.productId,
-          email: String(body.email).trim(),
-          telegramId: body.telegramId ? String(body.telegramId) : null,
-          createdAt: new Date().toISOString(),
-        });
-        await saveWaitlistState(waitlist);
-      }
-
-      return send(res, 200, { ok: true });
-    } catch (error) {
-      return send(res, 400, { ok: false, error: error.message });
-    }
+  if (req.url === '/api/academy/leaderboard' && req.method === 'GET') {
+    const leaderboard = await getLeaderboard();
+    return send(res, 200, leaderboard);
   }
 
-  if (pathName === '/api/access/check' && req.method === 'GET') {
-    const productId = requestUrl.searchParams.get('productId');
-    if (!productId) return send(res, 400, { ok: false, error: 'productId requis.' });
-
-    const keys = readOwnerKeysFromQuery(requestUrl);
-
-    const state = await getPaymentsState();
-    const entitlement = state.entitlements.find((entry) => entry.productId === productId && keys.includes(entry.ownerKey));
-    return send(res, 200, { ok: true, granted: Boolean(entitlement), entitlement: entitlement || null });
+  if (req.url === '/api/academy/ops' && req.method === 'GET') {
+    const content = await getContent();
+    return send(res, 200, computeOpsSnapshot(content));
   }
 
-  if (pathName === '/health') return send(res, 200, { ok: true });
+  if (req.url === '/api/academy/notifications' && req.method === 'GET') {
+    const subscriptions = await getNotifications();
+    return send(res, 200, subscriptions);
+  }
+
+  if (req.url === '/api/academy/notifications' && req.method === 'POST') {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+    });
+    req.on('end', async () => {
+      try {
+        const parsed = JSON.parse(body || '{}');
+        const channel = String(parsed.channel || '').trim();
+        const contact = String(parsed.contact || '').trim();
+        if (!channel || !contact) return send(res, 400, { ok: false, error: 'channel/contact required' });
+        const existing = await getNotifications();
+        const next = [{ id: `sub-${Date.now()}`, channel, contact, createdAt: new Date().toISOString() }, ...existing].slice(0, 200);
+        await writeFile(notificationsFile, JSON.stringify(next, null, 2));
+        return send(res, 200, { ok: true });
+      } catch {
+        return send(res, 400, { ok: false, error: 'Invalid JSON body' });
+      }
+    });
+    return;
+  }
+
+  if (req.url === '/health') return send(res, 200, { ok: true });
   return send(res, 404, { ok: false, error: 'Not found' });
 });
 
