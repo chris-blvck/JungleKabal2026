@@ -1,0 +1,236 @@
+{
+  "version": 12,
+  "currency": "SOL",
+  "categories": [
+    {
+      "id": "kourses",
+      "name": "Kourses",
+      "description": "Core training paths.",
+      "accent": "from-amber-400/30 to-fuchsia-500/20"
+    },
+    {
+      "id": "kodex",
+      "name": "Kodex",
+      "description": "Resources & playbooks.",
+      "accent": "from-cyan-400/30 to-violet-500/20"
+    },
+    {
+      "id": "koaching",
+      "name": "Koaching",
+      "description": "Private coaching.",
+      "accent": "from-emerald-400/30 to-sky-400/20"
+    },
+    {
+      "id": "skins",
+      "name": "Skins",
+      "description": "Cosmetics for Die in the Jungle.",
+      "accent": "from-fuchsia-400/30 to-violet-500/20"
+    },
+    {
+      "id": "bundles",
+      "name": "Bundles",
+      "description": "Mixed cosmetic packs.",
+      "accent": "from-sky-400/30 to-cyan-500/20"
+    },
+    {
+      "id": "passes",
+      "name": "Passes",
+      "description": "Seasonal access and rewards.",
+      "accent": "from-violet-400/30 to-amber-500/20"
+    }
+  ],
+  "roadmap": [
+    {
+      "id": "phase-1",
+      "title": "Phase 1 \u00b7 Payment UX hardening",
+      "status": "done",
+      "items": [
+        "Status polling every 4s",
+        "Pending/confirmed/expired states",
+        "Payment expiry handling"
+      ]
+    },
+    {
+      "id": "phase-2",
+      "title": "Phase 2 \u00b7 Access and history inside mini app",
+      "status": "done",
+      "items": [
+        "My Access panel \u2705",
+        "Purchase history endpoint \u2705",
+        "Owner-based filtering by wallet/telegram \u2705",
+        "Die in the Jungle shop mode \u2705",
+        "Academy entitlement gating \u2705"
+      ]
+    },
+    {
+      "id": "phase-3",
+      "title": "Phase 3 \u00b7 Launch hardening",
+      "status": "in_progress",
+      "items": [
+        "Auto-confirmation worker \u2705",
+        "Deep wallet integration \u2705",
+        "Telemetry dashboard + anti-fraud \u2705"
+      ]
+    }
+  ],
+  "products": [
+    {
+      "id": "kourse-memecoins-beginner-free",
+      "type": "kourse",
+      "categoryId": "kourses",
+      "name": "MEMECOINS COURSE (BEGINNER)",
+      "description": "FREE STARTER with symbolic activation.",
+      "amountSol": 1e-05,
+      "cover": "https://i.postimg.cc/jdH0StDF/Chat-GPT-Image-14-mars-2026-16-20-50.png",
+      "isFreePack": true,
+      "lessonsIncluded": [
+        "Memecoin Basics",
+        "Starter Setup",
+        "Entry / Exit Rules",
+        "Risk Guardrails"
+      ],
+      "upsellProductIds": [
+        "kodex-wallet-tracker"
+      ]
+    },
+    {
+      "id": "kodex-wallet-tracker",
+      "type": "kodex",
+      "categoryId": "kodex",
+      "name": "KODEX \u00b7 WALLET TRACKER",
+      "description": "Smart-money wallet tracking framework.",
+      "amountSol": 2.5,
+      "cover": "https://i.postimg.cc/jdH0StDF/Chat-GPT-Image-14-mars-2026-16-20-50.png",
+      "lessonsIncluded": [
+        "Wallet Clusters",
+        "Signal Filtering",
+        "Execution Watchlist"
+      ],
+      "upsellProductIds": [
+        "koaching-mindset-coming-soon"
+      ]
+    },
+    {
+      "id": "koaching-mindset-coming-soon",
+      "type": "koaching",
+      "categoryId": "koaching",
+      "name": "MINDSET",
+      "description": "COMING SOON",
+      "amountSol": 0,
+      "cover": "https://i.postimg.cc/jdH0StDF/Chat-GPT-Image-14-mars-2026-16-20-50.png",
+      "comingSoon": true,
+      "lessonsIncluded": [
+        "Anti-Tilt Protocol",
+        "Mental Resets",
+        "Performance Journaling"
+      ],
+      "upsellProductIds": []
+    },
+    {
+      "id": "kourse-memecoins-intermediate-snipers",
+      "type": "kourse",
+      "categoryId": "kourses",
+      "name": "MEMECOINS COURSE (INTERMEDIATE)",
+      "description": "Sniper setups, liquidity reads, and momentum execution.",
+      "amountSol": 1.25,
+      "cover": "https://i.postimg.cc/jdH0StDF/Chat-GPT-Image-14-mars-2026-16-20-50.png",
+      "lessonsIncluded": [
+        "Launch Filters",
+        "Liquidity Mapping",
+        "Momentum Entries",
+        "Scaling Out Plan"
+      ],
+      "upsellProductIds": [
+        "kodex-wallet-tracker"
+      ]
+    },
+    {
+      "id": "kourse-memecoins-advanced-warfare",
+      "type": "kourse",
+      "categoryId": "kourses",
+      "name": "MEMECOINS COURSE (ADVANCED)",
+      "description": "Advanced playbook for volatility wars and portfolio defense.",
+      "amountSol": 2.75,
+      "cover": "https://i.postimg.cc/jdH0StDF/Chat-GPT-Image-14-mars-2026-16-20-50.png",
+      "lessonsIncluded": [
+        "Narrative Rotation",
+        "Whale Behavior",
+        "Volatility Hedge",
+        "Capital Protection"
+      ],
+      "upsellProductIds": [
+        "koaching-mindset-coming-soon"
+      ]
+    },
+    {
+      "id": "ditj-skin-kabalian-shadow",
+      "type": "skin",
+      "categoryId": "skins",
+      "app": "diejungle",
+      "name": "KABALIAN \u00b7 SHADOW STALKER",
+      "description": "Legendary dark variant skin for Kabalian.",
+      "amountSol": 0.65,
+      "cover": "https://i.postimg.cc/jdH0StDF/Chat-GPT-Image-14-mars-2026-16-20-50.png",
+      "lessonsIncluded": [
+        "Custom avatar frame",
+        "Combat aura",
+        "Victory pose"
+      ],
+      "upsellProductIds": [
+        "ditj-bundle-jungle-hunter-pack"
+      ]
+    },
+    {
+      "id": "ditj-skin-kkm-solar-guard",
+      "type": "skin",
+      "categoryId": "skins",
+      "app": "diejungle",
+      "name": "KKM \u00b7 SOLAR GUARD",
+      "description": "Tank skin with solar shield visuals.",
+      "amountSol": 0.65,
+      "cover": "https://i.postimg.cc/jdH0StDF/Chat-GPT-Image-14-mars-2026-16-20-50.png",
+      "lessonsIncluded": [
+        "Solar shield FX",
+        "Golden idle animation",
+        "Exclusive badge"
+      ],
+      "upsellProductIds": [
+        "ditj-bundle-jungle-hunter-pack"
+      ]
+    },
+    {
+      "id": "ditj-bundle-jungle-hunter-pack",
+      "type": "bundle",
+      "categoryId": "bundles",
+      "app": "diejungle",
+      "name": "JUNGLE HUNTER PACK",
+      "description": "2 premium skins + dice cosmetic set.",
+      "amountSol": 1.35,
+      "cover": "https://i.postimg.cc/jdH0StDF/Chat-GPT-Image-14-mars-2026-16-20-50.png",
+      "lessonsIncluded": [
+        "Shadow Stalker skin",
+        "Solar Guard skin",
+        "Dice cosmetic V1"
+      ],
+      "upsellProductIds": [
+        "ditj-pass-founder-season-zero"
+      ]
+    },
+    {
+      "id": "ditj-pass-founder-season-zero",
+      "type": "pass",
+      "categoryId": "passes",
+      "app": "diejungle",
+      "name": "FOUNDER PASS \u00b7 SEASON ZERO",
+      "description": "Founding pass with future exclusive drops.",
+      "amountSol": 1.95,
+      "cover": "https://i.postimg.cc/jdH0StDF/Chat-GPT-Image-14-mars-2026-16-20-50.png",
+      "lessonsIncluded": [
+        "Founder badge",
+        "Priority skin drops",
+        "Season 0 chest"
+      ],
+      "upsellProductIds": []
+    }
+  ]
+}
