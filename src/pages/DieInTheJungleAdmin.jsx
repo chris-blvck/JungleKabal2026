@@ -152,8 +152,10 @@ const DEFAULT_XP_THRESHOLDS = [
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 const TABS = [
+  { id: 'onboarding', label: '🧭 Onboarding' },
   { id: 'ops', label: '🎮 OPS' },
   { id: 'difficulty', label: '💀 Difficulty' },
+  { id: 'pool', label: '🎱 Pool' },
   { id: 'enemies', label: '👹 Enemies' },
   { id: 'artifacts', label: '💎 Artifacts' },
   { id: 'events', label: '🎲 Events' },
@@ -166,6 +168,7 @@ const TABS = [
   { id: 'docs', label: '📚 Docs' },
   { id: 'sound', label: '🎵 Sound' },
   { id: 'brand', label: '🎨 Brand Kit' },
+  { id: 'testgame', label: '🕹️ Test Game' },
   { id: 'advanced', label: '🔬 Advanced' },
 ];
 
@@ -268,8 +271,17 @@ const EMPTY_CONFIG = {
   sprintItems: [],
   narrativeArcs: {},
   xpThresholds: DEFAULT_XP_THRESHOLDS,
+  xpGemCosts: Array(20).fill(0),
+  xpLevelRewards: Array(20).fill(''),
+  runRewards: { baseXp: 50, xpPerKill: 10, xpPerZone: 80, baseGems: 5, gemsPerBoss: 20, bonusGemsOnWin: 50 },
   npcEncounters: [],
   restCamp: { healPercent: 30, bonusXp: 50, specialEvents: [] },
+  pools: {
+    artifactWeights: { gray: 4, gold: 3, chrome: 1 },
+    starterWeights: { gray: 6, gold: 3, chrome: 1 },
+    shopItemEnabled: {},
+    mapNodeWeights: { combat: 3, shop: 1, rest: 1, event: 1 },
+  },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -328,8 +340,17 @@ function withDefaults(raw = {}) {
     sprintItems: Array.isArray(raw.sprintItems) ? raw.sprintItems : [],
     narrativeArcs: raw.narrativeArcs && typeof raw.narrativeArcs === 'object' ? raw.narrativeArcs : {},
     xpThresholds: Array.isArray(raw.xpThresholds) ? raw.xpThresholds : DEFAULT_XP_THRESHOLDS,
+    xpGemCosts: Array.isArray(raw.xpGemCosts) ? raw.xpGemCosts : Array(20).fill(0),
+    xpLevelRewards: Array.isArray(raw.xpLevelRewards) ? raw.xpLevelRewards : Array(20).fill(''),
+    runRewards: { ...EMPTY_CONFIG.runRewards, ...(raw.runRewards || {}) },
     npcEncounters: Array.isArray(raw.npcEncounters) ? raw.npcEncounters : [],
     restCamp: { ...EMPTY_CONFIG.restCamp, ...(raw.restCamp || {}) },
+    pools: {
+      artifactWeights: { ...EMPTY_CONFIG.pools.artifactWeights, ...(raw.pools?.artifactWeights || {}) },
+      starterWeights: { ...EMPTY_CONFIG.pools.starterWeights, ...(raw.pools?.starterWeights || {}) },
+      shopItemEnabled: raw.pools?.shopItemEnabled && typeof raw.pools.shopItemEnabled === 'object' ? raw.pools.shopItemEnabled : {},
+      mapNodeWeights: { ...EMPTY_CONFIG.pools.mapNodeWeights, ...(raw.pools?.mapNodeWeights || {}) },
+    },
   };
 }
 
@@ -1657,45 +1678,91 @@ export default function DieInTheJungleAdmin() {
         ══════════════════════════════════════════════════════════════════════ */}
         {activeTab === 'metaxp' && (
           <div className="space-y-6">
+            {/* Run Reward Config */}
+            <SectionCard title="🏆 Run Reward Config">
+              <p className="text-zinc-400 text-sm mb-4">How much XP and Gems players earn per run. These values are used by the backend when recording run end.</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {[
+                  { key: 'baseXp', label: 'Base XP / Run', min: 0, max: 500 },
+                  { key: 'xpPerKill', label: 'XP per Kill', min: 0, max: 50 },
+                  { key: 'xpPerZone', label: 'XP per Zone Cleared', min: 0, max: 200 },
+                  { key: 'baseGems', label: 'Base Gems / Run', min: 0, max: 100 },
+                  { key: 'gemsPerBoss', label: 'Gems per Boss Kill', min: 0, max: 100 },
+                  { key: 'bonusGemsOnWin', label: 'Bonus Gems (Win Run)', min: 0, max: 200 },
+                ].map(({ key, label, min, max }) => (
+                  <div key={key} className="space-y-1">
+                    <label className="text-xs text-zinc-400">{label}</label>
+                    <div className="flex items-center gap-2">
+                      <input type="range" min={min} max={max}
+                        value={config.runRewards?.[key] ?? EMPTY_CONFIG.runRewards[key]}
+                        onChange={(e) => setConfig(p => ({ ...p, runRewards: { ...(p.runRewards || {}), [key]: Number(e.target.value) } }))}
+                        className="flex-1 accent-amber-400" />
+                      <input type="number" min={min} max={max}
+                        value={config.runRewards?.[key] ?? EMPTY_CONFIG.runRewards[key]}
+                        onChange={(e) => setConfig(p => ({ ...p, runRewards: { ...(p.runRewards || {}), [key]: Number(e.target.value) } }))}
+                        className="w-16 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-sm text-amber-300 text-center" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 p-3 rounded-lg bg-zinc-800/50 border border-zinc-700 text-xs text-zinc-400 space-y-1">
+                <div>💡 <strong className="text-zinc-300">Example run (Zone 2 clear, 12 kills, no boss):</strong></div>
+                <div className="text-amber-300 font-mono">
+                  XP = {(config.runRewards?.baseXp ?? 50)} + (12 × {(config.runRewards?.xpPerKill ?? 10)}) + (2 × {(config.runRewards?.xpPerZone ?? 80)}) = {(config.runRewards?.baseXp ?? 50) + 12 * (config.runRewards?.xpPerKill ?? 10) + 2 * (config.runRewards?.xpPerZone ?? 80)} XP
+                </div>
+                <div className="text-emerald-300 font-mono">
+                  Gems = {(config.runRewards?.baseGems ?? 5)} base = {(config.runRewards?.baseGems ?? 5)} 💎
+                </div>
+              </div>
+              <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Run Rewards</AmberBtn>
+            </SectionCard>
+
+            {/* XP Threshold Table */}
             <SectionCard title="📈 XP Thresholds (Level 1–20)">
-              <p className="text-zinc-400 text-sm">Cumulative XP required to reach each level.</p>
+              <p className="text-zinc-400 text-sm mb-3">Cumulative XP required to reach each level. Set gem cost to 0 for free unlock.</p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-zinc-700 text-zinc-400 text-xs">
-                      <th className="text-left py-2 pr-4">Level</th>
-                      <th className="text-left py-2 pr-4">XP Threshold</th>
-                      <th className="text-left py-2 pr-4">Gem Cost (Unlock)</th>
-                      <th className="text-left py-2">Unlocks</th>
+                      <th className="text-left py-2 pr-3 w-10">Lv</th>
+                      <th className="text-left py-2 pr-3">XP Required</th>
+                      <th className="text-left py-2 pr-3">Gem Cost</th>
+                      <th className="text-left py-2 pr-3">Reward / Unlock</th>
+                      <th className="text-left py-2">Reward Label</th>
                     </tr>
                   </thead>
                   <tbody>
                     {Array.from({ length: 20 }).map((_, i) => (
                       <tr key={i} className="border-b border-zinc-800/60 hover:bg-zinc-800/30">
-                        <td className="py-2 pr-4 font-bold text-amber-400">{i + 1}</td>
-                        <td className="py-2 pr-4">
-                          <input
-                            type="number"
+                        <td className="py-1.5 pr-3 font-bold text-amber-400 text-sm">{i + 1}</td>
+                        <td className="py-1.5 pr-3">
+                          <input type="number"
                             value={(config.xpThresholds || DEFAULT_XP_THRESHOLDS)[i] ?? 0}
                             onChange={(e) => updateXpThreshold(i, e.target.value)}
-                            className="w-28 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-sm text-zinc-100"
-                          />
+                            className="w-24 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-sm text-zinc-100" />
                         </td>
-                        <td className="py-2 pr-4">
-                          <input
-                            type="number"
-                            placeholder="0"
-                            value={config.xpGemCosts?.[i] ?? ''}
+                        <td className="py-1.5 pr-3">
+                          <input type="number" placeholder="0"
+                            value={config.xpGemCosts?.[i] ?? 0}
                             onChange={(e) => {
                               const costs = [...(config.xpGemCosts || Array(20).fill(0))];
                               costs[i] = Number(e.target.value);
                               setConfig(p => ({ ...p, xpGemCosts: costs }));
                             }}
-                            className="w-20 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-sm text-zinc-100"
-                          />
+                            className="w-16 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-sm text-zinc-100" />
                         </td>
-                        <td className="py-2 text-xs text-zinc-500">
-                          {ALL_UNLOCK_IDS[i] || '—'}
+                        <td className="py-1.5 pr-3 text-xs text-amber-400/80 font-mono">
+                          {ALL_UNLOCK_IDS[i] || <span className="text-zinc-600">—</span>}
+                        </td>
+                        <td className="py-1.5">
+                          <input type="text" placeholder="e.g. +5 max HP, new companion..."
+                            value={config.xpLevelRewards?.[i] ?? ''}
+                            onChange={(e) => {
+                              const rewards = [...(config.xpLevelRewards || Array(20).fill(''))];
+                              rewards[i] = e.target.value;
+                              setConfig(p => ({ ...p, xpLevelRewards: rewards }));
+                            }}
+                            className="w-48 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-xs text-zinc-300" />
                         </td>
                       </tr>
                     ))}
@@ -1705,15 +1772,21 @@ export default function DieInTheJungleAdmin() {
               <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save XP Table</AmberBtn>
             </SectionCard>
 
-            <SectionCard title="Unlock Tree">
-              <p className="text-zinc-400 text-sm mb-3">Unlock dependencies (level-gated).</p>
-              <div className="space-y-2">
+            {/* Unlock Tree visual */}
+            <SectionCard title="🔓 Unlock Tree">
+              <p className="text-zinc-400 text-sm mb-3">Sequential unlock dependencies (meta progression path).</p>
+              <div className="flex flex-wrap gap-2 items-center">
                 {ALL_UNLOCK_IDS.map((id, i) => (
-                  <div key={id} className="flex items-center gap-3 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2">
-                    <span className="text-amber-400 font-bold text-sm w-8">Lv{i + 2}</span>
-                    <span className="font-mono text-sm text-zinc-200">{id}</span>
-                    {i > 0 && <span className="text-xs text-zinc-500">← requires {ALL_UNLOCK_IDS[i - 1]}</span>}
-                  </div>
+                  <React.Fragment key={id}>
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-center min-w-[100px]">
+                        <div className="text-[10px] text-zinc-500 mb-0.5">Lv {i + 2}</div>
+                        <div className="text-xs font-mono text-amber-300 leading-tight">{id}</div>
+                        {config.xpLevelRewards?.[i + 1] && <div className="text-[9px] text-zinc-400 mt-1 italic">{config.xpLevelRewards[i + 1]}</div>}
+                      </div>
+                    </div>
+                    {i < ALL_UNLOCK_IDS.length - 1 && <span className="text-zinc-600 text-sm">→</span>}
+                  </React.Fragment>
                 ))}
               </div>
             </SectionCard>
@@ -1868,31 +1941,35 @@ export default function DieInTheJungleAdmin() {
             {[
               {
                 title: '🎮 Game Loop',
-                content: `Die In The Jungle is a roguelite dice-based combat game. Each run the player navigates a branching zone map, fighting enemies, visiting shops, rest camps, and random events.\n\nCombat: Player rolls 5 dice each turn and places them in 3 lanes (Top/Mid/Bot). Each die resolves its lane effect based on its face type (Attack, Shield, Heal, Special). After placing, enemies execute their intent. SURGE: 3 dice of the same type in one turn trigger a bonus.\n\nRun ends when player HP reaches 0 or all zones are cleared.`,
+                content: `DIE IN THE JUNGLE — Roguelite Dice Combat\n\nEach run: navigate a branching zone map → fight enemies → visit shops, rest camps, random events → defeat zone boss → repeat × 3 zones.\n\nCOMBAT TURN:\n1. Roll 5 dice\n2. Place dice into 3 lanes (Top / Mid / Bot)\n3. Each lane resolves its effect (attack, shield, heal)\n4. Enemy executes its intent\n5. New turn begins\n\nLANE BONUSES:\n• Top row heal die → reset random ability cooldown\n• Bot row: +1 coin per die placed\n• Mid row 2× same type → +5 score\n\nSURGE: Place 3 dice of the same type in one turn → bonus effect triggers\n\nRun ends when: player HP = 0 (death) or all zone bosses cleared (victory)`,
               },
               {
                 title: '🎲 Dice System',
-                content: `Standard dice have faces: ATK (swords), DEF (shield), HEAL (heart), ENERGY (bolt).\n\nSpecial faces (unlockable): PIERCE — damage ignores defense. ECHO — repeats last lane. NURTURE — heals based on allies. FORTRESS — grants a shield block for 2 turns.\n\nDice can be rerolled for a score cost (configurable via rerollCostScore). SURGE triggers when 3+ dice of same type are placed in a single turn.`,
+                content: `STANDARD FACES:\n• ATK (⚔️) — deals damage equal to ATK stat\n• DEF (🛡️) — grants shield points\n• HEAL (❤️) — restores HP\n• ENERGY (⚡) — charges mana or ability\n\nSPECIAL FACES (unlockable via meta):\n• PIERCE — damage ignores all enemy defense\n• ECHO — repeats the effect of the previous lane\n• NURTURE — heals proportional to alive companions\n• FORTRESS — blocks next 2 attacks completely\n\nREROLL: Costs rerollCostScore points (default 20). Can be done before placing.\nSURGE: 3+ same type in one turn → bonus effect\n\nCONFIG KEYS: rerollCostScore, critChance, critMultiplier`,
               },
               {
                 title: '⚔️ Combat System',
-                content: `Enemies have intents (declared at start of turn): Attack, Block, Buff, Special. Modifiers: venom (DoT), thorns (reflect), regen (HP regen), berserk (double damage next turn), stoneSkin (high defense), swift (acts twice).\n\nPlayer stats: HP, ATK, DEF, Speed. Critical hit chance and multiplier are configurable. Dodge chance allows complete avoidance. Life steal heals player on hit. Boss HP/Damage multipliers apply on top of base stats.`,
+                content: `ENEMY INTENTS (declared each turn):\n• Attack — will deal X damage\n• Block — will gain Y shield\n• Buff — will apply a modifier\n• Special — unique boss ability\n\nENEMY MODIFIERS:\n• venom — deals DoT each turn\n• thorns — reflects % damage back to player\n• regen — enemy regenerates HP each turn\n• berserk — doubles damage next turn\n• stoneSkin — very high defense\n• swift — enemy acts twice per turn\n\nPLAYER STATS: HP, ATK, DEF, Speed\nCONFIG: critChance, critMultiplier, dodgeChance, lifeSteal, bossHpMultiplier, bossDamageMultiplier`,
               },
               {
                 title: '🦎 Companion System',
-                content: `Companions are unlocked via meta progression. Available: Gecko 🦎 (passive: +dodge chance, active: Hypnose — stuns enemy for 1 turn), Croak 🐊 (passive: +ATK, active: Leap — deals burst damage), L\'Oeil 👁️ (passive: reveals enemy intents, active: Vision — exposes all hidden buffs).\n\nOne companion per run. Companion ability has a cooldown measured in turns.`,
+                content: `One companion per run. Unlocked via meta progression.\n\nGECKO 🦎\n  Passive: +dodge chance on all attacks\n  Active: Hypnose — stuns enemy for 1 turn\n  Unlock: companion_gecko\n\nCROAK 🐊\n  Passive: +ATK stat boost\n  Active: Leap — deals burst damage\n  Unlock: companion_croak\n\nL'OEIL 👁️\n  Passive: reveals enemy intents 1 turn ahead\n  Active: Vision — exposes all hidden buffs + free reroll\n  Unlock: companion_oeil\n\nCOMPANION FLOW: select before run → companion visible in combat → active ability button appears (mana/CD gated)`,
               },
               {
                 title: '📈 Meta Progression',
-                content: `XP and Gems are awarded at run end. XP levels up the player and unlocks new features via the unlock tree. Gems can be spent to buy unlocks early or reroll.\n\nUnlock tree (order): character_kkm → weapon_slot_1 → dice_specials → lane_bonuses → companion_gecko → companion_croak → weapon_slot_2 → companion_oeil.\n\nAchievements are milestone flags (zone boss firsts, etc.) stored per-player.`,
+                content: `XP earned per run → levels up player → unlocks features sequentially.\nGems earned per run → spend on early unlocks or shop items.\n\nUNLOCK TREE (sequential):\n  Lv2: character_kkm\n  Lv3: weapon_slot_1\n  Lv4: dice_specials (Pierce/Echo/Nurture/Fortress)\n  Lv5: lane_bonuses\n  Lv6: companion_gecko\n  Lv7: companion_croak\n  Lv8: weapon_slot_2\n  Lv9: companion_oeil\n\nACHIEVEMENTS: zone1_boss_first, zone2_boss_first, zone3_boss_first, zone4_boss_first\n\nlocalStorage keys:\n  jk_meta_progression_v1  — XP, gems, unlocks, achievements\n  jungle_kabal_run_state_v1 — active run state\n  jungle_kabal_leaderboard_v1 — local scores`,
               },
               {
                 title: '🔌 API Endpoints',
-                content: `GET  /api/miniapp/config — Load game config\nPUT  /api/miniapp/config — Save game config\nPOST /api/miniapp/assets/upload-batch — Upload assets (batch)\nPOST /api/miniapp/runs/start — Record run start\nPOST /api/miniapp/runs/end — Record run end (awards XP/gems)\nGET  /api/miniapp/leaderboard — Get leaderboard entries\nPOST /api/miniapp/referral — Record referral\nGET  /api/miniapp/user/:id — Get user meta`,
+                content: `GAME CONFIG:\n  GET  /api/miniapp/config         — Load game config JSON\n  PUT  /api/miniapp/config         — Save game config JSON\n\nASSETS:\n  POST /api/miniapp/assets/upload-batch  — Upload up to 30 images (base64)\n\nRUNS:\n  POST /api/miniapp/runs/start     — Record run start (telegramId, character)\n  POST /api/miniapp/runs/end       — Record run end → awards XP + gems\n  GET  /api/miniapp/leaderboard    — Get top scores\n\nUSER:\n  GET  /api/miniapp/user/:id       — Get user meta progression\n  POST /api/miniapp/referral       — Record referral link click\n\nAll responses: { ok: true/false, ...data }\nAuth: Telegram initData passed in Authorization header or body.telegramInitData`,
               },
               {
                 title: '🚀 Deployment',
-                content: `Frontend: Vite + React, deployed via static build. Routes: /diejungle (game), /diejungle/admin (this panel).\n\nBackend: Node.js Express API at /api/miniapp/*. Assets stored in /public/uploads or CDN.\n\nTelegram Mini App: Separate Vite app on port 5180 (dev) or embedded via botFather webAppUrl. Uses Telegram WebApp SDK for auth (initDataUnsafe).`,
+                content: `FRONTEND:\n  Vite + React + Tailwind CSS\n  npm run dev    → localhost:5173\n  npm run build  → /dist (static)\n  Routes: /diejungle (game), /diejungle/admin (this panel)\n\nBACKEND:\n  Node.js HTTP server (server/index.mjs)\n  npm run api    → localhost:8787\n  Data: server/data/*.json (persisted as flat JSON files)\n  Env: ACADEMY_API_PORT, CORS_ALLOW_ORIGIN\n\nTELEGRAM MINI APP:\n  Separate Vite bundle on port 5180 (dev)\n  Uses Telegram WebApp SDK (window.Telegram.WebApp)\n  Auth: initDataUnsafe.user for identity\n  Set via BotFather → Edit Bot → Bot Settings → Menu Button\n\nVERCEL DEPLOY:\n  Push to main → Vercel auto-deploys frontend\n  Backend runs on separate server (not Vercel serverless)\n  Env vars set in Vercel dashboard`,
+              },
+              {
+                title: '📋 Known Bugs & P0 Fixes',
+                content: `CRITICAL BUGS:\n• KKM character NOT gated by character_kkm unlock (always available)\n• Weapon system (weapons.ts) imported but ZERO usage in game code\n• Companion selection screen missing before run start\n• Map doesn't visually refresh after combat (node not marked visited)\n• No shop node guaranteed on map — player can miss shop entirely\n• No boss node at zone end — structure is random\n• Lane bonuses (botRowDiceCount coins, topRowHasHeal reset CD) defined but not triggered\n• Echo dice face behavior unclear — spec needed\n• hasCurse flag set on enemies but never read — dead code\n• Wallet connect button still visible in game UI\n• Zone scaling caps at zone 4 (endless mode needs cap removed)\n\nP1 FEATURES MISSING:\n• Pre-run screen (character + weapon + companion selection)\n• Post-combat loot popup (Max HP / Mana / Coin choice)\n• Companion active ability button in combat\n• Mana resource system\n• Biome system (jungle/ruins/temple backgrounds per zone)`,
               },
             ].map((doc) => (
               <details key={doc.title} className="rounded-xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
@@ -2194,6 +2271,496 @@ export default function DieInTheJungleAdmin() {
                 onSave={(value) => setConfig((p) => ({ ...p, randomEvents: value }))}
                 rows={12}
               />
+            </SectionCard>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            POOL TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'pool' && (
+          <div className="space-y-6">
+            <SectionCard title="🎱 Drop Pool Configuration">
+              <p className="text-zinc-400 text-sm">Control rarity weights, map node distribution, and which shop items appear. Higher number = more likely to appear.</p>
+            </SectionCard>
+
+            {/* Artifact Weights */}
+            <SectionCard title="💎 Artifact Drop Weights">
+              <p className="text-zinc-400 text-sm mb-4">Relative probability when the game picks a random artifact rarity. Total is normalized automatically.</p>
+              {[
+                { key: 'gray', label: '⬜ Gray (Common)', color: 'zinc' },
+                { key: 'gold', label: '🟡 Gold (Rare)', color: 'amber' },
+                { key: 'chrome', label: '🔵 Chrome (Epic)', color: 'cyan' },
+              ].map(({ key, label }) => {
+                const total = Object.values(config.pools?.artifactWeights || {}).reduce((s, v) => s + v, 0);
+                const val = config.pools?.artifactWeights?.[key] ?? 1;
+                const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+                return (
+                  <div key={key} className="flex items-center gap-3 mb-3">
+                    <span className="text-sm text-zinc-300 w-40 shrink-0">{label}</span>
+                    <input type="range" min={0} max={20} value={val}
+                      onChange={(e) => setConfig(p => ({ ...p, pools: { ...p.pools, artifactWeights: { ...(p.pools?.artifactWeights || {}), [key]: Number(e.target.value) } } }))}
+                      className="flex-1 accent-amber-400" />
+                    <input type="number" min={0} max={20} value={val}
+                      onChange={(e) => setConfig(p => ({ ...p, pools: { ...p.pools, artifactWeights: { ...(p.pools?.artifactWeights || {}), [key]: Number(e.target.value) } } }))}
+                      className="w-14 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-sm text-center text-zinc-100" />
+                    <span className="text-xs text-amber-400 w-12 text-right">{pct}%</span>
+                  </div>
+                );
+              })}
+            </SectionCard>
+
+            {/* Starter Artifact Weights */}
+            <SectionCard title="🎁 Starter Artifact Weights">
+              <p className="text-zinc-400 text-sm mb-4">Rarity weights for the artifact the player starts the run with (before entering zone 1).</p>
+              {[
+                { key: 'gray', label: '⬜ Gray (Common)' },
+                { key: 'gold', label: '🟡 Gold (Rare)' },
+                { key: 'chrome', label: '🔵 Chrome (Epic)' },
+              ].map(({ key, label }) => {
+                const total = Object.values(config.pools?.starterWeights || {}).reduce((s, v) => s + v, 0);
+                const val = config.pools?.starterWeights?.[key] ?? 1;
+                const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+                return (
+                  <div key={key} className="flex items-center gap-3 mb-3">
+                    <span className="text-sm text-zinc-300 w-40 shrink-0">{label}</span>
+                    <input type="range" min={0} max={20} value={val}
+                      onChange={(e) => setConfig(p => ({ ...p, pools: { ...p.pools, starterWeights: { ...(p.pools?.starterWeights || {}), [key]: Number(e.target.value) } } }))}
+                      className="flex-1 accent-amber-400" />
+                    <input type="number" min={0} max={20} value={val}
+                      onChange={(e) => setConfig(p => ({ ...p, pools: { ...p.pools, starterWeights: { ...(p.pools?.starterWeights || {}), [key]: Number(e.target.value) } } }))}
+                      className="w-14 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-sm text-center text-zinc-100" />
+                    <span className="text-xs text-amber-400 w-12 text-right">{pct}%</span>
+                  </div>
+                );
+              })}
+            </SectionCard>
+
+            {/* Map Node Weights */}
+            <SectionCard title="🗺️ Map Node Type Weights">
+              <p className="text-zinc-400 text-sm mb-4">How often each node type appears on the zone map. Combat is always present; adjust others to tune pacing.</p>
+              {[
+                { key: 'combat', label: '⚔️ Combat', desc: 'Enemy fight' },
+                { key: 'shop', label: '🛒 Shop', desc: 'Buy items with gold' },
+                { key: 'rest', label: '🔥 Rest Camp', desc: 'Heal + bonus XP' },
+                { key: 'event', label: '🎲 Random Event', desc: 'Choice-based event' },
+              ].map(({ key, label, desc }) => {
+                const total = Object.values(config.pools?.mapNodeWeights || {}).reduce((s, v) => s + v, 0);
+                const val = config.pools?.mapNodeWeights?.[key] ?? 1;
+                const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+                return (
+                  <div key={key} className="flex items-center gap-3 mb-3">
+                    <div className="w-40 shrink-0">
+                      <div className="text-sm text-zinc-300">{label}</div>
+                      <div className="text-[10px] text-zinc-500">{desc}</div>
+                    </div>
+                    <input type="range" min={0} max={10} value={val}
+                      onChange={(e) => setConfig(p => ({ ...p, pools: { ...p.pools, mapNodeWeights: { ...(p.pools?.mapNodeWeights || {}), [key]: Number(e.target.value) } } }))}
+                      className="flex-1 accent-amber-400" />
+                    <input type="number" min={0} max={10} value={val}
+                      onChange={(e) => setConfig(p => ({ ...p, pools: { ...p.pools, mapNodeWeights: { ...(p.pools?.mapNodeWeights || {}), [key]: Number(e.target.value) } } }))}
+                      className="w-14 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-sm text-center text-zinc-100" />
+                    <span className="text-xs text-amber-400 w-12 text-right">{pct}%</span>
+                  </div>
+                );
+              })}
+              <div className="mt-2 p-3 bg-zinc-800/50 rounded-lg border border-zinc-700 text-xs text-zinc-400">
+                💡 Example with current weights: on a 10-node map expect ~
+                {Object.entries(config.pools?.mapNodeWeights || { combat: 3, shop: 1, rest: 1, event: 1 }).map(([k, v]) => {
+                  const total = Object.values(config.pools?.mapNodeWeights || { combat: 3, shop: 1, rest: 1, event: 1 }).reduce((s, n) => s + n, 0);
+                  return total > 0 ? ` ${Math.round((v / total) * 10)} ${k}` : '';
+                }).join(',')} nodes
+              </div>
+            </SectionCard>
+
+            {/* Gem Shop Items */}
+            <SectionCard title="💎 Gem Shop Items">
+              <p className="text-zinc-400 text-sm mb-4">Define items purchasable with gems during or between runs. Toggle each item on/off for the shop pool.</p>
+              {(() => {
+                const GEM_SHOP_DEFAULTS = [
+                  { id: 'reroll_token', label: 'Reroll Token', desc: '+1 free reroll next combat', cost: 30 },
+                  { id: 'max_hp_5', label: '+5 Max HP', desc: 'Permanent for this run', cost: 40 },
+                  { id: 'start_gold_2', label: '+2 Starting Gold', desc: 'Begin next run with +2 gold', cost: 25 },
+                  { id: 'companion_revive', label: 'Companion Revive', desc: 'Restore companion if KO', cost: 50 },
+                  { id: 'artifact_reroll', label: 'Artifact Reroll', desc: 'Swap current artifact for new one', cost: 60 },
+                  { id: 'xp_boost', label: 'XP Boost (1.5×)', desc: '+50% XP earned this run', cost: 35 },
+                  { id: 'shield_start', label: 'Starting Shield (5)', desc: 'Begin each combat with 5 shield', cost: 45 },
+                  { id: 'dice_upgrade', label: 'Dice Upgrade', desc: '+1 to all die face values this run', cost: 70 },
+                ];
+                return (
+                  <div className="space-y-2">
+                    {GEM_SHOP_DEFAULTS.map((item) => {
+                      const enabled = config.pools?.shopItemEnabled?.[item.id] !== false;
+                      return (
+                        <div key={item.id} className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${enabled ? 'border-amber-500/40 bg-amber-500/5' : 'border-zinc-700 bg-zinc-800/30 opacity-60'}`}>
+                          <button
+                            onClick={() => setConfig(p => ({ ...p, pools: { ...p.pools, shopItemEnabled: { ...(p.pools?.shopItemEnabled || {}), [item.id]: !enabled } } }))}
+                            className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 ${enabled ? 'bg-amber-500' : 'bg-zinc-600'}`}
+                          >
+                            <span className={`block w-4 h-4 rounded-full bg-white transition-transform mx-0.5 ${enabled ? 'translate-x-3' : 'translate-x-0'}`} />
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-zinc-200">{item.label}</div>
+                            <div className="text-xs text-zinc-500">{item.desc}</div>
+                          </div>
+                          <div className="flex items-center gap-1 text-sm font-bold text-amber-300 shrink-0">
+                            <span>💎</span>
+                            <input type="number" min={0} max={999}
+                              defaultValue={item.cost}
+                              className="w-14 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-sm text-center text-amber-300"
+                              onClick={(e) => e.stopPropagation()} />
+                          </div>
+                          <span className={`text-xs px-2 py-0.5 rounded border ${enabled ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-300' : 'bg-zinc-700 border-zinc-600 text-zinc-500'}`}>
+                            {enabled ? 'ON' : 'OFF'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </SectionCard>
+
+            <div className="flex justify-end">
+              <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Pool Config</AmberBtn>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            TEST GAME TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'testgame' && (
+          <div className="space-y-6">
+            <SectionCard title="🕹️ Test Game">
+              <p className="text-zinc-400 text-sm">Live game preview. Apply a test preset in OPS tab first, then reload the iframe to test a specific progression state.</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(PRESETS).map(([key, preset]) => (
+                  <button key={key} onClick={() => { applyPreset(key); setStatus('✅ Preset applied — reload iframe'); }}
+                    className="px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm hover:border-amber-500/50 transition-colors">
+                    {preset.emoji} {preset.label}
+                  </button>
+                ))}
+                <a href="/diejungle" target="_blank" rel="noreferrer"
+                  className="px-3 py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-sm font-medium">
+                  🔗 Open in new tab
+                </a>
+              </div>
+            </SectionCard>
+
+            {/* Embedded game */}
+            <div className="rounded-xl border border-zinc-700 overflow-hidden bg-zinc-900">
+              <div className="flex items-center justify-between px-4 py-2 bg-zinc-800 border-b border-zinc-700">
+                <span className="text-xs text-zinc-400 font-mono">/diejungle</span>
+                <div className="flex gap-2">
+                  <button onClick={() => {
+                    const iframe = document.getElementById('game-iframe');
+                    if (iframe) iframe.src = iframe.src;
+                  }} className="text-xs text-zinc-400 hover:text-zinc-200 border border-zinc-700 rounded px-2 py-1">
+                    🔄 Reload
+                  </button>
+                </div>
+              </div>
+              <iframe
+                id="game-iframe"
+                src="/diejungle"
+                className="w-full"
+                style={{ height: '700px', border: 'none' }}
+                title="Die in the Jungle — live test"
+              />
+            </div>
+
+            {/* English UI reference */}
+            <SectionCard title="📝 UI Text Reference (English)">
+              <p className="text-zinc-400 text-sm mb-4">All in-game labels and their intended English text. Use as reference when checking translations.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {[
+                  { screen: 'Map', key: 'node_combat', en: 'Combat' },
+                  { screen: 'Map', key: 'node_shop', en: 'Shop' },
+                  { screen: 'Map', key: 'node_rest', en: 'Rest Camp' },
+                  { screen: 'Map', key: 'node_event', en: 'Event' },
+                  { screen: 'Map', key: 'node_boss', en: 'Boss' },
+                  { screen: 'Combat', key: 'btn_roll', en: 'Roll Dice' },
+                  { screen: 'Combat', key: 'btn_reroll', en: 'Reroll' },
+                  { screen: 'Combat', key: 'btn_confirm', en: 'Confirm Attack' },
+                  { screen: 'Combat', key: 'lane_top', en: 'Top Lane' },
+                  { screen: 'Combat', key: 'lane_mid', en: 'Mid Lane' },
+                  { screen: 'Combat', key: 'lane_bot', en: 'Bot Lane' },
+                  { screen: 'Combat', key: 'surge_label', en: 'SURGE!' },
+                  { screen: 'Combat', key: 'enemy_intent', en: 'Intent' },
+                  { screen: 'Shop', key: 'shop_refresh', en: 'Refresh' },
+                  { screen: 'Shop', key: 'shop_buy', en: 'Buy' },
+                  { screen: 'Rest', key: 'rest_heal', en: 'Rest & Heal' },
+                  { screen: 'Rest', key: 'rest_skip', en: 'Skip' },
+                  { screen: 'Meta', key: 'xp_label', en: 'XP' },
+                  { screen: 'Meta', key: 'gems_label', en: 'Gems' },
+                  { screen: 'Meta', key: 'unlock_tree', en: 'Unlock Tree' },
+                  { screen: 'Meta', key: 'level_up', en: 'Level Up!' },
+                  { screen: 'End', key: 'run_win', en: 'Victory! You escaped the jungle.' },
+                  { screen: 'End', key: 'run_lose', en: 'You died in the jungle.' },
+                ].map((item) => (
+                  <div key={item.key} className="flex items-center gap-2 p-2 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                    <span className="text-[10px] text-zinc-500 w-16 shrink-0 font-mono">{item.screen}</span>
+                    <span className="text-[10px] text-zinc-600 w-28 shrink-0 font-mono">{item.key}</span>
+                    <span className="text-xs text-zinc-200">{item.en}</span>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            ONBOARDING TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'onboarding' && (
+          <div className="space-y-6">
+            {/* Admin Welcome */}
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-6">
+              <div className="text-2xl font-black text-amber-300 mb-1">🧭 Welcome to the Admin Panel</div>
+              <p className="text-zinc-400 text-sm">Everything you need to manage, tune, and ship <strong className="text-zinc-200">Die In The Jungle</strong>. This panel controls the live game config — changes save instantly to the backend.</p>
+            </div>
+
+            {/* System Health */}
+            {(() => {
+              const [health, setHealth] = React.useState(null);
+              const [checking, setChecking] = React.useState(false);
+              async function runHealthCheck() {
+                setChecking(true);
+                const results = {};
+                // Check API
+                try {
+                  const r = await fetch('/api/miniapp/config', { signal: AbortSignal.timeout(3000) });
+                  results.api = r.ok ? 'ok' : 'error';
+                } catch { results.api = 'down'; }
+                // Check game route
+                try {
+                  const r = await fetch('/diejungle', { signal: AbortSignal.timeout(3000) });
+                  results.game = r.ok ? 'ok' : 'error';
+                } catch { results.game = 'down'; }
+                // Check leaderboard
+                try {
+                  const r = await fetch('/api/miniapp/leaderboard', { signal: AbortSignal.timeout(3000) });
+                  results.leaderboard = r.ok ? 'ok' : 'error';
+                } catch { results.leaderboard = 'down'; }
+                // Check assets upload endpoint
+                try {
+                  const r = await fetch('/api/miniapp/assets/upload-batch', { method: 'OPTIONS', signal: AbortSignal.timeout(3000) });
+                  results.uploads = (r.ok || r.status === 405) ? 'ok' : 'error';
+                } catch { results.uploads = 'down'; }
+                // localStorage
+                try {
+                  localStorage.setItem('__health_check', '1');
+                  localStorage.removeItem('__health_check');
+                  results.localStorage = 'ok';
+                } catch { results.localStorage = 'down'; }
+                setHealth(results);
+                setChecking(false);
+              }
+              const statusColor = (s) => s === 'ok' ? 'text-emerald-400' : s === 'error' ? 'text-amber-400' : 'text-rose-400';
+              const statusIcon = (s) => s === 'ok' ? '✅' : s === 'error' ? '⚠️' : '❌';
+              const statusLabel = (s) => s === 'ok' ? 'OK' : s === 'error' ? 'Error' : s === 'down' ? 'DOWN' : '?';
+              return (
+                <SectionCard title="🩺 System Health Check">
+                  <p className="text-zinc-400 text-sm mb-4">Verify that all services are running before making changes.</p>
+                  <div className="flex gap-3 mb-4">
+                    <button onClick={runHealthCheck} disabled={checking}
+                      className="px-4 py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-sm font-medium disabled:opacity-50 transition-colors">
+                      {checking ? '⏳ Checking...' : '🔍 Run Health Check'}
+                    </button>
+                    {health && <span className="text-xs text-zinc-500 self-center">Last checked just now</span>}
+                  </div>
+                  {health && (
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      {[
+                        { key: 'api', label: 'Game Config API' },
+                        { key: 'game', label: 'Game Route' },
+                        { key: 'leaderboard', label: 'Leaderboard API' },
+                        { key: 'uploads', label: 'Upload API' },
+                        { key: 'localStorage', label: 'localStorage' },
+                      ].map(({ key, label }) => (
+                        <div key={key} className={`rounded-lg border p-3 text-center ${health[key] === 'ok' ? 'border-emerald-500/40 bg-emerald-500/5' : health[key] === 'error' ? 'border-amber-500/40 bg-amber-500/5' : 'border-rose-500/40 bg-rose-500/5'}`}>
+                          <div className="text-xl mb-1">{statusIcon(health[key])}</div>
+                          <div className={`text-xs font-bold ${statusColor(health[key])}`}>{statusLabel(health[key])}</div>
+                          <div className="text-[10px] text-zinc-500 mt-0.5">{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </SectionCard>
+              );
+            })()}
+
+            {/* Admin Panel Express Tour */}
+            <SectionCard title="⚡ Admin Panel — Express Tour">
+              <p className="text-zinc-400 text-sm mb-4">Quick reference for every tab. Click to jump.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {[
+                  { tab: 'ops', icon: '🎮', name: 'OPS', desc: 'Apply test presets, view localStorage meta state, clear run data.' },
+                  { tab: 'difficulty', icon: '💀', name: 'Difficulty', desc: 'Master 1-5 skull slider + 12 individual multipliers (HP, DMG, crit, etc.).' },
+                  { tab: 'pool', icon: '🎱', name: 'Pool', desc: 'Artifact rarity weights, map node distribution, gem shop items on/off.' },
+                  { tab: 'enemies', icon: '👹', name: 'Enemies', desc: 'Add/edit/delete custom enemies with stats, traits, and image.' },
+                  { tab: 'artifacts', icon: '💎', name: 'Artifacts', desc: 'CRUD for custom artifacts — name, rarity, emoji, passive effect.' },
+                  { tab: 'events', icon: '🎲', name: 'Events', desc: 'Create random events, NPC encounters, and rest camp bonuses.' },
+                  { tab: 'characters', icon: '🎭', name: 'Characters', desc: 'Upload portraits + emotion images, edit base stats per character.' },
+                  { tab: 'narrative', icon: '📖', name: 'Narrative', desc: '6 story arcs × 33 lines each. Edit lore text and arc images.' },
+                  { tab: 'assets', icon: '🖼️', name: 'Assets', desc: 'Batch upload images (preview before confirm). Browse all assets.' },
+                  { tab: 'metaxp', icon: '📈', name: 'Meta XP', desc: 'XP thresholds, gem costs, level rewards, run XP/gem earn rates.' },
+                  { tab: 'roadmap', icon: '🗺️', name: 'Roadmap', desc: 'Feature tracking: Done / In Progress / Backlog. Collapsible sections.' },
+                  { tab: 'sprint', icon: '🏃', name: 'Sprint', desc: 'Sprint goals checklist + notes. Track current dev priorities.' },
+                  { tab: 'docs', icon: '📚', name: 'Docs', desc: 'Full game documentation: loop, dice, combat, API, deployment.' },
+                  { tab: 'sound', icon: '🎵', name: 'Sound', desc: 'Upload MP3 sounds per event (43 slots, 6 categories). Preview + check.' },
+                  { tab: 'brand', icon: '🎨', name: 'Brand Kit', desc: 'Colors, typography, logos, social templates, brand voice editor.' },
+                  { tab: 'testgame', icon: '🕹️', name: 'Test Game', desc: 'Embedded live game iframe + English UI text reference.' },
+                  { tab: 'advanced', icon: '🔬', name: 'Advanced', desc: 'Raw JSON editors for monsters, artifacts, events. Power-user only.' },
+                ].map(({ tab, icon, name, desc }) => (
+                  <button key={tab} onClick={() => setActiveTab(tab)}
+                    className="text-left p-3 rounded-lg border border-zinc-700 bg-zinc-800/40 hover:border-amber-500/50 hover:bg-amber-500/5 transition-colors">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-base">{icon}</span>
+                      <span className="font-bold text-sm text-zinc-200">{name}</span>
+                    </div>
+                    <p className="text-xs text-zinc-500 leading-relaxed">{desc}</p>
+                  </button>
+                ))}
+              </div>
+            </SectionCard>
+
+            {/* Game Tutorial */}
+            <SectionCard title="🎮 Game Tutorial — What Players Need to Know">
+              <p className="text-zinc-400 text-sm mb-4">Use this as reference when writing in-game tutorial text or explaining the game to new players. Everything is in English.</p>
+              <div className="space-y-4">
+                {[
+                  {
+                    step: '01',
+                    title: 'The Goal',
+                    icon: '🏆',
+                    color: 'amber',
+                    content: 'Survive 3 zones of the jungle. Each zone has a boss at the end. Defeat all 3 bosses to win the run. You keep XP and gems even if you die.',
+                  },
+                  {
+                    step: '02',
+                    title: 'Navigate the Map',
+                    icon: '🗺️',
+                    color: 'cyan',
+                    content: 'The zone map has branching paths. Each node is one encounter: combat, shop, rest camp, or random event. Choose your path wisely — some paths have more shops, others more fights.',
+                  },
+                  {
+                    step: '03',
+                    title: 'Roll & Place Dice',
+                    icon: '🎲',
+                    color: 'violet',
+                    content: 'In combat, you roll 5 dice each turn. Place them into 3 lanes (Top / Mid / Bot). Each die resolves its effect based on its face: ⚔️ Attack, 🛡️ Shield, ❤️ Heal, ⚡ Energy.\n\nTip: You can reroll once per turn (costs score points).',
+                  },
+                  {
+                    step: '04',
+                    title: 'SURGE — The Key Mechanic',
+                    icon: '⚡',
+                    color: 'amber',
+                    content: 'Place 3 dice of the SAME type in a single turn to trigger a SURGE bonus. Example: 3 attack dice = massive damage burst. Build your placement around SURGE combos.',
+                  },
+                  {
+                    step: '05',
+                    title: 'Artifacts & Shop',
+                    icon: '💎',
+                    color: 'emerald',
+                    content: 'Artifacts give permanent passive bonuses for the run. Visit shops to buy new items with gold you earn from combat. Gold resets each run — spend it!',
+                  },
+                  {
+                    step: '06',
+                    title: 'Meta Progression',
+                    icon: '📈',
+                    color: 'rose',
+                    content: 'XP and Gems carry over between runs. Level up to unlock new characters, dice special faces, companions, and weapon slots. Spend Gems to unlock things early or buy boosts.',
+                  },
+                  {
+                    step: '07',
+                    title: 'Companions',
+                    icon: '🦎',
+                    color: 'cyan',
+                    content: 'Once unlocked, bring a companion into your run. They give a passive bonus AND an active ability:\n• Gecko 🦎 — passive dodge, active stun\n• Croak 🐊 — passive ATK, active burst damage\n• L\'Oeil 👁️ — passive intel, active vision + free reroll',
+                  },
+                ].map(({ step, title, icon, color, content }) => (
+                  <div key={step} className={`rounded-xl border p-4 ${color === 'amber' ? 'border-amber-500/30 bg-amber-500/5' : color === 'cyan' ? 'border-cyan-500/30 bg-cyan-500/5' : color === 'violet' ? 'border-violet-500/30 bg-violet-500/5' : color === 'emerald' ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-rose-500/30 bg-rose-500/5'}`}>
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-2xl">{icon}</span>
+                      <div>
+                        <span className={`text-[10px] font-mono font-bold ${color === 'amber' ? 'text-amber-500' : color === 'cyan' ? 'text-cyan-500' : color === 'violet' ? 'text-violet-500' : color === 'emerald' ? 'text-emerald-500' : 'text-rose-500'}`}>STEP {step}</span>
+                        <div className="font-bold text-zinc-100">{title}</div>
+                      </div>
+                    </div>
+                    <p className="text-sm text-zinc-300 whitespace-pre-line leading-relaxed">{content}</p>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            {/* Minimalist Tutorial Screens */}
+            <SectionCard title="📱 Tutorial Mode — First-Run Screens">
+              <p className="text-zinc-400 text-sm mb-4">These are the 4 screens shown to new players (totalRuns === 0) the first time they launch the game. Text is final English copy.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  {
+                    screen: 1,
+                    title: 'Welcome to the Jungle',
+                    body: 'A roguelite dice combat game.\nEvery run is different.\nEvery death makes you stronger.',
+                    cta: 'Start →',
+                  },
+                  {
+                    screen: 2,
+                    title: 'Roll. Place. Survive.',
+                    body: 'Each turn: roll 5 dice, place them in 3 lanes.\n⚔️ Top — Attack\n🛡️ Mid — Shield\n❤️ Bot — Heal\n\nPlace 3 of the same type to trigger SURGE.',
+                    cta: 'Got it →',
+                  },
+                  {
+                    screen: 3,
+                    title: 'Navigate the Map',
+                    body: 'Choose your path through 3 zones.\nFight enemies, visit shops, rest at camps.\nReach the boss at the end of each zone.',
+                    cta: 'Let\'s go →',
+                  },
+                  {
+                    screen: 4,
+                    title: 'You Keep Your Progress',
+                    body: 'XP and Gems carry over between runs.\nLevel up to unlock characters, companions, and special dice.\n\nDeath is not the end. It\'s practice.',
+                    cta: 'Begin Run →',
+                  },
+                ].map(({ screen, title, body, cta }) => (
+                  <div key={screen} className="rounded-xl border border-zinc-700 bg-zinc-900 overflow-hidden">
+                    <div className="bg-zinc-800 px-4 py-2 text-xs text-zinc-400 border-b border-zinc-700 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+                      Tutorial Screen {screen} / 4
+                    </div>
+                    <div className="p-5 space-y-3">
+                      <div className="text-lg font-black text-amber-300">{title}</div>
+                      <p className="text-sm text-zinc-300 whitespace-pre-line leading-relaxed">{body}</p>
+                      <div className="pt-2">
+                        <span className="inline-block px-4 py-2 rounded-lg bg-amber-500 text-black text-sm font-bold">{cta}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 p-3 rounded-lg bg-zinc-800/60 border border-zinc-700 text-xs text-zinc-400">
+                💡 <strong className="text-zinc-300">Dev note:</strong> Show these screens when <code className="text-amber-300">meta.totalRuns === 0</code>. Store seen state in <code className="text-amber-300">localStorage: jk_tutorial_seen_v1</code>. Skip if flag is set.
+              </div>
+            </SectionCard>
+
+            {/* Elevator pitch */}
+            <SectionCard title="🗣️ How to Explain the Game (Pitch Texts)">
+              <div className="space-y-4">
+                <div className="p-4 rounded-lg border border-zinc-700 bg-zinc-800/40">
+                  <div className="text-xs text-zinc-500 mb-1 uppercase tracking-wider">1-Line Pitch</div>
+                  <p className="text-zinc-100 font-medium">"Die In The Jungle is a roguelite dice game — roll your fate, build your run, escape the jungle or die trying."</p>
+                </div>
+                <div className="p-4 rounded-lg border border-zinc-700 bg-zinc-800/40">
+                  <div className="text-xs text-zinc-500 mb-1 uppercase tracking-wider">Elevator Pitch (30 sec)</div>
+                  <p className="text-zinc-300 text-sm leading-relaxed">"It's a roguelite where you roll 5 dice each turn and place them into lanes to attack, shield, or heal. Place 3 of the same type and you trigger a SURGE bonus. Between fights you navigate a branching map, collect artifacts, and fight zone bosses. Die and you keep your XP — unlock new characters, companions, and dice specials over time."</p>
+                </div>
+                <div className="p-4 rounded-lg border border-zinc-700 bg-zinc-800/40">
+                  <div className="text-xs text-zinc-500 mb-1 uppercase tracking-wider">Telegram Post (for marketing)</div>
+                  <p className="text-zinc-300 text-sm leading-relaxed">"🎲 Die In The Jungle drops today on Telegram Mini App.\nRoguelite dice combat. 3 zones. One life.\nEvery roll matters. Every death teaches you.\nPlay now → [link] #JungleKabal"</p>
+                </div>
+              </div>
             </SectionCard>
           </div>
         )}
