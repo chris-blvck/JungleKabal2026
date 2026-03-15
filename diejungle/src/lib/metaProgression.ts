@@ -14,6 +14,9 @@ export type UnlockId =
   | 'companion_oeil'
   | 'dice_specials'
   | 'lane_bonuses'
+  | 'relic_slot_1'       // level 5
+  | 'relic_slot_2'       // level 10
+  | 'relic_slot_3'       // level 15
   | 'starter_weapon_blade'
   | 'starter_weapon_staff'
   | 'starter_weapon_shield'
@@ -45,6 +48,8 @@ export interface MetaProgressionState {
   lastLoginDate: string | null;  // "YYYY-MM-DD"
   loginStreak: number;
   totalLogins: number;
+  // Relic ownership (permanent collection, separate from equipped)
+  ownedRelics: string[];         // relic IDs permanently owned
 }
 
 export interface DailyLoginReward {
@@ -141,6 +146,32 @@ export const UNLOCKS: Record<UnlockId, Unlock> = {
     currency: 'xp',
     cost: 200,
   },
+  relic_slot_1: {
+    id: 'relic_slot_1',
+    name: 'Relic Slot 1',
+    desc: 'Unlock your first relic slot. Equip a permanent relic before each run.',
+    emoji: '💠',
+    currency: 'xp',
+    cost: 0, // auto-unlocked at level 5
+  },
+  relic_slot_2: {
+    id: 'relic_slot_2',
+    name: 'Relic Slot 2',
+    desc: 'Unlock a second relic slot. Stack two relics for powerful synergies.',
+    emoji: '💠',
+    currency: 'xp',
+    cost: 0, // auto-unlocked at level 10
+    requires: 'relic_slot_1',
+  },
+  relic_slot_3: {
+    id: 'relic_slot_3',
+    name: 'Relic Slot 3',
+    desc: 'Unlock the final relic slot. The endgame of meta-progression.',
+    emoji: '💠',
+    currency: 'xp',
+    cost: 0, // auto-unlocked at level 15
+    requires: 'relic_slot_2',
+  },
   starter_weapon_blade: {
     id: 'starter_weapon_blade',
     name: 'Jungle Blade (Starter)',
@@ -214,12 +245,17 @@ export const LEVEL_REWARDS: LevelReward[] = [
   { level: 2,  desc: '+50 gems' },
   { level: 3,  desc: 'Unlock: Special Die Faces', unlockId: 'dice_specials' },
   { level: 4,  desc: '+100 gems' },
-  { level: 5,  desc: 'Unlock: Lane Bonuses',      unlockId: 'lane_bonuses' },
+  { level: 5,  desc: 'Unlock: Lane Bonuses + Relic Slot 1', unlockId: 'lane_bonuses' },
   { level: 6,  desc: '+150 gems' },
   { level: 7,  desc: 'Unlock: Companion Slot',    unlockId: 'companion_slot' },
   { level: 8,  desc: '+200 gems' },
   { level: 9,  desc: '+200 gems' },
-  { level: 10, desc: '+300 gems — You are a Kabalian' },
+  { level: 10, desc: '+300 gems — Relic Slot 2 · You are a Kabalian', unlockId: 'relic_slot_2' },
+  { level: 11, desc: '+200 gems' },
+  { level: 12, desc: '+250 gems' },
+  { level: 13, desc: '+250 gems' },
+  { level: 14, desc: '+300 gems' },
+  { level: 15, desc: '+400 gems — Relic Slot 3 · Titre "Maître Kabal"', unlockId: 'relic_slot_3' },
 ];
 
 // ─────────────────────────────────────────────
@@ -293,6 +329,10 @@ export function recordRunEnd(
         levelRewards.push(reward);
         if (reward.unlockId && !autoUnlocked.includes(reward.unlockId)) {
           autoUnlocked.push(reward.unlockId);
+        }
+        // Level 5 also unlocks relic_slot_1
+        if (lvl === 5 && !autoUnlocked.includes('relic_slot_1')) {
+          autoUnlocked.push('relic_slot_1');
         }
         const gemMatch = reward.desc.match(/\+(\d+) gems/);
         if (gemMatch) bonusGems += parseInt(gemMatch[1], 10);
@@ -409,7 +449,36 @@ export function makeInitialMeta(): MetaProgressionState {
     lastLoginDate: null,
     loginStreak: 0,
     totalLogins: 0,
+    ownedRelics: [],
   };
+}
+
+// ─────────────────────────────────────────────
+// RELIC HELPERS
+// ─────────────────────────────────────────────
+
+export function getRelicSlotCount(meta: MetaProgressionState): number {
+  if (meta.unlocked.includes('relic_slot_3')) return 3;
+  if (meta.unlocked.includes('relic_slot_2')) return 2;
+  if (meta.unlocked.includes('relic_slot_1')) return 1;
+  return 0;
+}
+
+/** Add a relic to the player's permanent collection. */
+export function addOwnedRelic(meta: MetaProgressionState, relicId: string): MetaProgressionState {
+  if (meta.ownedRelics.includes(relicId)) return meta;
+  return { ...meta, ownedRelics: [...meta.ownedRelics, relicId] };
+}
+
+/** Purchase a relic with gems. Returns updated meta or null if not enough gems. */
+export function buyRelicWithGems(
+  meta: MetaProgressionState,
+  relicId: string,
+  gemCost: number,
+): MetaProgressionState | null {
+  if (meta.ownedRelics.includes(relicId)) return null;
+  if (meta.gems < gemCost) return null;
+  return { ...meta, gems: meta.gems - gemCost, ownedRelics: [...meta.ownedRelics, relicId] };
 }
 
 // ─────────────────────────────────────────────
@@ -510,6 +579,7 @@ export function loadMeta(): MetaProgressionState {
         lastLoginDate:  parsed.lastLoginDate  ?? null,
         loginStreak:    parsed.loginStreak    ?? 0,
         totalLogins:    parsed.totalLogins    ?? 0,
+        ownedRelics:    Array.isArray(parsed.ownedRelics) ? parsed.ownedRelics : [],
       };
     }
     // Try legacy key migration
@@ -527,6 +597,7 @@ export function loadMeta(): MetaProgressionState {
         lastLoginDate:  null,
         loginStreak:    0,
         totalLogins:    0,
+        ownedRelics:    [],
       };
       // Save to new key
       localStorage.setItem(META_STORAGE_KEY, JSON.stringify(migrated));
