@@ -119,9 +119,18 @@ export default function CRMAngel() {
     <Shell title={<>CRM <span style={{ color: JK.gold }}>ANGEL</span></>} subtitle="Deal pipeline · Investor tracking · Angel round · Partagé avec toute l'équipe" maxWidth={1000}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <button onClick={() => navigate("/")} style={{ background: "transparent", border: "none", color: JK.muted, cursor: "pointer", fontSize: 12, letterSpacing: 1, padding: 0, fontFamily: "inherit" }}>← BACK TO HQ</button>
-        <span style={{ fontSize: 10, color: saving ? G : saveStatus === "saved" ? JK.green : saveStatus === "error" ? JK.red : "#333", letterSpacing: 1 }}>
-          {saving ? "⏳ Sauvegarde…" : saveStatus === "saved" ? "✓ Sauvegardé" : saveStatus === "error" ? "✕ Erreur de sauvegarde" : ""}
-        </span>
+        {(saving || saveStatus) && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            background: saving ? "rgba(245,166,35,0.08)" : saveStatus === "saved" ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)",
+            border: `1px solid ${saving ? G + "33" : saveStatus === "saved" ? JK.green + "33" : JK.red + "33"}`,
+            borderRadius: 8, padding: "6px 12px",
+            fontSize: 11, fontWeight: 600, letterSpacing: 0.5,
+            color: saving ? G : saveStatus === "saved" ? JK.green : JK.red,
+          }}>
+            {saving ? "⏳ Sauvegarde…" : saveStatus === "saved" ? "✓ Sauvegardé" : "✕ Erreur de sauvegarde"}
+          </div>
+        )}
       </div>
 
       {/* Stats */}
@@ -206,19 +215,25 @@ export default function CRMAngel() {
 
       {/* Deals table */}
       <Card>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 90px 90px 80px 1fr 80px", gap: 8, padding: "8px 12px", fontSize: 8, color: "#333", letterSpacing: 2, fontFamily: "'Cinzel',serif", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+        {filtered.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "40px 24px" }}>
+            <div style={{ fontSize: 32, marginBottom: 10 }}>🤝</div>
+            <div style={{ fontFamily: "'Cinzel',serif", fontSize: 12, color: G, letterSpacing: 2, marginBottom: 6 }}>NO DEALS IN THIS STAGE</div>
+            <div style={{ fontSize: 11, color: JK.muted }}>Click <strong style={{ color: G }}>+ NEW DEAL</strong> to add one</div>
+          </div>
+        ) : (
+        <div style={{ overflowX: "auto" }}>
+        <div style={{ minWidth: 700 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 90px 110px 80px 1fr 72px", gap: 8, padding: "8px 12px", fontSize: 8, color: "#555", letterSpacing: 2, fontFamily: "'Cinzel',serif", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
           <span>CONTACT</span><span>TYPE</span><span>AMOUNT</span><span>STAGE</span><span>FOLLOW-UP</span><span>NOTES</span><span></span>
         </div>
-        {filtered.length === 0 && (
-          <div style={{ textAlign: "center", color: "#2a2a2a", fontSize: 12, padding: "24px 0" }}>No deals in this stage</div>
-        )}
         {filtered.map(d => {
           const stage = STAGES.find(s => s.id === d.stage) || STAGES[0];
           const typeColor = TYPE_COLORS[d.type] || G;
           const isFollowUp = d.followUp === today;
           return (
             <div key={d.id} style={{
-              display: "grid", gridTemplateColumns: "1fr 80px 90px 90px 80px 1fr 80px", gap: 8,
+              display: "grid", gridTemplateColumns: "1fr 80px 90px 110px 80px 1fr 72px", gap: 8,
               padding: "12px 12px", borderBottom: "1px solid rgba(255,255,255,0.03)", alignItems: "center",
               background: isFollowUp ? "rgba(239,68,68,0.04)" : "transparent",
             }}>
@@ -247,6 +262,9 @@ export default function CRMAngel() {
             </div>
           );
         })}
+        </div>
+        </div>
+        )}
       </Card>
     </Shell>
   );
