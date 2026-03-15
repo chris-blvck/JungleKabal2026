@@ -713,14 +713,18 @@ function rollDice(count, specialFacesEnabled = false, attackDieBonus = 0) {
     const value = Math.floor(Math.random() * 6) + 1;
     let special = null;
     if (specialFacesEnabled) {
-      if (kind === 'attack' && value === 6) special = 'pierce';   // ignore shield
-      else if (kind === 'attack' && value === 5) special = 'echo'; // +3 if in top row
-      else if (kind === 'heal' && value === 6) special = 'nurture'; // also heals shield
-      else if (kind === 'shield' && value === 6) special = 'fortress'; // persists next turn
+      // Face 1 attack = curse enemy (disables their next regen/charge)
+      if (kind === 'attack' && value === 1) special = 'curse';
+      // Face 6 attack = pierce (bypasses enemy shield)
+      else if (kind === 'attack' && value === 6) special = 'pierce';
+      // Face 6 heal = nurture (also grants shield equal to half heal)
+      else if (kind === 'heal' && value === 6) special = 'nurture';
+      // Face 6 shield = fortress (persists next turn)
+      else if (kind === 'shield' && value === 6) special = 'fortress';
     }
-    // Gecko companion: +attackDieBonus to attack dice
+    // Gecko companion: +attackDieBonus to attack dice (min 1 to preserve curse on 1)
     const finalValue = kind === 'attack' && attackDieBonus > 0
-      ? Math.min(6, value + attackDieBonus)
+      ? Math.min(6, Math.max(1, value + attackDieBonus))
       : value;
     return {
       id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}`,
@@ -1024,6 +1028,7 @@ function resolvePlayerGrid(state) {
   let totalHeal = 0;
   let pierceAttack = 0;  // Pierce dice bypass shield
   let fortressActive = false;  // Shield persists next turn
+  let hasCurse = false;  // Curse face 1: enemy loses their next regen/charge
   const rowBreakdown = [];
 
   // Count dice per type across entire grid (for SURGE)
@@ -1062,16 +1067,16 @@ function resolvePlayerGrid(state) {
       } else {
         const attackValue = (die.value + player.attackDieValueBonus + player.attackBonus) * mult;
         if (die.special === 'pierce') {
-          // Pierce bypasses enemy shield — tracked separately
+          // Face 6: Pierce bypasses enemy shield — tracked separately
           pierceAttack += attackValue;
-          rowBreakdown.push(`⚡ Pierce die: ${attackValue} dmg ignores shield`);
+          rowBreakdown.push(`🔱 Pierce (face 6): ${attackValue} dmg ignores shield`);
+        } else if (die.special === 'curse') {
+          // Face 1: Curse — still deals damage but also curses enemy (resets charge, disables regen)
+          rowAttack += attackValue;
+          hasCurse = true;
+          rowBreakdown.push(`☠️ Curse (face 1): ${attackValue} dmg + enemy charge reset`);
         } else {
           rowAttack += attackValue;
-          // Echo face 5 attack: +3 if placed in top row
-          if (die.special === 'echo' && rowIndex === 0) {
-            rowAttack += 3;
-            rowBreakdown.push(`🌟 Echo: +3 bonus in top row`);
-          }
         }
       }
     });

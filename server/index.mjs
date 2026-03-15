@@ -22,6 +22,7 @@ const angelOpsFile = path.join(__dirname, 'data', 'angel-ops.json');
 const runsFile = path.join(__dirname, 'data', 'runs.json');
 const referralsFile = path.join(__dirname, 'data', 'referrals.json');
 const miniappTelemetryFile = path.join(__dirname, 'data', 'miniapp-telemetry.json');
+const miniappConfigFile = path.join(__dirname, 'data', 'miniapp-config.json');
 
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -1103,6 +1104,60 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { ok: true, summary: state.summary, updatedAt: state.updatedAt });
     } catch (error) {
       return send(res, 400, { ok: false, error: error.message });
+    }
+  }
+
+  // ── Miniapp Config ────────────────────────────────────────────────────────
+  if (pathName === '/api/miniapp/config' && req.method === 'GET') {
+    try {
+      await mkdir(path.dirname(miniappConfigFile), { recursive: true });
+      let config = {};
+      try { config = JSON.parse(await readFile(miniappConfigFile, 'utf8')); } catch {}
+      return send(res, 200, { ok: true, config });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathName === '/api/miniapp/config' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      await mkdir(path.dirname(miniappConfigFile), { recursive: true });
+      await writeFile(miniappConfigFile, JSON.stringify(body, null, 2));
+      return send(res, 200, { ok: true, config: body });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathName === '/api/miniapp/assets/upload-batch' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const { category, subcategory, files = [] } = body;
+      const uploadDir = path.join(__dirname, '..', 'public', 'uploads', category || 'misc', subcategory || 'general');
+      await mkdir(uploadDir, { recursive: true });
+      const uploaded = [];
+      for (const file of files.slice(0, 30)) {
+        if (!file.dataUrl || !file.name) continue;
+        const base64 = file.dataUrl.split(',')[1];
+        if (!base64) continue;
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const destPath = path.join(uploadDir, `${Date.now()}-${safeName}`);
+        await writeFile(destPath, Buffer.from(base64, 'base64'));
+        const relUrl = `/uploads/${category}/${subcategory}/${path.basename(destPath)}`;
+        uploaded.push({ url: relUrl, originalName: file.name, fileName: path.basename(destPath), id: randomUUID() });
+      }
+      // Patch config with new assets
+      let config = {};
+      try { config = JSON.parse(await readFile(miniappConfigFile, 'utf8')); } catch {}
+      if (!config.assets) config.assets = {};
+      if (!config.assets[category]) config.assets[category] = {};
+      if (!config.assets[category][subcategory]) config.assets[category][subcategory] = [];
+      config.assets[category][subcategory] = [...config.assets[category][subcategory], ...uploaded];
+      await writeFile(miniappConfigFile, JSON.stringify(config, null, 2));
+      return send(res, 200, { ok: true, uploaded, config });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
     }
   }
 
