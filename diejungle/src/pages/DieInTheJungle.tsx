@@ -275,6 +275,14 @@ const DEFAULT_REMOTE_ADMIN_CONFIG = {
   visuals: { backgroundUrl: "", logoUrl: "", storyFragmentImageUrl: "" },
   characters: { playable: {}, emotionUrls: {} },
   narrative: { kabalian: [], kkm: [] },
+  pools: {
+    artifactWeights: { gray: 4, gold: 3, chrome: 1 },
+    starterWeights: { gray: 6, gold: 3, chrome: 1 },
+    // shop item keys that are enabled in the shop pool
+    shopItemEnabled: {} as Record<string, boolean>,
+    // map node type weights: [combat, shop, rest, event] as relative weights
+    mapNodeWeights: { combat: 3, shop: 1, rest: 1, event: 1 },
+  },
 };
 
 const DICE_IMAGES = {
@@ -1014,6 +1022,105 @@ function buildRoute(floor = 1) {
   });
 }
 
+function buildPathChoices(nextIndex, floor = 1) {
+  const nextType = ROUTE_TEMPLATE[Math.max(0, Math.min(ROUTE_TEMPLATE.length - 1, nextIndex))] || "mob";
+  const poolKey = nextType === "elite" ? "medium" : nextType;
+  const picked = pickUnique(ENEMY_POOLS[poolKey] || ENEMY_POOLS.mob, 2);
+  return picked.map((source) => {
+    const base = cloneEnemy(source);
+    const scale = floor - 1;
+    const hpScale = nextType === "boss" ? 8 : nextType === "elite" ? 5 : 3;
+    const dmgScale = nextType === "boss" ? 2 : 1;
+    base.hp += scale * hpScale;
+    base.maxHp = base.hp;
+    base.damage += scale * dmgScale;
+    if (nextType === "elite") {
+      base.elite = true;
+      base.eliteStars = getEliteStarCount(floor);
+      base.hp = Math.round(base.hp * (1.25 + (base.eliteStars - 1) * 0.1));
+      base.maxHp = base.hp;
+      base.damage += 2 + (base.eliteStars - 1);
+      base.tier = "medium";
+      base.name = `${"⭐".repeat(base.eliteStars)} ${base.name}`;
+    }
+    const mod = randFrom(source.modifierPool || ["none"]);
+    base.modifier = mod || "none";
+    if (base.modifier === "stoneSkin") base.firstHitIgnored = true;
+    return base;
+  });
+}
+
+function buildMapChoices(nextIndex, floor = 1, poolsCfg?) {
+  const lanes = shuffle(["left", "mid", "right"]);
+  const nextType = ROUTE_TEMPLATE[Math.max(0, Math.min(ROUTE_TEMPLATE.length - 1, nextIndex))] || "mob";
+  const poolKey = nextType === "elite" ? "medium" : nextType;
+  let picked = pickUnique(ENEMY_POOLS[poolKey] || ENEMY_POOLS.mob, 3);
+  if (picked.length < 3) {
+    const fallback = shuffle(ENEMY_POOLS[poolKey] || ENEMY_POOLS.mob);
+    while (picked.length < 3 && fallback.length) picked.push(fallback[picked.length % fallback.length]);
+  }
+
+  return picked.map((source, i) => {
+    const enemy = cloneEnemy(source);
+    const scale = floor - 1;
+    const hpScale = nextType === "boss" ? 8 : nextType === "elite" ? 5 : 3;
+    const dmgScale = nextType === "boss" ? 2 : 1;
+    enemy.hp += scale * hpScale;
+    enemy.maxHp = enemy.hp;
+    enemy.damage += scale * dmgScale;
+    if (nextType === "elite") {
+      enemy.elite = true;
+      enemy.eliteStars = getEliteStarCount(floor);
+      enemy.hp = Math.round(enemy.hp * (1.25 + (enemy.eliteStars - 1) * 0.1));
+      enemy.maxHp = enemy.hp;
+      enemy.damage += 2 + (enemy.eliteStars - 1);
+      enemy.tier = "medium";
+      enemy.name = `${"⭐".repeat(enemy.eliteStars)} ${enemy.name}`;
+    }
+    const mod = randFrom(source.modifierPool || ["none"]);
+    enemy.modifier = mod || "none";
+    if (enemy.modifier === "stoneSkin") enemy.firstHitIgnored = true;
+
+    const w = poolsCfg?.mapNodeWeights || { combat: 3, shop: 1, rest: 1, event: 1 };
+    const nodeBag: string[] = [];
+    Object.entries(w).forEach(([t, n]) => { for (let i = 0; i < (n as number); i++) nodeBag.push(t); });
+    const nodeType = randFrom(nodeBag.length ? nodeBag : ["combat", "combat", "combat", "shop", "rest"]);
+    const finalNodeType = nodeType;
+    const hint = nodeType === "shop"
+      ? "🏪 Shop stop"
+      : nodeType === "rest"
+        ? "🏕️ Rest stop"
+        : finalNodeType === "event"
+          ? "❓ Random event"
+        : randFrom(["💰 Bonus score", "🛡️ Safer fight", "⚡ Fast route", "🎁 Better drop chance"]);
+    return ({
+      id: `${Date.now()}-${i}-${enemy.name}`,
+      lane: lanes[i] || "mid",
+      nodeType: finalNodeType,
+      rewardHint: hint,
+      enemy,
+    });
+  });
+}
+
+function buildShopInventory(poolsCfg?) {
+  const enabledKeys = poolsCfg?.shopItemEnabled || {};
+  // If no overrides exist, use full pool; otherwise filter to enabled items (undefined = enabled by default)
+  const activePool = SHOP_ITEM_POOL.filter((item) => enabledKeys[item.key] !== false);
+  const source = activePool.length >= 4 ? activePool : SHOP_ITEM_POOL;
+  return pickUnique(source, 4).map((item, idx) => ({
+    ...item,
+    id: `${Date.now()}-${idx}-${item.key}`,
+  }));
+}
+
+function pickArtifactByRarity(playerArtifacts, rarityList) {
+  const owned = new Set((playerArtifacts || []).map((a) => a.id));
+  const pool = ARTIFACT_POOL.filter((a) => rarityList.includes(a.rarity) && !owned.has(a.id));
+  if (!pool.length) return null;
+  return randFrom(pool);
+}
+
 function getDieMeta(die) {
   if (!die) return { kind: "attack", label: "Attack", emoji: "⚔️", desc: "" };
   if (die.kind === "shield") return { kind: "shield", label: "Shield", emoji: "🛡️", desc: `Gain ${die.value} shield before row multiplier.` };
@@ -1205,8 +1312,8 @@ function getStoryFragment(fragmentIndex, characterId) {
   return fragments[Math.abs(fragmentIndex) % fragments.length];
 }
 
-function buildArtifactChoices(player) {
-  const weights = { gray: 4, gold: 3, chrome: 1 };
+function buildArtifactChoices(player, poolsCfg?) {
+  const weights = poolsCfg?.artifactWeights || { gray: 4, gold: 3, chrome: 1 };
   const pool = shuffle(ARTIFACT_POOL).filter((a) => !player.artifacts.find((owned) => owned.id === a.id));
   const chosen = [];
   const rarities = [];
@@ -1233,8 +1340,8 @@ function buildArtifactChoices(player) {
   return chosen.slice(0, 3);
 }
 
-function buildStarterArtifactChoices(player) {
-  const starterWeights = { gray: 6, gold: 3, chrome: 1 };
+function buildStarterArtifactChoices(player, poolsCfg?) {
+  const starterWeights = poolsCfg?.starterWeights || { gray: 6, gold: 3, chrome: 1 };
   const pool = shuffle(ARTIFACT_POOL).filter((a) => !player.artifacts.find((owned) => owned.id === a.id));
   const chosen = [];
   const rarities = [];
@@ -1895,6 +2002,9 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const [wRarityFilter, setWRarityFilter] = useState("All");
   const [wTypeFilter, setWTypeFilter] = useState("All");
   const [loadoutWeaponSlot, setLoadoutWeaponSlot] = useState(1); // which weapon slot is being filled
+  const [remoteAdminConfig, setRemoteAdminConfig] = useState(DEFAULT_REMOTE_ADMIN_CONFIG);
+  const [turnTimer, setTurnTimer] = useState(0); // countdown seconds remaining
+  const turnTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [ownedCosmetics, setOwnedCosmetics] = useState([]);
   const [cosmeticsLoading, setCosmeticsLoading] = useState(false);
   const [selectedCosmeticId, setSelectedCosmeticId] = useState(() => (typeof window === "undefined" ? "" : localStorage.getItem(SELECTED_COSMETIC_STORAGE_KEY) || ""));
@@ -2618,44 +2728,20 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
         if (g.startRewardPending) {
           combatRewardPending = true;
-          artifactsOffered = buildStarterArtifactChoices(player);
+          artifactsOffered = buildStarterArtifactChoices(player, remoteAdminConfig.pools);
           phase = "reward";
-        } else if (isBoss) {
-          // Boss: Kill reward choice first, then artifact reward
-          killRewardPending = true;
-          killRewardsOffered = drawKillRewards(6);
-          killRewardPicksAllowed = 4;
-          killRewardMustPick = false;
-          phase = 'kill_reward';
-        } else if (isElite) {
-          // Elite: Kill reward choice screen (2 picks from 3)
-          killRewardPending = true;
-          killRewardsOffered = drawKillRewards(3);
-          killRewardPicksAllowed = 2;
-          killRewardMustPick = true;
-          phase = 'kill_reward';
-          room = g.room + 1;
-          player.shield = 0;
-          const coinsEarned = 2;
-          player.coins = (player.coins || 0) + coinsEarned;
-          log.unshift(`💀 Elite kill — choose your rewards!`);
-          avatarMood = "victory";
+        } else if (g.enemy.tier === "boss") {
+          combatRewardPending = true;
+          artifactsOffered = buildArtifactChoices(player, remoteAdminConfig.pools);
+          phase = "reward";
+        } else if (g.room >= g.route.length - 1) {
+          phase = "victory";
         } else {
-          // Mob: auto-apply 1 random reward, no screen
-          const [reward] = drawKillRewards(1);
-          if (reward) {
-            const applied = reward.apply(player, g);
-            if (applied.player) Object.assign(player, applied.player);
-            log.unshift(`💀 Kill! ${reward.icon} ${reward.name}`);
-          }
-          // Go to map to choose next node
-          phase = "map";
-          room = g.room + 1;
-          player.shield = 0;
-          const coinsEarned = 1;
-          player.coins = (player.coins || 0) + coinsEarned;
-          log.unshift(`🗺️ Choose your next path · +${coinsEarned} coin`);
-          avatarMood = "victory";
+          phase = "path";
+          pathChoices = buildPathChoices(g.room + 1, g.floor);
+          mapChoices = buildMapChoices(g.room + 1, g.floor, remoteAdminConfig.pools);
+          actionFlash = { id: Date.now() + 2, text: "🗺️ Choose your map card", tone: "sky" };
+          log.unshift("🗺️ Random map cards generated: choose where to move");
         }
       }
 
@@ -2753,11 +2839,40 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         };
       }
 
-      // Boss kill reward → advance to next zone with new map
-      const nextFloor = g.floor + 1;
-      const nextRoute = buildRoute(nextFloor);
-      const nextMapLayers = generateZoneMap(nextFloor, g.runSeed + ':' + nextFloor);
-      const nextPlayer = { ...player, shield: 0, rerollsLeft: player.rerollsPerTurn };
+      const finishedRoute = g.room >= g.route.length - 1;
+
+      if (finishedRoute) {
+        const nextFloor = g.floor + 1;
+        const nextRoute = buildRoute(nextFloor);
+        const nextPlayer = { ...player, shield: player.combatStartShield, rerollsLeft: player.rerollsPerTurn };
+        return {
+          ...g,
+          floor: nextFloor,
+          room: 0,
+          route: nextRoute,
+          enemy: { ...nextRoute[0] },
+          pendingEnemy: { ...nextRoute[0] },
+          player: nextPlayer,
+          phase: "shop",
+          shopItems: buildShopInventory(remoteAdminConfig.pools),
+          artifactsOffered: [],
+          combatRewardPending: false,
+          startRewardPending: false,
+          cooldowns: emptyCooldowns(),
+          grid: emptyGrid(),
+          dice: [],
+          selectedDieIndex: null,
+          avatarMood: "victory",
+          actionFlash: { id: Date.now(), text: `🏆 ${artifact.name} · 🏪 Shop opened`, tone: "amber" },
+          lastOutcome: null,
+          pathChoices: [],
+          mapChoices: [],
+          log: [`🏆 Chose ${artifact.name}`, `🏪 Shop unlocked before Zone ${nextFloor}`, ...g.log].slice(0, 40),
+        };
+      }
+
+      const nextRoom = g.room + 1;
+      const nextEnemy = { ...g.route[nextRoom] };
       return {
         ...g,
         floor: nextFloor,
@@ -2867,25 +2982,17 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         const tierLabel = node.type === "boss" ? "👑 BOSS" : node.type === "elite" ? "⭐ Elite" : "⚔️ Combat";
         return {
           ...g,
-          mapLayers: updatedLayers,
-          currentMapNodeId: nodeId,
-          enemy: base,
-          phase: "roll",
-          player: (() => {
-            const base = { ...g.player, shield: g.player.combatStartShield, rerollsLeft: g.player.rerollsPerTurn };
-            // Re-apply weapon passives (non-cumulative) at combat start
-            const wpSlots: (Weapon | null)[] = base.weaponSlots || [null, null];
-            const shieldBonus = wpSlots.reduce((acc, w) => acc + (w?.passive?.combatStartShield || 0), 0);
-            // K-REX: reset stomp/tremor bonuses each combat
-            if (base.characterId === 'krex') {
-              base._krexStompBonus = 0;
-              base._krexTremorBonus = 0;
-              base.attackBonus = base._krexBaseAttack || 3;
-            }
-            return { ...base, shield: base.shield + shieldBonus };
-          })(),
-          kabalDieAvailableThisCombat: true,
-          goldenDicePending: false,
+          floor: nextFloor,
+          room: 0,
+          route: nextRoute,
+          enemy: { ...nextRoute[0] },
+          pendingEnemy: { ...nextRoute[0] },
+          player: { ...g.player, shield: g.player.combatStartShield, rerollsLeft: g.player.rerollsPerTurn },
+          phase: "shop",
+          shopItems: buildShopInventory(remoteAdminConfig.pools),
+          artifactsOffered: [],
+          combatRewardPending: false,
+          startRewardPending: false,
           cooldowns: emptyCooldowns(),
           grid: emptyGrid(),
           dice: [],
@@ -2904,23 +3011,42 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           currentMapNodeId: nodeId,
           shopInventory,
           phase: "shop",
-          log: ["🛒 You entered the jungle shop.", ...g.log].slice(0, 40),
-          actionFlash: { id: Date.now(), text: "🛒 Shop", tone: "sky" },
+          pendingEnemy: card.enemy,
+          shopItems: buildShopInventory(remoteAdminConfig.pools),
+          pathChoices: [],
+          mapChoices: [],
+          actionFlash: { id: Date.now(), text: "🏪 Entering shop", tone: "amber" },
+          log: [`🏪 Shop node selected`, ...g.log].slice(0, 40),
         };
       }
 
-      if (node.type === "event") {
-        const evRng = createRng(g.runSeed + ':event:' + nodeId);
-        const pendingEvent = pickRandomEvent(evRng);
-        return {
-          ...g,
-          mapLayers: updatedLayers,
-          currentMapNodeId: nodeId,
-          pendingEvent,
-          phase: "event",
-          log: [`❓ Event: ${pendingEvent.title}`, ...g.log].slice(0, 40),
-          actionFlash: { id: Date.now(), text: `❓ ${pendingEvent.title}`, tone: "sky" },
-        };
+      let next = {
+        ...g,
+        coins: g.coins - item.cost,
+        shopItems: g.shopItems.filter((s) => s.id !== item.id),
+      };
+
+      if (item.key === "heal-8") {
+        const healed = Math.min(g.player.maxHp, g.player.hp + 8);
+        next.player = { ...g.player, hp: healed };
+        next.actionFlash = { id: Date.now(), text: `❤️ +${healed - g.player.hp} HP`, tone: "emerald" };
+      } else if (item.key === "maxhp-5") {
+        next.player = { ...g.player, maxHp: g.player.maxHp + 5, hp: g.player.hp + 5 };
+        next.actionFlash = { id: Date.now(), text: "💪 +5 Max HP", tone: "emerald" };
+      } else if (item.key === "weapon-common") {
+        const artifact = pickArtifactByRarity(g.player.artifacts, ["gray", "common"]);
+        if (artifact) next.player = applyArtifactToPlayer(next.player, artifact);
+        next.actionFlash = { id: Date.now(), text: artifact ? `🗡️ ${artifact.name}` : "🗡️ No common left", tone: "amber" };
+      } else if (item.key === "weapon-rare") {
+        const artifact = pickArtifactByRarity(g.player.artifacts, ["gold", "rare", "chrome"]);
+        if (artifact) next.player = applyArtifactToPlayer(next.player, artifact);
+        next.actionFlash = { id: Date.now(), text: artifact ? `✨ ${artifact.name}` : "✨ No rare left", tone: "amber" };
+      } else if (item.key === "reroll-shop") {
+        next.shopItems = buildShopInventory(remoteAdminConfig.pools);
+        next.actionFlash = { id: Date.now(), text: "🎲 Shop rerolled", tone: "sky" };
+      } else if (item.key === "reroll-artifact") {
+        next.artifactRerollTokens = (g.artifactRerollTokens || 0) + 1;
+        next.actionFlash = { id: Date.now(), text: "🎁 +1 artifact reroll token", tone: "sky" };
       }
 
       if (node.type === "rest") {
@@ -2964,22 +3090,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
   function handleShopBuy(itemIndex: number) {
     setGame((g) => {
-      if (!g.shopInventory) return g;
-      const item = g.shopInventory[itemIndex];
-      if (!item) return g;
-      const coins = g.player.coins || 0;
-      if (coins < item.cost) {
-        return { ...g, actionFlash: { id: Date.now(), text: `🚫 Need ${item.cost} coins (you have ${coins})`, tone: "rose" } };
-      }
-      let player = { ...g.player, coins: coins - item.cost };
-      const e = item.effect;
-      if (e.hpDelta) player.hp = Math.min(player.maxHp, player.hp + e.hpDelta);
-      if (e.maxHpDelta) { player.maxHp += e.maxHpDelta; player.hp += e.maxHpDelta; }
-      if (e.attackBonusDelta) player.attackBonus += e.attackBonusDelta;
-      if (e.healBonusDelta) player.healBonus += e.healBonusDelta;
-      if (e.rerollDelta) { player.rerollsPerTurn += e.rerollDelta; player.rerollsLeft += e.rerollDelta; }
-      if (e.combatStartShieldDelta) player.combatStartShield += e.combatStartShieldDelta;
-      const newInventory = g.shopInventory.filter((_, i) => i !== itemIndex);
+      if (g.phase !== "reward" || (g.artifactRerollTokens || 0) <= 0) return g;
+      const nextOffers = g.startRewardPending ? buildStarterArtifactChoices(g.player, remoteAdminConfig.pools) : buildArtifactChoices(g.player, remoteAdminConfig.pools);
       return {
         ...g,
         player,
@@ -3151,16 +3263,35 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
   // Welcome bonus: +50 gems on first ever launch
   useEffect(() => {
-    const welcomed = localStorage.getItem('jk_welcomed');
-    if (!welcomed) {
-      setMeta((m) => {
-        const updated = { ...m, gems: m.gems + 50 };
-        saveMeta(updated);
-        return updated;
-      });
-      localStorage.setItem('jk_welcomed', '1');
-      setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: '🎁 Welcome! +50 gems', tone: 'amber' } }));
-    }
+    let mounted = true;
+    fetch('/api/miniapp/config')
+      .then((res) => res.json())
+      .then((payload) => {
+        if (!mounted || !payload?.ok) return;
+        const cfg = payload.config || {};
+        setRemoteAdminConfig({
+          ...DEFAULT_REMOTE_ADMIN_CONFIG,
+          ...cfg,
+          visuals: { ...DEFAULT_REMOTE_ADMIN_CONFIG.visuals, ...(cfg.visuals || {}) },
+          characters: {
+            playable: { ...(cfg.characters?.playable || {}) },
+            emotionUrls: { ...(cfg.characters?.emotionUrls || {}) },
+          },
+          narrative: {
+            kabalian: Array.isArray(cfg.narrative?.kabalian) ? cfg.narrative.kabalian : [],
+            kkm: Array.isArray(cfg.narrative?.kkm) ? cfg.narrative.kkm : [],
+          },
+          pools: {
+            ...DEFAULT_REMOTE_ADMIN_CONFIG.pools,
+            ...(cfg.pools || {}),
+          },
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const notifiedRunRef = useRef<string | null>(null);
@@ -3257,6 +3388,82 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     return () => window.clearTimeout(timeout);
   }, [game.lastOutcome]);
 
+
+  useEffect(() => {
+    if (tgUserId && !walletAddress) refreshCosmetics("");
+  }, [tgUserId]);
+
+  // Auto-resolve listener (called by countdown when time runs out)
+  useEffect(() => {
+    function handleAutoResolve() {
+      setGame((g) => {
+        if (g.phase !== "place") return g;
+        const newGrid = g.grid.map((row) => [...row]);
+        const newCooldowns = g.cooldowns.map((row) => [...row]);
+        // Mark placed slots with cooldown
+        for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) {
+          if (newGrid[y][x] !== null) newCooldowns[y][x] = g.player.cooldownBase;
+        }
+        window.setTimeout(() => resolveTurn(newGrid, newCooldowns), 50);
+        return { ...g, grid: newGrid, cooldowns: newCooldowns, phase: "resolving", dice: [] };
+      });
+    }
+    window.addEventListener("diejungle:autoresolve", handleAutoResolve);
+    return () => window.removeEventListener("diejungle:autoresolve", handleAutoResolve);
+  }, []);
+
+  // ── 7-second turn countdown ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (game.phase !== "place" || game.characterSelectPending) {
+      setTurnTimer(0);
+      if (turnTimerRef.current) { clearInterval(turnTimerRef.current); turnTimerRef.current = null; }
+      return;
+    }
+    setTurnTimer(7);
+    turnTimerRef.current = setInterval(() => {
+      setTurnTimer((t) => {
+        if (t <= 1) {
+          clearInterval(turnTimerRef.current as ReturnType<typeof setInterval>);
+          turnTimerRef.current = null;
+          // Auto-fill empty slots with current dice and resolve
+          setGame((g) => {
+            if (g.phase !== "place") return g;
+            const grid = g.grid.map((row) => [...row]);
+            const dice = [...g.dice];
+            // Place remaining dice into first available empty slots
+            for (let di = 0; di < dice.length; di++) {
+              if (dice[di] === null) continue;
+              let placed = false;
+              for (let y = 0; y < 3 && !placed; y++) {
+                for (let x = 0; x < 3 && !placed; x++) {
+                  if (grid[y][x] === null && g.cooldowns[y][x] === 0) {
+                    grid[y][x] = dice[di];
+                    dice[di] = null;
+                    placed = true;
+                  }
+                }
+              }
+            }
+            return { ...g, grid, dice, log: ["⏱️ Time's up! Auto-placed remaining dice.", ...g.log].slice(0, 40) };
+          });
+          // Trigger resolve after brief delay
+          window.setTimeout(() => {
+            setGame((g) => {
+              if (g.phase === "place") {
+                // Trigger resolve by simulating all dice placed
+                window.dispatchEvent(new CustomEvent("diejungle:autoresolve"));
+              }
+              return g;
+            });
+          }, 200);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => { if (turnTimerRef.current) { clearInterval(turnTimerRef.current); turnTimerRef.current = null; } };
+  }, [game.phase, game.characterSelectPending]);
+
   const totalArtifacts = game.player.artifacts.length;
   const avatarUrl = game.player.characterId === "kkm" ? game.player.avatar : (PLAYER_EMOTION_URLS[game.avatarMood] || game.player.avatar || PLAYER_AVATAR_URL);
   const avatarRing = game.avatarMood === "hurt"
@@ -3297,6 +3504,18 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   // XP bar
   const xpInfo = xpToNextLevel(meta.xp);
   const xpPct = xpInfo.needed > 0 ? Math.min(100, (xpInfo.current / xpInfo.needed) * 100) : 100;
+
+  const boardRightContent = game.phase === "place" && turnTimer > 0 ? (
+    <div className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 font-black text-lg transition-all ${
+      turnTimer <= 3
+        ? "animate-pulse border-rose-400/70 bg-rose-500/20 text-rose-200 shadow-[0_0_12px_rgba(239,68,68,0.35)]"
+        : "border-amber-300/40 bg-amber-400/15 text-amber-200"
+    }`}>
+      {turnTimer <= 3 ? "⚠️" : "⏱️"} <span className="text-2xl">{turnTimer}</span>
+    </div>
+  ) : (
+    <div className="text-[9px] text-zinc-300">Place dice on available slots</div>
+  );
 
   return (
     <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.78)), url(${effectiveBg})` }}>
@@ -3900,30 +4119,17 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           </SectionCard>
         </div>
 
-          {/* Resolve preview (compact) */}
-          {resolvePreview ? (
-            <div className="shrink-0 rounded-[10px] border border-white/10 bg-zinc-900/80 px-2 py-1 text-[10px]">
-              <div className="flex items-center justify-center gap-3">
-                <span className="text-zinc-500 text-[9px] font-black uppercase">If resolve:</span>
-                <span>
-                  Enemy{' '}
-                  <span className="text-red-400">{game.enemy.hp}</span>
-                  {' '}&#x2192;{' '}
-                  <span className={resolvePreview.enemyHpAfter <= 0 ? "text-emerald-400" : "text-orange-300"}>
-                    {Math.max(0, resolvePreview.enemyHpAfter)}
-                  </span>
-                </span>
-                <span>
-                  You{' '}
-                  <span className="text-zinc-300">{game.player.hp}</span>
-                  {' '}&#x2192;{' '}
-                  <span className={resolvePreview.playerHpAfter > game.player.hp ? "text-emerald-400" : "text-zinc-300"}>
-                    {resolvePreview.playerHpAfter}
-                  </span>
-                </span>
-                {resolvePreview.totals.shield > 0 && (
-                  <span className="text-sky-300">&#x1F6E1;&#xFE0F;+{resolvePreview.totals.shield}</span>
-                )}
+        <SectionCard
+          title="Board"
+          className="order-3 md:order-none"
+          right={boardRightContent}
+        >
+                    {activeDieMeta && game.phase === "place" ? (
+            <div className="mb-2 flex items-center gap-2 rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-2 py-1.5 text-[11px] text-white">
+              <span className="text-lg">{activeDieMeta.emoji}</span>
+              <div>
+                <div className="text-[12px] font-black text-amber-300">Next die: {activeDieMeta.label}</div>
+                <div className="text-[10px] text-zinc-100">{activeDieMeta.desc}</div>
               </div>
             </div>
           ) : null}
