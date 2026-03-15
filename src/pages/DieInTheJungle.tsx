@@ -170,6 +170,19 @@ const ROW_INFO = [
   { name: "Bot", emoji: "🪨", mult: 1, role: "+1 SHIELD", laneBonus: { attack: 0, shield: 1, heal: 0 } },
 ];
 
+// ─── Slot images ──────────────────────────────────────────────────────────────
+// Slot 1 (column 0) + Slot Mid (x=1,y=1) define the lane skin.
+// When both are set, all other slots copy the mid design.
+const SLOT_IMAGES = {
+  slot1:   'https://i.postimg.cc/vm6XgsWf/Chat-GPT-Image-15-mars-2026-23-23-55.png',
+  slotMid: 'https://i.postimg.cc/vm6XgsWf/Chat-GPT-Image-15-mars-2026-23-23-55.png',
+};
+
+function getSlotBg(x: number, _y: number): string {
+  if (x === 0) return SLOT_IMAGES.slot1;
+  return SLOT_IMAGES.slotMid || SLOT_IMAGES.slot1;
+}
+
 // Dynamic lane bonuses: pool shuffled each turn, influenced by player preferences
 type LaneBonus = { attack: number; shield: number; heal: number };
 type LanePref = 'attack' | 'heal' | 'shield' | 'any';
@@ -2897,9 +2910,13 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                       onMouseLeave={() => setHoveredSlot(null)}
                       className={`relative h-[72px] w-[72px] overflow-hidden rounded-[10px] border text-white transition md:h-[84px] md:w-[84px] ${canPlace ? "border-amber-300/60 ring-2 ring-amber-300/20 animate-pulse" : "border-white/15"}`}
                     >
-                      {/* Uniform jungle tile background */}
-                      <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/90 via-zinc-900 to-zinc-950" />
-                      <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%)', backgroundSize: '8px 8px' }} />
+                      {/* Slot image background */}
+                      {getSlotBg(x, y) ? (
+                        <img src={getSlotBg(x, y)} className="absolute inset-0 h-full w-full object-cover" alt="" />
+                      ) : (
+                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/90 via-zinc-900 to-zinc-950" />
+                      )}
+                      <div className="absolute inset-0 bg-black/20" />
                       {cell !== null ? (
                         <>
                           <img src={getDieImage(cell)} className="absolute inset-0 h-full w-full object-contain p-1" />
