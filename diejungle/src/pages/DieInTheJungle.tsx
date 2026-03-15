@@ -559,7 +559,7 @@ const KILL_REWARD_POOL: KillReward[] = [
     },
   },
   {
-    id: 'bonus_die', icon: '🎲', name: '+1 Dé bonus', desc: 'Prochain combat: 4 dés.',
+    id: 'bonus_die', icon: '🎲', name: '+1 Bonus die', desc: 'Next combat: 4 dice.',
     weight: 8, rarity: 'rare',
     apply: (player: any) => ({ player: { ...player, bonusDiceNextCombat: (player.bonusDiceNextCombat || 0) + 1 } }),
   },
@@ -4129,7 +4129,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                         onClick={() => setGame(g => ({ ...g, phase: g.prevCombatPhase || 'place', combatMapView: false, prevCombatPhase: null }))}
                         className="flex items-center gap-2 rounded-lg border border-rose-400/50 bg-rose-700/60 px-3 py-1.5 text-sm font-black text-rose-100 hover:bg-rose-600/70 active:scale-95 transition"
                       >
-                        ← Retour au combat
+                        ← Back to combat
                       </button>
                       <span className="text-[10px] text-rose-400">⚔️ Map — vue seule</span>
                     </div>

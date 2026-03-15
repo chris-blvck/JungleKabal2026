@@ -96,7 +96,7 @@ export const LEGENDARY_PASSIVES: Record<Archetype, { id: string; desc: string }>
   shield: { id: 'shield_legendary', desc: 'Le bouclier ne décroît pas entre les combats.' },
   totem:  { id: 'totem_legendary',  desc: 'Cooldown tick +1 permanent.' },
   cannon: { id: 'cannon_legendary', desc: 'Top row bonus +1 permanent même sans spéciale active.' },
-  fang:   { id: 'fang_legendary',   desc: 'Le DoT se propage au combat suivant avec 1 tour restant.' },
+  fang:   { id: 'fang_legendary',   desc: 'DoT carries over to next combat with 1 turn remaining.' },
 };
 
 // ─────────────────────────────────────────────
@@ -595,7 +595,7 @@ export function shouldPersistShield(weapons: (Weapon | null)[]): boolean {
 function _statLabel(stat: string): string {
   const labels: Record<string, string> = {
     attackBonus: 'ATK bonus',
-    attackDieValueBonus: 'Dé ATK +val',
+    attackDieValueBonus: 'ATK die +val',
     healBonus: 'Heal bonus',
     maxHp: 'HP max',
     combatStartShield: 'Shield départ',
