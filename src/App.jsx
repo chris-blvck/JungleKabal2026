@@ -16,8 +16,7 @@ import KabalAcademyMVP from './pages/KabalAcademyMVP';
 import KabalAcademyAdmin from './pages/KabalAcademyAdmin';
 import TrackRecord from './pages/TrackRecord';
 import TrophyRoom from './pages/TrophyRoom';
-import KabalCheckout from './pages/KabalCheckout';
-import TelegramMiniApp from './pages/TelegramMiniApp';
+import AngelOpsDashboard from './pages/AngelOpsDashboard';
 
 const isTeamContext =
   typeof window !== 'undefined' &&

@@ -54,58 +54,53 @@ User route: `/academy`
 
 API endpoint used by admin/user pages: `GET/PUT /api/academy/content` (default `http://localhost:8787`).
 
-## Kabal Payment Processor (SOL) · Mini App first
 
-Le flow de vente est maintenant **mini app first**:
-- depuis le site, l'utilisateur est redirigé vers Telegram Mini App
-- le catalogue, panier, upsell, création paiement et confirmation tx se font dans la mini app
-- Auto-refresh payment status every 4s with pending/confirmed/expired states
-- includes MEMECOINS COURSE (BEGINNER) as FREE starter with symbolic 0.00001 SOL activation
-- includes MEMECOINS COURSE (BEGINNER/INTERMEDIATE) at 20 SOL
-- includes Kourses / Kodex / Koaching sections with MINDSET and AI AUTOMATION & AGENT as coming soon
-- frontend includes a local fallback catalog if `/api/catalog` is unreachable (dev resilience)
-- une fois confirmé, le backend crée les entitlements (wallet/telegram) pour token gating
+## Angel Ops mini-app (deploy-ready)
 
-### Endpoints
-
-- `GET /api/catalog`
-- `POST /api/payments/create-cart`
-- `POST /api/payments/:id/confirm`
-- `POST /api/payments/link-telegram`
-- `GET /api/payments/history?telegramId=...&wallet=...`
-- `GET /api/access/list?telegramId=...&wallet=...`
-- `POST /api/waitlist/subscribe`
-- `GET /api/access/check?productId=...&wallet=...&telegramId=...`
-- `POST /api/telegram/webhook` (uniquement pour ouvrir la mini app / link)
-
-### Variables d'environnement
+### Local run (web + API)
 
 ```bash
-ACADEMY_API_PORT=8787
-SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
-PAYMENT_WALLET_POOL=wallet1,wallet2,wallet3
-# ou PAYMENT_WALLET=wallet_unique
-TELEGRAM_BOT_TOKEN=123456:ABC...
-TELEGRAM_STRICT_AUTH=0
+# terminal 1
+npm run api
+
+# terminal 2
+npm run dev
 ```
 
-Le backend fait une rotation automatique des wallets de réception via `PAYMENT_WALLET_POOL` (pour sécurité/opsec).
+Mini-app route (team context):
+- `/telegram/angel-ops`
+
+### Environment variables
+
+Create `.env` from `.env.example` and set at least:
+
+- `VITE_ANGEL_OPS_API_BASE` (frontend -> API base URL)
+- `ANGEL_OPS_ADMIN_TOKEN` (server write protection)
+- `VITE_ANGEL_OPS_ADMIN_TOKEN` (optional client token for admin writes)
+
+### Angel Ops API endpoints
+
+- `GET /api/angel-ops/state`
+- `PUT /api/angel-ops/wallets` (protected if `ANGEL_OPS_ADMIN_TOKEN` is set)
+- `POST /api/angel-ops/snapshot` (protected if `ANGEL_OPS_ADMIN_TOKEN` is set)
+
+### Production deployment checklist
+
+1. Deploy frontend (Vite build) and backend (`server/index.mjs`) behind HTTPS.
+2. Set `VITE_ANGEL_OPS_API_BASE` to the public API URL.
+3. Set `ANGEL_OPS_ADMIN_TOKEN` on server and rotate regularly.
+4. If using client-side admin actions, set `VITE_ANGEL_OPS_ADMIN_TOKEN` in secure private env (avoid exposing broad-scope token).
+5. Persist `server/data/angel-ops.json` on durable storage (or migrate to Postgres/Supabase for scale).
+6. Add a cron/worker to refresh snapshots periodically without relying on open client tabs.
+7. Configure monitoring (API health, 4xx/5xx rates, stale snapshot alerts).
 
 
-## Telegram Mini App Migration
+### Angel Ops deploy docs
+- Fast deploy runbook: `docs/ANGEL_OPS_DEPLOY_FAST.md`
+- Master remaining roadmap: `docs/ANGEL_OPS_ROADMAP_MASTER.md`
 
-A dedicated Telegram Mini App repo scaffold now exists in `telegram-miniapp/` to migrate **Die In The Jungle** while keeping desktop routes unchanged.
 
-
-### Mini App backend endpoints (MVP)
-
-When running `npm run api`, the same Node server now also exposes Telegram Mini App MVP endpoints:
-
-- `POST /api/runs/finish`
-- `GET /api/runs/leaderboard?limit=20`
-- `POST /api/runs/friends-leaderboard`
-- `POST /api/referrals/claim`
-- `GET /api/referrals/stats/:code`
-- `POST /api/miniapp/auth/check`
-- `POST /api/telemetry/event`
-- `GET /api/telemetry/summary`
+Backend hardening vars (recommended in production):
+- `CORS_ALLOW_ORIGIN=https://your-frontend-domain`
+- `ANGEL_OPS_RATE_LIMIT_WINDOW_MS=60000`
+- `ANGEL_OPS_RATE_LIMIT_MAX=60`

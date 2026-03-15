@@ -51,6 +51,8 @@ const STORAGE_SNAPSHOTS_KEY = 'jk-angel-snapshots-v1';
 const AUTO_REFRESH_MS = 60_000;
 const STALE_AFTER_MS = AUTO_REFRESH_MS * 2;
 const RPC_ENDPOINTS = ['https://api.mainnet-beta.solana.com', 'https://solana-api.projectserum.com'];
+const ANGEL_OPS_API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_ANGEL_OPS_API_BASE) || '';
+const ANGEL_OPS_ADMIN_TOKEN = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_ANGEL_OPS_ADMIN_TOKEN) || '';
 
 function usd(v) {
   return new Intl.NumberFormat('en-US', {
@@ -168,6 +170,46 @@ async function fetchSolUsdPrice() {
   throw lastError || new Error('All SOL price sources failed');
 }
 
+
+async function apiRequest(path, options = {}) {
+  const base = (ANGEL_OPS_API_BASE || '').replace(/\/$/, '');
+  const url = `${base}${path}`;
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(ANGEL_OPS_ADMIN_TOKEN ? { 'X-Admin-Token': ANGEL_OPS_ADMIN_TOKEN } : {}),
+    ...(options.headers || {}),
+  };
+  const response = await fetchWithTimeout(url, { ...options, headers }, 12_000);
+  if (!response.ok) throw new Error(`API error (${response.status})`);
+  return response.json();
+}
+
+async function fetchRemoteAngelOpsState() {
+  return apiRequest('/api/angel-ops/state', { method: 'GET' });
+}
+
+async function fetchRemoteAngelOpsHealth() {
+  return apiRequest('/api/angel-ops/health', { method: 'GET' });
+}
+
+async function saveRemoteWalletConfig(wallets) {
+  return apiRequest('/api/angel-ops/wallets', {
+    method: 'PUT',
+    body: JSON.stringify(wallets),
+  });
+}
+
+async function saveRemoteSnapshot(snapshot) {
+  return apiRequest('/api/angel-ops/snapshot', {
+    method: 'POST',
+    body: JSON.stringify(snapshot),
+  });
+}
+
+async function clearRemoteSnapshots() {
+  return apiRequest('/api/angel-ops/snapshots', { method: 'DELETE' });
+}
+
 function loadWalletConfig() {
   if (typeof window === 'undefined') return null;
   try {
@@ -236,6 +278,46 @@ function MiniVisualCurve() {
   );
 }
 
+
+function HistorySparkline({ snapshots }) {
+  if (!snapshots?.length) {
+    return <div style={{ fontSize: 11, color: JK.muted }}>No trend yet.</div>;
+  }
+
+  const points = snapshots.slice(0, 20).map((item) => Number(item?.totalValueUsd || 0)).reverse();
+  const w = 360;
+  const h = 88;
+  const p = 8;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const spread = Math.max(1, max - min);
+  const pts = points.map((value, index) => {
+    const x = p + (index / Math.max(1, points.length - 1)) * (w - p * 2);
+    const y = h - p - ((value - min) / spread) * (h - p * 2);
+    return { x, y };
+  });
+  const line = pts.map((t, i) => `${i === 0 ? 'M' : 'L'} ${t.x.toFixed(2)} ${t.y.toFixed(2)}`).join(' ');
+  const area = `${line} L ${pts[pts.length - 1].x.toFixed(2)} ${(h - p).toFixed(2)} L ${pts[0].x.toFixed(2)} ${(h - p).toFixed(2)} Z`;
+
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', display: 'block' }}>
+      <defs>
+        <linearGradient id="history-line" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#8B5CF6" />
+          <stop offset="100%" stopColor={JK.gold} />
+        </linearGradient>
+        <linearGradient id="history-area" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgba(139,92,246,0.24)" />
+          <stop offset="100%" stopColor="rgba(245,166,35,0.02)" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#history-area)" />
+      <path d={line} fill="none" stroke="url(#history-line)" strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx={pts[pts.length - 1].x} cy={pts[pts.length - 1].y} r="3" fill={JK.gold2} />
+    </svg>
+  );
+}
+
 function TabBar({ tab, setTab }) {
   const tabs = [
     { id: 'miniapp', label: 'Mini App' },
@@ -293,6 +375,10 @@ export default function AngelOpsDashboard() {
   const [lastPriceSource, setLastPriceSource] = useState('');
   const [lastRpcSource, setLastRpcSource] = useState('');
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [cloudSyncEnabled, setCloudSyncEnabled] = useState(Boolean(ANGEL_OPS_API_BASE));
+  const [lastCloudSyncAt, setLastCloudSyncAt] = useState('');
+  const [cloudCheckMessage, setCloudCheckMessage] = useState('');
+  const [backendHealth, setBackendHealth] = useState(null);
 
   const wallets = useMemo(() => ({
     trading: {
@@ -336,6 +422,46 @@ export default function AngelOpsDashboard() {
 
   const wallet = wallets[activeWallet] || wallets[user.walletPreset] || wallets.trading;
   const liveTrackedTotal = Object.values(wallets).reduce((sum, item) => sum + Number(item?.value || 0), 0);
+  const checkCloudConnection = async () => {
+    if (!ANGEL_OPS_API_BASE) {
+      setCloudCheckMessage('Cloud API base not configured.');
+      return;
+    }
+    try {
+      const health = await fetchRemoteAngelOpsHealth();
+      setBackendHealth(health);
+      setCloudSyncEnabled(true);
+      setCloudCheckMessage('Cloud API reachable.');
+    } catch {
+      setCloudSyncEnabled(false);
+      setBackendHealth(null);
+      setCloudCheckMessage('Cloud API unreachable. Check URL/CORS/token.');
+    }
+  };
+
+  const syncFromRemote = async () => {
+    try {
+      const [remote, health] = await Promise.all([
+        fetchRemoteAngelOpsState(),
+        fetchRemoteAngelOpsHealth().catch(() => null),
+      ]);
+      if (remote?.wallets) {
+        setWalletConfig((prev) => ({ ...prev, ...remote.wallets }));
+        setDraftWalletConfig((prev) => ({ ...prev, ...remote.wallets }));
+      }
+      if (Array.isArray(remote?.snapshots) && remote.snapshots.length) {
+        const nextSnapshots = remote.snapshots.slice(0, 120);
+        setSnapshotHistory(nextSnapshots);
+        saveTrackingSnapshots(nextSnapshots);
+      }
+      setCloudSyncEnabled(true);
+      setLastCloudSyncAt(new Date().toISOString());
+      setAdminStatus('Cloud sync complete.');
+    } catch {
+      setCloudSyncEnabled(false);
+    }
+  };
+
 
   const refreshTracking = async () => {
     if (!allWalletsReady) {
@@ -347,7 +473,7 @@ export default function AngelOpsDashboard() {
     setRefreshError('');
     try {
       const { price: solUsdPrice, source: priceSource } = await fetchSolUsdPrice();
-      const entries = await Promise.all(
+      const results = await Promise.allSettled(
         Object.entries(walletConfig).map(async ([key, address]) => {
           const { solBalance, source } = await fetchSolBalance(address);
           return [
@@ -361,24 +487,53 @@ export default function AngelOpsDashboard() {
         }),
       );
 
-      const next = Object.fromEntries(entries);
-      setLiveWalletData(next);
+      const successfulEntries = results
+        .filter((item) => item.status === 'fulfilled')
+        .map((item) => item.value);
+      const failedCount = results.length - successfulEntries.length;
+
+      if (!successfulEntries.length) {
+        throw new Error('All wallet refreshes failed. Check RPC connectivity.');
+      }
+
+      const next = Object.fromEntries(successfulEntries);
+      setLiveWalletData((prev) => ({ ...prev, ...next }));
       setLastPriceSource(priceSource);
       setLastRpcSource(Object.values(next)[0]?.source || '');
       const nowIso = new Date().toISOString();
       setLastRefreshAt(nowIso);
       const totalValueUsd = Object.values(next).reduce((sum, item) => sum + Number(item?.value || 0), 0);
       const snapshot = { at: nowIso, totalValueUsd, wallets: next };
-      const updatedHistory = [snapshot, ...snapshotHistory].slice(0, 120);
-      setSnapshotHistory(updatedHistory);
-      saveTrackingSnapshots(updatedHistory);
-      setAdminStatus('Live tracking refreshed from Solana RPC.');
+      setSnapshotHistory((prev) => {
+        const updatedHistory = [snapshot, ...prev].slice(0, 120);
+        saveTrackingSnapshots(updatedHistory);
+        return updatedHistory;
+      });
+      if (ANGEL_OPS_API_BASE) {
+        try {
+          await saveRemoteSnapshot(snapshot);
+          setCloudSyncEnabled(true);
+          setLastCloudSyncAt(nowIso);
+        } catch {
+          setCloudSyncEnabled(false);
+        }
+      }
+      setAdminStatus(
+        failedCount
+          ? `Tracking refreshed with ${failedCount} wallet error(s).`
+          : 'Live tracking refreshed from Solana RPC.',
+      );
     } catch (error) {
       setRefreshError((error && error.message) || 'Failed to refresh tracking');
     } finally {
       setIsRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    if (!ANGEL_OPS_API_BASE) return;
+    syncFromRemote();
+  }, []);
 
   useEffect(() => {
     if (allWalletsReady) refreshTracking();
@@ -393,7 +548,42 @@ export default function AngelOpsDashboard() {
   }, [allWalletsReady, autoRefreshEnabled, walletConfig.trading, walletConfig.reserve, walletConfig.moonbag]);
 
   const latestSnapshot = snapshotHistory[0] || null;
+  const snapshotCount = snapshotHistory.length;
+  const dayDelta = useMemo(() => {
+    if (!snapshotHistory.length) return null;
+    const now = Date.now();
+    const reference = snapshotHistory.find((item) => now - new Date(item.at).getTime() >= 24 * 60 * 60 * 1000)
+      || snapshotHistory[snapshotHistory.length - 1];
+    if (!reference) return null;
+    const latest = Number(latestSnapshot?.totalValueUsd || 0);
+    const previous = Number(reference.totalValueUsd || 0);
+    const diff = latest - previous;
+    const pctChange = previous > 0 ? (diff / previous) * 100 : 0;
+    return { diff, pctChange };
+  }, [latestSnapshot, snapshotHistory]);
   const isDataStale = lastRefreshAt ? (Date.now() - new Date(lastRefreshAt).getTime()) > STALE_AFTER_MS : false;
+
+  const clearTrackingHistory = async () => {
+    const confirmed = window.confirm('Clear all tracking snapshots? This cannot be undone.');
+    if (!confirmed) return;
+
+    setSnapshotHistory([]);
+    saveTrackingSnapshots([]);
+
+    if (ANGEL_OPS_API_BASE) {
+      try {
+        await clearRemoteSnapshots();
+        setCloudSyncEnabled(true);
+        setLastCloudSyncAt(new Date().toISOString());
+        setAdminStatus('Tracking history cleared locally + cloud.');
+      } catch {
+        setCloudSyncEnabled(false);
+        setAdminStatus('Tracking history cleared locally. Cloud clear failed.');
+      }
+    } else {
+      setAdminStatus('Tracking history cleared locally.');
+    }
+  };
 
   const exportSnapshotsCsv = () => {
     if (!snapshotHistory.length) return;
@@ -427,6 +617,19 @@ export default function AngelOpsDashboard() {
     setWalletConfig(normalized);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
     setAdminStatus('Wallet configuration saved. Tracking can start with these 3 SOL wallets.');
+
+    if (ANGEL_OPS_API_BASE) {
+      saveRemoteWalletConfig(normalized)
+        .then(() => {
+          setCloudSyncEnabled(true);
+          setLastCloudSyncAt(new Date().toISOString());
+          setAdminStatus('Wallet configuration saved locally + cloud synced.');
+        })
+        .catch(() => {
+          setCloudSyncEnabled(false);
+          setAdminStatus('Wallet saved locally. Cloud sync failed.');
+        });
+    }
   };
 
   return (
@@ -459,6 +662,23 @@ export default function AngelOpsDashboard() {
                 {isRefreshing ? 'Refreshing…' : 'Refresh tracking'}
               </button>
               <Badge color={latestSnapshot ? JK.green : '#F97316'}>Live total {usd(liveTrackedTotal)}</Badge>
+              <Badge color={cloudSyncEnabled ? JK.green : '#F97316'}>{cloudSyncEnabled ? 'Cloud sync ON' : 'Cloud sync OFF'}</Badge>
+              <button
+                type="button"
+                onClick={checkCloudConnection}
+                style={{
+                  border: `1px solid ${JK.border2}`,
+                  borderRadius: 8,
+                  background: 'rgba(59,130,246,0.12)',
+                  color: '#93C5FD',
+                  padding: '6px 10px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Check cloud
+              </button>
               {isDataStale ? <Badge color="#F97316">Data stale</Badge> : null}
               <button
                 type="button"
@@ -569,7 +789,7 @@ export default function AngelOpsDashboard() {
                     </div>
                   </div>
 
-                  <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 7 }}>
+                  <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 7 }}>
                     {Object.entries(CHOICES).map(([key, label]) => {
                       const active = key === choice;
                       return (
@@ -630,7 +850,7 @@ export default function AngelOpsDashboard() {
               <div style={{ width: '100%', maxWidth: 620, display: 'grid', gap: 8 }}>
                 <div style={{ color: JK.muted, fontSize: 11, textAlign: 'center', letterSpacing: 0.5 }}>Quick actions</div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 8 }}>
                   {Object.values(wallets).map((w) => (
                     <a
                       key={w.id}
@@ -682,6 +902,7 @@ export default function AngelOpsDashboard() {
               <StatBox value={pct(totalPnl)} label="Global PnL" color={totalPnl >= 0 ? 'green' : 'red'} />
               <StatBox value={`${stats.left}d`} label="Epoch Ends" />
               <StatBox value={`${stats.fullExitIn}d`} label="Next Full Exit" />
+              <StatBox value={dayDelta ? pct(dayDelta.pctChange) : '—'} label="24h Delta" color={dayDelta ? (dayDelta.pctChange >= 0 ? 'green' : 'red') : undefined} />
             </div>
 
             <Card style={{ marginBottom: 0 }}>
@@ -696,10 +917,22 @@ export default function AngelOpsDashboard() {
 
 
             <Card style={{ marginBottom: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ fontFamily: "'Cinzel', serif", fontSize: 16 }}>Equity trend (latest 20 snapshots)</div>
+                <Badge color={dayDelta ? (dayDelta.diff >= 0 ? JK.green : '#F97316') : JK.muted}>
+                  {dayDelta ? `${dayDelta.diff >= 0 ? '+' : ''}${usd(dayDelta.diff)} / 24h` : 'No delta yet'}
+                </Badge>
+              </div>
+              <HistorySparkline snapshots={snapshotHistory} />
+            </Card>
+
+
+            <Card style={{ marginBottom: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
                 <div style={{ fontFamily: "'Cinzel', serif", fontSize: 16 }}>Tracking history</div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <Badge color={latestSnapshot ? JK.green : '#F97316'}>{latestSnapshot ? 'Live feed' : 'No data yet'}</Badge>
+                  <Badge color="#93C5FD">{snapshotCount} snapshots</Badge>
                   <button
                     type="button"
                     onClick={exportSnapshotsCsv}
@@ -716,6 +949,23 @@ export default function AngelOpsDashboard() {
                     }}
                   >
                     Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearTrackingHistory}
+                    disabled={!snapshotHistory.length}
+                    style={{
+                      border: `1px solid ${JK.border}`,
+                      borderRadius: 8,
+                      background: 'rgba(239,68,68,0.12)',
+                      color: '#fca5a5',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: '6px 9px',
+                      cursor: snapshotHistory.length ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    Clear history
                   </button>
                 </div>
               </div>
@@ -738,7 +988,7 @@ export default function AngelOpsDashboard() {
         {tab === 'wallets' && (
           <>
             <SectionTitle style={{ marginBottom: 8 }}>Wallet Monitor</SectionTitle>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10 }}>
               {Object.values(wallets).map((w) => (
                 <Card key={w.id} style={{ marginBottom: 0, padding: 14 }}>
                   <div style={{ fontFamily: "'Cinzel', serif", fontSize: 15 }}>{w.label}</div>
@@ -829,6 +1079,21 @@ export default function AngelOpsDashboard() {
                 >
                   Reset draft
                 </button>
+                <button
+                  type="button"
+                  onClick={syncFromRemote}
+                  style={{
+                    border: `1px solid ${JK.border2}`,
+                    borderRadius: 9,
+                    background: 'rgba(59,130,246,0.12)',
+                    color: '#93C5FD',
+                    padding: '10px 14px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Sync from cloud
+                </button>
               </div>
 
               {adminStatus ? <div style={{ marginTop: 10, fontSize: 12, color: '#E5E5E5' }}>{adminStatus}</div> : null}
@@ -838,7 +1103,7 @@ export default function AngelOpsDashboard() {
               <div style={{ fontFamily: "'Cinzel', serif", fontSize: 15 }}>SOL wallet structure check</div>
               <div style={{ marginTop: 8, fontSize: 12, color: '#D9D9D9', lineHeight: 1.6 }}>
                 Yes — the current structure is valid for SOL-only tracking (Trading / Reserve / Moonbag).
-                Next step for real tracking is connecting these saved addresses to your backend refresh job (`/api/admin/refresh`) and snapshot storage.
+                Next step for real tracking is running a backend refresh worker and storing snapshots via `/api/angel-ops/snapshot`.
               </div>
               <div style={{ marginTop: 8, fontSize: 11, color: JK.muted }}>
                 Last live refresh: {lastRefreshAt ? formatDateTime(lastRefreshAt) : 'Never'} · Auto-refresh cadence: {Math.round(AUTO_REFRESH_MS / 1000)}s
@@ -846,7 +1111,27 @@ export default function AngelOpsDashboard() {
               <div style={{ marginTop: 4, fontSize: 11, color: JK.muted }}>
                 Price source: {lastPriceSource || '—'} · RPC source: {lastRpcSource || '—'}
               </div>
+              <div style={{ marginTop: 4, fontSize: 11, color: JK.muted }}>
+                Cloud sync: {cloudSyncEnabled ? 'Enabled' : 'Disabled'} · Last cloud sync: {lastCloudSyncAt ? formatDateTime(lastCloudSyncAt) : 'Never'}
+              </div>
               {refreshError ? <div style={{ marginTop: 6, fontSize: 11, color: '#f87171' }}>{refreshError}</div> : null}
+              <div style={{ marginTop: 10, border: `1px solid ${JK.border}`, borderRadius: 10, padding: '8px 10px', background: 'rgba(255,255,255,0.02)' }}>
+                <div style={{ fontSize: 11, color: JK.gold, fontWeight: 700 }}>Deployment wiring</div>
+                <div style={{ marginTop: 4, fontSize: 11, color: JK.muted }}>
+                  API base: {ANGEL_OPS_API_BASE || 'Not set'}
+                </div>
+                <div style={{ marginTop: 2, fontSize: 11, color: JK.muted }}>
+                  Admin token in client: {ANGEL_OPS_ADMIN_TOKEN ? 'Configured' : 'Not configured'}
+                </div>
+                {cloudCheckMessage ? <div style={{ marginTop: 4, fontSize: 11, color: cloudSyncEnabled ? JK.green : '#f87171' }}>{cloudCheckMessage}</div> : null}
+                {backendHealth ? (
+                  <div style={{ marginTop: 6, fontSize: 11, color: JK.muted, lineHeight: 1.5 }}>
+                    Health: wallets configured {backendHealth.walletsConfigured || 0} · snapshots {backendHealth.snapshotsCount || 0}
+                    <br />
+                    Rate limit: {backendHealth?.rateLimit?.maxWrites || '—'} writes / {Math.round((backendHealth?.rateLimit?.windowMs || 0) / 1000) || '—'}s · CORS: {backendHealth.corsAllowOrigin || '—'}
+                  </div>
+                ) : null}
+              </div>
             </Card>
           </>
         )}
