@@ -58,10 +58,10 @@ const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
 // Button image URLs — replace with real assets when available
 // Can be overridden via config.visuals.buttonImages from admin panel
 const BTN_IMAGES: Record<string, string> = {
-  roll:    '',
+  roll:    'https://i.postimg.cc/dtMH8DW1/Chat-GPT-Image-15-mars-2026-23-09-00.png',
   reroll:  '',
-  resolve: '',
-  restart: '',
+  resolve: 'https://i.postimg.cc/6pJ0GSpm/Chat-GPT-Image-15-mars-2026-23-07-03.png',
+  restart: 'https://i.postimg.cc/1zZs295V/Chat-GPT-Image-15-mars-2026-20-00-06.png',
 };
 
 type RunSummary = {
@@ -169,6 +169,59 @@ const ROW_INFO = [
   { name: "Mid", emoji: "✨", mult: 2, role: "+1 HEAL", laneBonus: { attack: 0, shield: 0, heal: 1 } },
   { name: "Bot", emoji: "🪨", mult: 1, role: "+1 SHIELD", laneBonus: { attack: 0, shield: 1, heal: 0 } },
 ];
+
+// Dynamic lane bonuses: pool shuffled each turn, influenced by player preferences
+type LaneBonus = { attack: number; shield: number; heal: number };
+type LanePref = 'attack' | 'heal' | 'shield' | 'any';
+
+const LANE_BONUS_POOL: LaneBonus[] = [
+  { attack: 1, shield: 0, heal: 0 },
+  { attack: 0, shield: 0, heal: 1 },
+  { attack: 0, shield: 1, heal: 0 },
+];
+
+const LANE_BONUS_META: Record<string, { emoji: string; label: string; color: string }> = {
+  attack:  { emoji: '⚔️', label: '+1 ATK',   color: 'bg-red-500/90 border-red-300/60' },
+  heal:    { emoji: '❤️', label: '+1 HEAL',  color: 'bg-emerald-600/90 border-emerald-300/60' },
+  shield:  { emoji: '🛡️', label: '+1 SHIELD', color: 'bg-sky-600/90 border-sky-300/60' },
+};
+
+function getBonusType(bonus: LaneBonus): 'attack' | 'heal' | 'shield' {
+  if (bonus.attack > 0) return 'attack';
+  if (bonus.heal > 0) return 'heal';
+  return 'shield';
+}
+
+function generateTurnLaneBonuses(prefs: LanePref[]): LaneBonus[] {
+  const pool = [...LANE_BONUS_POOL];
+  const assigned: (LaneBonus | null)[] = [null, null, null];
+  const used = new Set<number>();
+
+  // First pass: satisfy non-'any' preferences
+  for (let i = 0; i < 3; i++) {
+    const pref = prefs[i];
+    if (pref === 'any') continue;
+    const poolIdx = pref === 'attack' ? 0 : pref === 'heal' ? 1 : 2;
+    if (!used.has(poolIdx)) {
+      assigned[i] = pool[poolIdx];
+      used.add(poolIdx);
+    }
+  }
+
+  // Shuffle remaining bonuses
+  const remaining = pool.filter((_, i) => !used.has(i));
+  for (let i = remaining.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+  }
+
+  let ri = 0;
+  for (let i = 0; i < 3; i++) {
+    if (assigned[i] === null) assigned[i] = remaining[ri++];
+  }
+
+  return assigned as LaneBonus[];
+}
 
 const ENEMY_POOLS = {
   mob: [
@@ -1099,9 +1152,10 @@ function resolvePlayerGrid(state) {
       }
     });
 
-    if (rowAttack > 0) rowAttack += ROW_INFO[rowIndex].laneBonus.attack;
-    if (rowShield > 0) rowShield += ROW_INFO[rowIndex].laneBonus.shield;
-    if (rowHeal > 0) rowHeal += ROW_INFO[rowIndex].laneBonus.heal;
+    const laneBonus = (state.turnLaneBonuses?.[rowIndex]) ?? ROW_INFO[rowIndex].laneBonus;
+    if (rowAttack > 0) rowAttack += laneBonus.attack;
+    if (rowShield > 0) rowShield += laneBonus.shield;
+    if (rowHeal > 0) rowHeal += laneBonus.heal;
 
     // Mid row combo: 2+ of same type → +5 bonus
     if (midRowKinds) {
@@ -1189,7 +1243,7 @@ function resolvePlayerGrid(state) {
   };
 }
 
-function estimatePlayerOutcome(grid, player) {
+function estimatePlayerOutcome(grid, player, turnLaneBonuses?: LaneBonus[]) {
   let totalAttack = 0;
   let totalShield = 0;
   let totalHeal = 0;
@@ -1211,9 +1265,10 @@ function estimatePlayerOutcome(grid, player) {
       }
     });
 
-    if (rowAttack > 0) rowAttack += ROW_INFO[rowIndex].laneBonus.attack;
-    if (rowShield > 0) rowShield += ROW_INFO[rowIndex].laneBonus.shield;
-    if (rowHeal > 0) rowHeal += ROW_INFO[rowIndex].laneBonus.heal;
+    const laneBonus = (turnLaneBonuses?.[rowIndex]) ?? ROW_INFO[rowIndex].laneBonus;
+    if (rowAttack > 0) rowAttack += laneBonus.attack;
+    if (rowShield > 0) rowShield += laneBonus.shield;
+    if (rowHeal > 0) rowHeal += laneBonus.heal;
 
     totalAttack += rowAttack;
     totalShield += rowShield;
@@ -1316,6 +1371,8 @@ function makeInitialState() {
     lastBossFloor: null as number | null,
     // Current biome (changes after each boss kill)
     currentBiome: 'jungle' as BiomeId,
+    // Dynamic lane bonuses (reshuffled each turn)
+    turnLaneBonuses: generateTurnLaneBonuses(['any', 'any', 'any']) as LaneBonus[],
   };
 }
 
@@ -1528,6 +1585,10 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   });
   const [showAdvancedGuide, setShowAdvancedGuide] = useState(false);
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
+  const [showLaneCustomize, setShowLaneCustomize] = useState(false);
+  const [lanePreferences, setLanePreferences] = useState<LanePref[]>(() => {
+    try { return JSON.parse(localStorage.getItem('jk_lane_prefs') || '["any","any","any"]'); } catch { return ['any','any','any']; }
+  });
   const [meta, setMeta] = useState<MetaProgressionState>(loadMeta);
   const [lastRunReward, setLastRunReward] = useState<RunReward | null>(null);
 
@@ -1542,7 +1603,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const latestAction = game.log[0] || "No action yet. Press ROLL.";
   const intent = getIntentPreview(game.enemy);
   const intentTimeline = getIntentTimeline(game.enemy, 3);
-  const expectedOutcome = estimatePlayerOutcome(game.grid, game.player);
+  const expectedOutcome = estimatePlayerOutcome(game.grid, game.player, game.turnLaneBonuses);
   const streakMultiplier = getNoHitMultiplier(game.noHitTurns);
   const enemyAnchorRef = useRef(null);
   const playerAnchorRef = useRef(null);
@@ -1693,6 +1754,11 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         const specialFaces = hasDiceSpecials(meta);
         const geckoBonus = g.player.companion?.passive?.attackDieBonus ?? 0;
         const dice = rollDice(g.player.dicePerTurn, specialFaces, geckoBonus);
+        // Regenerate lane bonuses each turn respecting preferences
+        const lanePrefs: LanePref[] = (() => {
+          try { return JSON.parse(localStorage.getItem('jk_lane_prefs') || '["any","any","any"]'); } catch { return ['any','any','any']; }
+        })();
+        const turnLaneBonuses = generateTurnLaneBonuses(lanePrefs);
         return {
           ...g,
           dice,
@@ -1701,6 +1767,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           rolling: false,
           selectedDieIndex: 0,
           avatarMood: "focus",
+          turnLaneBonuses,
           actionFlash: { id: Date.now(), text: `🎲 ${dice.map((d) => `${getDieMeta(d).emoji}${d.value}${d.special ? '✦' : ''}`).join(" · ")}`, tone: "amber" },
           log: [`🎲 Rolled: ${dice.map((d) => `${getDieMeta(d).label} ${d.value}${d.special ? ` (${d.special})` : ''}`).join(" - ")}`, ...g.log].slice(0, 40),
         };
@@ -2789,7 +2856,9 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
 
 
-        <SectionCard title="Board" className="order-3 md:order-3" right={<div className="text-[9px] text-zinc-300">Place dice on available slots</div>}>
+        <SectionCard title="Board" className="order-3 md:order-3" right={
+          <button onClick={() => setShowLaneCustomize(true)} className="rounded-lg border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[9px] font-black text-amber-200 hover:bg-amber-300/20">⚙️ Lanes</button>
+        }>
           {activeDieMeta && game.phase === "place" ? (
             <div className="mb-2 flex items-center gap-2 rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-2 py-1.5 text-[11px] text-white">
               <span className="text-lg">{activeDieMeta.emoji}</span>
@@ -2800,13 +2869,20 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
             </div>
           ) : null}
 
-          <div className="grid justify-center gap-1 [grid-template-columns:32px_repeat(3,72px)] md:[grid-template-columns:40px_repeat(3,84px)]">
-            {ROW_INFO.map((row, y) => (
+          <div className="grid justify-center gap-1 [grid-template-columns:48px_repeat(3,72px)] md:[grid-template-columns:56px_repeat(3,84px)]">
+            {ROW_INFO.map((row, y) => {
+              const bonus = game.turnLaneBonuses?.[y] ?? row.laneBonus;
+              const bonusType = getBonusType(bonus);
+              const bonusMeta = LANE_BONUS_META[bonusType];
+              return (
               <React.Fragment key={row.name}>
-                <div className="h-[72px] rounded-[10px] border border-white/15 bg-black flex flex-col items-center justify-center text-[9px] font-black text-white md:h-[84px] md:text-[10px]">
-                  <span>{row.emoji}</span>
-                  <span>x{rowMultiplier(game.player, y)}</span>
-                  <span className="text-[8px] text-zinc-300">{row.role}</span>
+                {/* Lane label with big bonus badge */}
+                <div className="h-[72px] rounded-[10px] border border-white/15 bg-zinc-900 flex flex-col items-center justify-center gap-0.5 md:h-[84px]">
+                  <span className="text-[10px] font-black text-white">x{rowMultiplier(game.player, y)}</span>
+                  <div className={`rounded-md border px-1 py-0.5 text-center ${bonusMeta.color}`}>
+                    <div className="text-base leading-none">{bonusMeta.emoji}</div>
+                    <div className="text-[8px] font-black text-white leading-tight">{bonusMeta.label}</div>
+                  </div>
                 </div>
                 {game.grid[y].map((cell, x) => {
                   const cooldown = game.cooldowns[y][x];
@@ -2819,30 +2895,29 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                       onClick={() => activeDieIndex !== null && placeDie(activeDieIndex, x, y)}
                       onMouseEnter={() => setHoveredSlot({ x, y })}
                       onMouseLeave={() => setHoveredSlot(null)}
-                      className={`relative h-[72px] w-[72px] overflow-hidden rounded-[10px] border text-white transition md:h-[84px] md:w-[84px] ${canPlace ? "border-amber-300/60 ring-2 ring-amber-300/20" : "border-white/20"}`}
+                      className={`relative h-[72px] w-[72px] overflow-hidden rounded-[10px] border text-white transition md:h-[84px] md:w-[84px] ${canPlace ? "border-amber-300/60 ring-2 ring-amber-300/20 animate-pulse" : "border-white/15"}`}
                     >
-                      <img src={LANE_IMAGES[y]} className="absolute inset-0 h-full w-full object-contain" />
+                      {/* Uniform jungle tile background */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/90 via-zinc-900 to-zinc-950" />
+                      <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%)', backgroundSize: '8px 8px' }} />
                       {cell !== null ? (
                         <>
-                          <div className="absolute inset-0 bg-black/10" />
-                          <img src={getDieImage(cell)} className="absolute inset-0 h-full w-full object-contain" />
-                          <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 rounded bg-black/60 px-1 text-[9px] font-black">
+                          <img src={getDieImage(cell)} className="absolute inset-0 h-full w-full object-contain p-1" />
+                          <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 rounded bg-black/70 px-1 text-[9px] font-black">
                             {meta?.emoji} {cell.value}
                           </div>
                         </>
                       ) : blocked ? (
                         <>
-                          <div className="absolute inset-0 bg-red-950/60" />
+                          <div className="absolute inset-0 bg-red-950/70" />
                           <div className="absolute inset-0 flex flex-col items-center justify-center text-[10px] font-bold">
                             ⏳ {cooldown}
                           </div>
                         </>
                       ) : (
                         <>
-                          <div className="absolute inset-0 bg-black/25" />
-                          <div className="absolute inset-0 flex flex-col items-center justify-center text-[13px] font-bold tracking-[0.08em]">
-                            PLACE
-                            {canPlace ? <span className="text-[10px] text-amber-200">{activeDieMeta?.emoji}</span> : null}
+                          <div className="absolute inset-0 flex flex-col items-center justify-center text-[11px] font-bold tracking-[0.06em] text-zinc-400">
+                            {canPlace ? <span className="text-xl">{activeDieMeta?.emoji}</span> : <span className="text-[10px] text-zinc-500">PLACE</span>}
                           </div>
                         </>
                       )}
@@ -2850,7 +2925,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   );
                 })}
               </React.Fragment>
-            ))}
+              );
+            })}
           </div>
         </SectionCard>
 
@@ -3076,7 +3152,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         {/* ── Event overlay ─────────────────────────────────────────────────── */}
         <AnimatePresence>
           {game.phase === "event" && game.pendingEvent ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 py-4 px-4 backdrop-blur-sm">
               <div className="w-full max-w-sm rounded-[28px] border border-cyan-300/20 bg-zinc-950/98 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
                 <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-cyan-400">❓ Random Event</div>
                 <div className="mb-2 font-serif text-xl italic text-amber-300">{game.pendingEvent.title}</div>
@@ -3186,7 +3262,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
         <AnimatePresence>
           {game.phase === "reward" && !game.characterSelectPending ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 py-4 px-4 backdrop-blur-sm">
               <div className="w-full max-w-5xl rounded-[28px] border border-amber-300/20 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
@@ -3422,6 +3498,76 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           ) : null}
         </AnimatePresence>
       </div>
+
+      {/* ── Lane Customization Modal ──────────────────────────────────────── */}
+      <AnimatePresence>
+        {showLaneCustomize ? (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="w-full max-w-sm rounded-[28px] border border-amber-300/20 bg-zinc-950/98 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <div className="font-serif text-xl italic text-amber-300">⚙️ Customize Lanes</div>
+                  <div className="text-[11px] text-zinc-400">Set a preferred bonus for each row. Takes effect next ROLL.</div>
+                </div>
+                <button onClick={() => setShowLaneCustomize(false)} className="rounded-xl border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20">✕</button>
+              </div>
+
+              <div className="space-y-3">
+                {ROW_INFO.map((row, y) => {
+                  const currentBonus = game.turnLaneBonuses?.[y];
+                  const currentType = currentBonus ? getBonusType(currentBonus) : null;
+                  const bonusMeta = currentType ? LANE_BONUS_META[currentType] : null;
+                  return (
+                    <div key={row.name} className="rounded-xl border border-white/10 bg-black/30 p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="text-sm font-black text-white">{row.emoji} {row.name} Row <span className="text-zinc-400 font-normal">×{rowMultiplier(game.player, y)}</span></div>
+                        {bonusMeta ? (
+                          <div className={`rounded-md border px-1.5 py-0.5 text-[10px] font-black ${bonusMeta.color} text-white`}>{bonusMeta.emoji} This turn</div>
+                        ) : null}
+                      </div>
+                      <div className="grid grid-cols-4 gap-1">
+                        {(['attack', 'heal', 'shield', 'any'] as LanePref[]).map((pref) => {
+                          const isActive = lanePreferences[y] === pref;
+                          const prefMeta = pref !== 'any' ? LANE_BONUS_META[pref] : null;
+                          return (
+                            <button
+                              key={pref}
+                              onClick={() => {
+                                const next: LanePref[] = [...lanePreferences] as LanePref[];
+                                next[y] = pref;
+                                setLanePreferences(next);
+                                try { localStorage.setItem('jk_lane_prefs', JSON.stringify(next)); } catch {}
+                              }}
+                              className={`rounded-lg border py-1.5 text-[10px] font-black transition ${isActive ? (prefMeta ? `${prefMeta.color} text-white` : 'border-amber-300/60 bg-amber-500/20 text-amber-200') : 'border-white/15 bg-white/5 text-zinc-300 hover:bg-white/10'}`}
+                            >
+                              {pref === 'any' ? '🎲 Any' : `${prefMeta!.emoji} ${pref === 'attack' ? 'ATK' : pref === 'heal' ? 'HEAL' : 'SHD'}`}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 rounded-xl border border-zinc-700/40 bg-zinc-900/50 p-2.5 text-[10px] text-zinc-400">
+                🎲 <span className="font-black text-zinc-300">Any</span> = random each turn &nbsp;·&nbsp;
+                ⚔️ <span className="font-black text-zinc-300">ATK/HEAL/SHD</span> = guaranteed for this row (if available)
+              </div>
+
+              <button
+                onClick={() => {
+                  const newBonuses = generateTurnLaneBonuses(lanePreferences);
+                  setGame((g) => ({ ...g, turnLaneBonuses: newBonuses }));
+                }}
+                className="mt-3 w-full rounded-xl border border-amber-300/30 bg-amber-500/15 py-2 text-sm font-black text-amber-200 hover:bg-amber-500/25"
+              >
+                🔀 Preview new bonuses now
+              </button>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }
