@@ -113,6 +113,7 @@ const TAB_GROUPS = [
       { id: 'narrative', label: '📖 Narrative', help: 'Dialogues et textes de lore par personnage. Utilisés dans les écrans d\'intro de run et les bulles de dialogue en jeu.' },
       { id: 'advanced', label: '🔬 Advanced', help: 'Config JSON brute. Réservé aux devs. Modifier directement le payload envoyé au serveur. Attention : une erreur JSON peut casser la config.' },
       { id: 'roadmap', label: '🗺️ Roadmap', help: 'Vue d\'ensemble des features done, en cours, et backlog. Mise à jour à chaque sprint. Référence pour l\'équipe.' },
+      { id: 'sprints', label: '⚡ Sprint Tracker', help: 'Master list des sprints planifiés avec leurs features condensées. Vue rapide de la roadmap d\'exécution.' },
       { id: 'contentqueue', label: '📅 Content Queue', help: 'File de contenu planifié : nouvelles features, assets à livrer, events à créer. Priorisable et assignable.' },
     ],
   },
@@ -310,10 +311,12 @@ const KNOWN_ISSUES = [
   { status: 'open', label: 'Map doesn\'t visually refresh after combat (node not marked visited)', date: '2026-03-15' },
   { status: 'open', label: 'No shop node guaranteed on map — player can miss shop entirely', date: '2026-03-15' },
   { status: 'open', label: 'No boss node at end of zone — zone structure is random', date: '2026-03-15' },
-  { status: 'open', label: 'Post-combat loot choice missing (Max HP / Relic / Gold)', date: '2026-03-15' },
   { status: 'open', label: 'No biome system — all zones use same background', date: '2026-03-15' },
   { status: 'open', label: 'K-REX using KKM placeholder avatar — needs real K-REX art', date: '2026-03-15' },
   { status: 'open', label: 'Golden Kabal Dice has no dedicated skin — uses regular dice visuals', date: '2026-03-15' },
+  { status: 'open', label: 'No PAUSE button — player cannot pause mid-run (Sprint 2)', date: '2026-03-15' },
+  { status: 'open', label: 'No tutorial for first-time players — discovery is fully self-serve (Sprint 4)', date: '2026-03-15' },
+  { status: 'open', label: 'No post-run share card — no Twitter/Telegram share flow (Sprint 5)', date: '2026-03-15' },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -325,6 +328,111 @@ async function toDataUrl(file) {
     reader.readAsDataURL(file);
   });
 }
+
+// ─── Sprint Plan ───────────────────────────────────────────────────────────────
+const SPRINT_PLAN = [
+  {
+    id: 'S0',
+    label: '✅ Sprint 0 — Foundation',
+    status: 'done',
+    color: 'emerald',
+    items: [
+      { done: true,  label: 'Core combat loop (roll → place → resolve)' },
+      { done: true,  label: 'Zone map with fog of war, shop/event/rest nodes' },
+      { done: true,  label: 'Meta progression: XP + gems + 20-level unlock tree' },
+      { done: true,  label: '3 characters: Kabalian, KKM, K-REX' },
+      { done: true,  label: 'Companions: Gecko, Croak, L\'Œil' },
+      { done: true,  label: 'Weapons: 6 archetypes, pre-run equip, passives + specials' },
+      { done: true,  label: 'Relics: slots, passive effects, pre-run pick' },
+      { done: true,  label: 'Enemy intents + 6 modifiers (venom, thorns, regen…)' },
+      { done: true,  label: 'Admin panel: tabs, presets, meta editor, game logic, enemies' },
+      { done: true,  label: 'Backend API: config, assets, runs, referrals, leaderboard' },
+      { done: true,  label: 'Biome system: 4 backgrounds (jungle/ruins/temple/abyss)' },
+      { done: true,  label: 'Shop: shopkeeper + player character + dialogue bubble' },
+      { done: true,  label: 'Enemy details drawer (tap to expand)' },
+      { done: true,  label: 'Map blocked during combat (combatMapView guard)' },
+      { done: true,  label: 'Admin: tab groups Core/Content/Visuals/Ops + help banners' },
+      { done: true,  label: 'Admin: Asset Library with configured URLs visual grid' },
+      { done: true,  label: 'Sound system placeholder (sound.ts, 25 keys, no-op)' },
+    ],
+  },
+  {
+    id: 'S1',
+    label: '🔄 Sprint 1 — Ka Power + Kill Rewards + Lanes',
+    status: 'active',
+    color: 'amber',
+    items: [
+      { done: false, label: 'Ka Power System: fragments (◆◆◆◆), Kabalian=Ka Rage ⚡, KKM=Ka Fortress 🛡️, K-REX=Ka Stomp 🦶' },
+      { done: false, label: 'Kill Rewards: mob=auto random, elite=2/3 choix, boss=4/6 choix' },
+      { done: false, label: 'Dynamic Lanes: bonus/malus aléatoires après chaque resolve (20% malus, garantie ATK+/HEAL+)' },
+      { done: false, label: 'Player GAUCHE / Enemy DROITE (swap arena)' },
+      { done: false, label: 'Karnivor rename (Carnivor Plant → Karnivor)' },
+    ],
+  },
+  {
+    id: 'S2',
+    label: '🟡 Sprint 2 — Game Feel',
+    status: 'planned',
+    color: 'yellow',
+    items: [
+      { done: false, label: 'Countdown 7s par tour: barre sous grille, rouge < 3s, skip auto si 0' },
+      { done: false, label: 'Dice multiplier preview: badge rouge/bleu/jaune sur slot (valeur × mult)' },
+      { done: false, label: 'Haptic: die=light, kill=success, boss=heavy×8/4s, SURGE=rigid×3' },
+      { done: false, label: 'ROLL + RESOLVE pulsent et glowent quand c\'est leur tour' },
+      { done: false, label: '⏸️ Bouton PAUSE: ouvre overlay pause (continue / quit / settings)' },
+      { done: false, label: 'Shield reset entre ennemis, HP ne remonte pas' },
+      { done: false, label: 'UI compact: reroll petit, weapons 2 slots petits, free CD petit badge' },
+    ],
+  },
+  {
+    id: 'S3',
+    label: '🟠 Sprint 3 — Navigation & Settings',
+    status: 'planned',
+    color: 'orange',
+    items: [
+      { done: false, label: 'Settings panel: auto-resolve toggle, sound mixer, Leave & Save, Leave no save' },
+      { done: false, label: 'Map à gauche de How to Play dans la nav secondaire' },
+      { done: false, label: 'Jungle Coin Shop rename (in-run, ephémère)' },
+      { done: false, label: 'Gem Store rename (permanent: cosmetics + armes)' },
+      { done: false, label: 'Sound: brancher sound.ts, BGM par biome, SFX sur chaque action' },
+    ],
+  },
+  {
+    id: 'S4',
+    label: '🔵 Sprint 4 — Tutorial',
+    status: 'planned',
+    color: 'blue',
+    items: [
+      { done: false, label: 'Tuto premier jeu: mandatory, no cooldown, dés fixés, 5 tooltips séquentiels' },
+      { done: false, label: 'Tuto avancé: accessible depuis How to Play (lanes, SURGE, builds, économie)' },
+      { done: false, label: 'Objectif du jeu visible en tuto + règles' },
+    ],
+  },
+  {
+    id: 'S5',
+    label: '🟣 Sprint 5 — Social & Meta',
+    status: 'planned',
+    color: 'violet',
+    items: [
+      { done: false, label: 'Share card post-run: canvas (score, titre, zone, artifacts) → Twitter + Telegram Story, +1 gem/24h' },
+      { done: false, label: 'Gem Store items: cosmetics + armes permanentes (pas pay-to-win)' },
+      { done: false, label: 'Token bridge placeholder: $KABAL TON bridge UI (smart contract = hors scope)' },
+    ],
+  },
+  {
+    id: 'S6',
+    label: '⚫ Sprint 6 — Polish & Assets',
+    status: 'planned',
+    color: 'zinc',
+    items: [
+      { done: false, label: 'Map visuelle: background custom + node icons custom par type' },
+      { done: false, label: 'Die placeholder full-size dans chaque case de grille' },
+      { done: false, label: 'K-REX: remplacer placeholder avatar par vraie illustration' },
+      { done: false, label: 'Golden Dice: skin dédié pour le Golden Kabal Dice' },
+      { done: false, label: 'Biome Void: background dédié (en attente asset)' },
+    ],
+  },
+];
 
 function ensureStructuredAssets(rawAssets = {}) {
   const out = { ...EMPTY_CONFIG.assets };
@@ -1528,6 +1636,92 @@ export default function DieInTheJungleAdmin() {
                     </div>
                     <div className="h-3 rounded-full bg-zinc-800 overflow-hidden">
                       <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* ── SPRINT TRACKER ───────────────────────────────────────────────────── */}
+        {activeTab === 'sprints' && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold">⚡ Sprint Tracker</h2>
+                <p className="text-zinc-400 text-sm mt-0.5">Master list des sprints — condensé pour l'équipe.</p>
+              </div>
+              <div className="text-right text-xs text-zinc-500">
+                {SPRINT_PLAN.reduce((t, s) => t + s.items.length, 0)} features totales ·{' '}
+                {SPRINT_PLAN.reduce((t, s) => t + s.items.filter(i => i.done).length, 0)} done
+              </div>
+            </div>
+
+            {SPRINT_PLAN.map((sprint) => {
+              const doneCount = sprint.items.filter(i => i.done).length;
+              const pct = Math.round((doneCount / sprint.items.length) * 100);
+              const statusColors = {
+                done:    'border-emerald-700 bg-emerald-950/30',
+                active:  'border-amber-600 bg-amber-950/30',
+                planned: 'border-zinc-700 bg-zinc-900/50',
+              };
+              const headerColors = {
+                done:    'text-emerald-300',
+                active:  'text-amber-300',
+                planned: 'text-zinc-400',
+              };
+              const barColors = {
+                done:    'from-emerald-500 to-emerald-400',
+                active:  'from-amber-500 to-yellow-400',
+                planned: 'from-zinc-600 to-zinc-500',
+              };
+              return (
+                <div key={sprint.id} className={`rounded-xl border ${statusColors[sprint.status]} p-4 space-y-3`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className={`font-bold text-base ${headerColors[sprint.status]}`}>{sprint.label}</div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {sprint.status === 'active' && (
+                        <span className="rounded-full border border-amber-400/50 bg-amber-500/20 px-2 py-0.5 text-[10px] font-black text-amber-300 animate-pulse">EN COURS</span>
+                      )}
+                      <span className="text-xs text-zinc-400">{doneCount}/{sprint.items.length}</span>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                    <div className={`h-full rounded-full bg-gradient-to-r ${barColors[sprint.status]} transition-all`} style={{ width: `${pct}%` }} />
+                  </div>
+
+                  {/* Items */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+                    {sprint.items.map((item, i) => (
+                      <div key={i} className="flex items-start gap-2 py-0.5">
+                        <span className="shrink-0 text-sm mt-0.5">{item.done ? '✅' : sprint.status === 'active' ? '🔄' : '⬜'}</span>
+                        <span className={`text-sm ${item.done ? 'text-zinc-500 line-through' : sprint.status === 'planned' ? 'text-zinc-500' : 'text-zinc-300'}`}>
+                          {item.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Total progress */}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-4">
+              {(() => {
+                const all = SPRINT_PLAN.flatMap(s => s.items);
+                const done = all.filter(i => i.done).length;
+                const pct = Math.round((done / all.length) * 100);
+                return (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-zinc-300 font-medium">Progression totale</span>
+                      <span className="font-black text-zinc-300">{done} / {all.length} ({pct}%)</span>
+                    </div>
+                    <div className="h-3 rounded-full bg-zinc-800 overflow-hidden">
+                      <div className="h-full rounded-full bg-gradient-to-r from-violet-500 via-amber-400 to-emerald-400 transition-all" style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                 );
