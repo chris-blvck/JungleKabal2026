@@ -83,6 +83,7 @@ const TABS = [
   { id: 'metaeditor', label: '🧬 Meta Editor' },
   { id: 'cheatmode', label: '🔧 Cheat Mode' },
   { id: 'gamelogic', label: '⚙️ Game Logic' },
+  { id: 'dicecosmetics', label: '🎲 Dice Cosmetics' },
   { id: 'enemies', label: '👾 Enemies' },
   { id: 'artifacts', label: '📦 Artifacts' },
   { id: 'assets', label: '🖼️ Assets' },
@@ -90,6 +91,7 @@ const TABS = [
   { id: 'narrative', label: '📖 Narrative' },
   { id: 'advanced', label: '🔬 Advanced' },
   { id: 'roadmap', label: '🗺️ Roadmap' },
+  { id: 'contentqueue', label: '📅 Content Queue' },
 ];
 
 const GAME_LOGIC_GROUPS = {
@@ -130,6 +132,12 @@ const GAME_LOGIC_GROUPS = {
   },
 };
 
+const EMPTY_DICE_COSMETICS_CHAR = () => ({
+  attack: { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
+  shield: { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
+  heal:   { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
+});
+
 const EMPTY_CONFIG = {
   assets: { monsters: { mob: [], champions: [], boss: [] }, backgrounds: { jungle: [], ruins: [], temple: [] }, zones: { general: [] }, events: { general: [] } },
   gameLogic: { enemyHpScale: 1, enemyDamageScale: 1, scoreScale: 1, randomEventChance: 0.2, waveGrowthPerStage: 0.12, bossHpMultiplier: 2.4, bossDamageMultiplier: 1.8, critChance: 0.12, critMultiplier: 1.75, dodgeChance: 0.08, lifeSteal: 0.05, shieldDecayPerTurn: 0.15, comboWindowTurns: 2, rerollCostScore: 20, reviveHpRatio: 0.35, eventIntensityScale: 1, dropRateMultiplier: 1 },
@@ -147,6 +155,12 @@ const EMPTY_CONFIG = {
   monsters: { traitsCatalog: [], customMonsters: [] },
   artifacts: { customArtifacts: [] },
   assetsMeta: {},
+  contentQueue: [],
+  diceCosmetics: {
+    kabalian: EMPTY_DICE_COSMETICS_CHAR(),
+    kkm: EMPTY_DICE_COSMETICS_CHAR(),
+    krex: EMPTY_DICE_COSMETICS_CHAR(),
+  },
 };
 
 // ─── Roadmap ──────────────────────────────────────────────────────────────────
@@ -279,6 +293,20 @@ function ensureStructuredAssets(rawAssets = {}) {
   return out;
 }
 
+function mergeCharDiceCosmetics(raw) {
+  const out = {};
+  for (const char of ['kabalian', 'kkm', 'krex']) {
+    const base = EMPTY_DICE_COSMETICS_CHAR();
+    const src = raw?.[char] || {};
+    out[char] = {
+      attack: { ...base.attack, ...(src.attack || {}) },
+      shield: { ...base.shield, ...(src.shield || {}) },
+      heal:   { ...base.heal,   ...(src.heal   || {}) },
+    };
+  }
+  return out;
+}
+
 function withDefaults(raw = {}) {
   return {
     ...EMPTY_CONFIG, ...raw,
@@ -296,6 +324,8 @@ function withDefaults(raw = {}) {
     artifacts: { customArtifacts: Array.isArray(raw.artifacts?.customArtifacts) ? raw.artifacts.customArtifacts : [] },
     adminBacklog: Array.isArray(raw.adminBacklog) ? raw.adminBacklog : [],
     assetsMeta: raw.assetsMeta && typeof raw.assetsMeta === 'object' ? raw.assetsMeta : {},
+    contentQueue: Array.isArray(raw.contentQueue) ? raw.contentQueue : [],
+    diceCosmetics: mergeCharDiceCosmetics(raw.diceCosmetics),
   };
 }
 
@@ -348,6 +378,13 @@ export default function DieInTheJungleAdmin() {
   // Cheat mode
   const [cheatFloor, setCheatFloor] = useState(2);
   const [cheatHp, setCheatHp] = useState(20);
+  // Dice cosmetics
+  const [diceChar, setDiceChar] = useState('kabalian');
+  // Content queue
+  const [contentQueue, setContentQueue] = useState(() => {
+    try { const raw = localStorage.getItem('jk_content_queue_v1'); return raw ? JSON.parse(raw) : []; } catch { return []; }
+  });
+  const [cqForm, setCqForm] = useState({ date: '', type: 'Monster', name: '', rarity: 'Common', notes: '' });
 
   const availableSubcategories = ASSET_SCHEMA[category] || ['general'];
 
@@ -806,8 +843,237 @@ export default function DieInTheJungleAdmin() {
                 </div>
               ))}
             </div>
+
+            {/* ── VISUAL PARAMETER MAP ─────────────────────────────────────────── */}
+            <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-5 space-y-5">
+              <div>
+                <h2 className="text-xl font-semibold">🗺️ Parameter Map — What Does Each Setting Do?</h2>
+                <p className="text-zinc-400 text-sm mt-1">Visual reference: each parameter's in-game impact, safe ranges, and what breaks if you push too far.</p>
+              </div>
+
+              {/* DIFFICULTY */}
+              <div className="rounded-xl border border-rose-700/50 bg-rose-950/30 p-4 space-y-3">
+                <div className="flex items-center gap-2 border-b border-rose-700/40 pb-2">
+                  <span className="text-xl">⚔️</span>
+                  <h3 className="font-bold text-rose-300 text-base">DIFFICULTY — Enemy Power</h3>
+                  <span className="ml-auto text-[10px] rounded-full border border-rose-500/50 bg-rose-900/60 px-2 py-0.5 text-rose-200 font-bold">DANGER ZONE: keep &lt; 2×</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {[
+                    { key: 'enemyHpScale', icon: '❤️', color: 'text-rose-300', title: 'Enemy HP Scale', safe: '0.7 – 1.5', impact: 'Multiplies ALL enemy HP. 1.5 = enemies are 50% tankier. Above 2 → fights feel endless.', current: config.gameLogic?.enemyHpScale },
+                    { key: 'enemyDamageScale', icon: '💥', color: 'text-orange-300', title: 'Enemy Damage Scale', safe: '0.7 – 1.4', impact: 'Multiplies ALL enemy damage. 1.4 = enemies hit 40% harder. Above 1.8 → one-shots become common.', current: config.gameLogic?.enemyDamageScale },
+                    { key: 'waveGrowthPerStage', icon: '📈', color: 'text-amber-300', title: 'Wave Growth Per Stage', safe: '0.08 – 0.18', impact: 'Each zone/floor adds this % of extra HP & DMG. 0.12 = +12% per zone. Too high → Zone 4 is unbeatable.', current: config.gameLogic?.waveGrowthPerStage },
+                    { key: 'bossHpMultiplier', icon: '💀', color: 'text-red-300', title: 'Boss HP Multiplier', safe: '1.8 – 3.5', impact: 'Bosses get this × base HP. Default 2.4 = bosses are 2.4× a normal mob. Below 1.5 feels anticlimactic.', current: config.gameLogic?.bossHpMultiplier },
+                    { key: 'bossDamageMultiplier', icon: '🔥', color: 'text-red-400', title: 'Boss Damage Multiplier', safe: '1.4 – 2.5', impact: 'Bosses deal this × base damage. 1.8 = bosses hit 80% harder than mobs. Above 3 → unfair one-shots.', current: config.gameLogic?.bossDamageMultiplier },
+                    { key: 'eventIntensityScale', icon: '🌪️', color: 'text-violet-300', title: 'Event Intensity Scale', safe: '0.5 – 1.5', impact: 'Scales the negative impact of random events (damage, cost, etc.). 1 = normal. 2 = brutal events.', current: config.gameLogic?.eventIntensityScale },
+                  ].map((p) => (
+                    <div key={p.key} className="rounded-lg border border-rose-800/50 bg-black/30 p-3 space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base">{p.icon}</span>
+                        <span className={`text-xs font-bold ${p.color}`}>{p.title}</span>
+                        <span className="ml-auto font-mono text-xs font-black text-zinc-200 bg-zinc-800 rounded px-1.5 py-0.5">{Number(p.current ?? 1).toFixed(2)}</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 leading-relaxed">{p.impact}</p>
+                      <div className="text-[10px] text-emerald-400">✅ Safe range: {p.safe}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* COMBAT */}
+              <div className="rounded-xl border border-blue-700/50 bg-blue-950/30 p-4 space-y-3">
+                <div className="flex items-center gap-2 border-b border-blue-700/40 pb-2">
+                  <span className="text-xl">🎲</span>
+                  <h3 className="font-bold text-blue-300 text-base">COMBAT MECHANICS — Dice & Player Stats</h3>
+                  <span className="ml-auto text-[10px] rounded-full border border-blue-500/50 bg-blue-900/60 px-2 py-0.5 text-blue-200 font-bold">BALANCE SENSITIVE</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {[
+                    { key: 'critChance', icon: '⚡', color: 'text-yellow-300', title: 'Crit Chance', safe: '0.05 – 0.25', impact: 'Probability (0–1) of a critical hit. 0.12 = 12% crit rate. Above 0.4 → game feels random.', current: config.gameLogic?.critChance },
+                    { key: 'critMultiplier', icon: '💫', color: 'text-yellow-200', title: 'Crit Multiplier', safe: '1.5 – 2.5', impact: 'Damage multiplier on a critical hit. 1.75 = crits deal 75% extra. Above 3 → burst damage too swingy.', current: config.gameLogic?.critMultiplier },
+                    { key: 'dodgeChance', icon: '🌀', color: 'text-cyan-300', title: 'Dodge Chance', safe: '0.0 – 0.2', impact: 'Probability (0–1) of fully dodging an enemy hit. 0.08 = 8% dodge. Above 0.3 → trivializes damage.', current: config.gameLogic?.dodgeChance },
+                    { key: 'lifeSteal', icon: '🩸', color: 'text-pink-300', title: 'Life Steal', safe: '0.0 – 0.12', impact: 'HP gained per point of attack dealt (fraction). 0.05 = 5% of damage as HP. Above 0.2 → combat trivial.', current: config.gameLogic?.lifeSteal },
+                    { key: 'shieldDecayPerTurn', icon: '🛡️', color: 'text-sky-300', title: 'Shield Decay / Turn', safe: '0.0 – 0.3', impact: 'Fraction of shield lost each turn (except Fortress). 0.15 = 15% shield gone/turn. 0 = permanent shield.', current: config.gameLogic?.shieldDecayPerTurn },
+                    { key: 'comboWindowTurns', icon: '🔗', color: 'text-indigo-300', title: 'Combo Window (turns)', safe: '1 – 4', impact: 'How many consecutive turns of the same die type count as a combo. 2 = 2 turns ATK in a row triggers combo.', current: config.gameLogic?.comboWindowTurns },
+                    { key: 'reviveHpRatio', icon: '💖', color: 'text-rose-300', title: 'Revive HP Ratio', safe: '0.2 – 0.5', impact: 'HP fraction on death revive (if player has Kabal Sigil or revive relic). 0.35 = revive at 35% HP.', current: config.gameLogic?.reviveHpRatio },
+                  ].map((p) => (
+                    <div key={p.key} className="rounded-lg border border-blue-800/50 bg-black/30 p-3 space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base">{p.icon}</span>
+                        <span className={`text-xs font-bold ${p.color}`}>{p.title}</span>
+                        <span className="ml-auto font-mono text-xs font-black text-zinc-200 bg-zinc-800 rounded px-1.5 py-0.5">{Number(p.current ?? 0).toFixed(2)}</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 leading-relaxed">{p.impact}</p>
+                      <div className="text-[10px] text-emerald-400">✅ Safe range: {p.safe}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ECONOMY */}
+              <div className="rounded-xl border border-amber-700/50 bg-amber-950/30 p-4 space-y-3">
+                <div className="flex items-center gap-2 border-b border-amber-700/40 pb-2">
+                  <span className="text-xl">💰</span>
+                  <h3 className="font-bold text-amber-300 text-base">ECONOMY — Score, Drops & Events</h3>
+                  <span className="ml-auto text-[10px] rounded-full border border-amber-500/50 bg-amber-900/60 px-2 py-0.5 text-amber-200 font-bold">LEADERBOARD IMPACT</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                  {[
+                    { key: 'scoreScale', icon: '🏆', color: 'text-amber-300', title: 'Score Scale', safe: '0.5 – 3.0', impact: 'Multiplies all score gains. 2 = double points everywhere. Affects leaderboard — warn players before changing!', current: config.gameLogic?.scoreScale },
+                    { key: 'dropRateMultiplier', icon: '🎁', color: 'text-emerald-300', title: 'Drop Rate Multiplier', safe: '0.5 – 2.0', impact: 'Multiplies artifact and item drop chances. 1.5 = 50% more drops. Scales with relics and events.', current: config.gameLogic?.dropRateMultiplier },
+                    { key: 'rerollCostScore', icon: '🔁', color: 'text-sky-300', title: 'Reroll Cost (Score)', safe: '10 – 50', impact: 'Score deducted each time a player rerolls a die. 20 = -20 pts per reroll. 0 = free rerolls (risky!).', current: config.gameLogic?.rerollCostScore },
+                    { key: 'randomEventChance', icon: '🎲', color: 'text-violet-300', title: 'Random Event Chance', safe: '0.1 – 0.4', impact: 'Probability a map node triggers a random event. 0.2 = 20% of nodes. Above 0.6 → every node is an event.', current: config.gameLogic?.randomEventChance },
+                  ].map((p) => (
+                    <div key={p.key} className="rounded-lg border border-amber-800/50 bg-black/30 p-3 space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base">{p.icon}</span>
+                        <span className={`text-xs font-bold ${p.color}`}>{p.title}</span>
+                        <span className="ml-auto font-mono text-xs font-black text-zinc-200 bg-zinc-800 rounded px-1.5 py-0.5">{Number(p.current ?? 0).toFixed(2)}</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 leading-relaxed">{p.impact}</p>
+                      <div className="text-[10px] text-emerald-400">✅ Safe range: {p.safe}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button onClick={() => saveConfig(config)} className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 font-bold text-white">💾 Save All Parameters to Server</button>
+            </div>
           </section>
         )}
+
+        {/* ── DICE COSMETICS ──────────────────────────────────────────────────────── */}
+        {activeTab === 'dicecosmetics' && (() => {
+          const CHARS = [
+            { id: 'kabalian', label: 'Kabalian', emoji: '⚔️', color: 'amber' },
+            { id: 'kkm',      label: 'KKM',      emoji: '🤖', color: 'cyan' },
+            { id: 'krex',     label: 'K-REX',    emoji: '🦖', color: 'emerald' },
+          ];
+          const DIE_TYPES = ['attack', 'shield', 'heal'];
+          const DIE_TYPE_META = {
+            attack: { emoji: '⚔️', label: 'Attack Dice', color: 'rose' },
+            shield: { emoji: '🛡️', label: 'Shield Dice', color: 'sky' },
+            heal:   { emoji: '❤️', label: 'Heal Dice',   color: 'pink' },
+          };
+          const activeChar = CHARS.find(c => c.id === diceChar) || CHARS[0];
+          const charBorderColor = activeChar.color === 'amber' ? 'border-amber-500/50' : activeChar.color === 'cyan' ? 'border-cyan-500/50' : 'border-emerald-500/50';
+          const charBg = activeChar.color === 'amber' ? 'bg-amber-500/10' : activeChar.color === 'cyan' ? 'bg-cyan-500/10' : 'bg-emerald-500/10';
+
+          function updateDiceUrl(charId, dieType, face, url) {
+            setConfig(prev => ({
+              ...prev,
+              diceCosmetics: {
+                ...prev.diceCosmetics,
+                [charId]: {
+                  ...prev.diceCosmetics[charId],
+                  [dieType]: {
+                    ...(prev.diceCosmetics[charId]?.[dieType] || {}),
+                    [face]: url,
+                  },
+                },
+              },
+            }));
+            setLogicDirty(true);
+          }
+
+          return (
+            <section className="space-y-5">
+              <div className="rounded-xl border border-amber-700/50 bg-amber-950/20 p-5">
+                <h2 className="text-xl font-semibold text-amber-300">🎲 Dice Cosmetics</h2>
+                <p className="text-zinc-400 text-sm mt-1">
+                  Set custom dice images per character. Each face (1–6) per die type can have its own image URL.
+                  Changes are saved to the server config and applied in-game at next run start.
+                  Leave blank to use the default dice images.
+                </p>
+                <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-900/20 px-4 py-2 text-xs text-amber-200">
+                  ✨ <strong>Golden Kabal Dice:</strong> When the golden dice appears (10% per combat), it always rolls value 6.
+                  The player picks attack / shield / heal before placing it. Custom dice images apply to the character's set — not to the golden dice (which uses a special golden skin).
+                </div>
+              </div>
+
+              {/* Character selector */}
+              <div className="flex gap-2 flex-wrap">
+                {CHARS.map(c => {
+                  const active = diceChar === c.id;
+                  const cls = active
+                    ? c.color === 'amber' ? 'border-amber-400/70 bg-amber-500/20 text-amber-200' : c.color === 'cyan' ? 'border-cyan-400/70 bg-cyan-500/20 text-cyan-200' : 'border-emerald-400/70 bg-emerald-500/20 text-emerald-200'
+                    : 'border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200';
+                  return (
+                    <button key={c.id} onClick={() => setDiceChar(c.id)}
+                      className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold transition ${cls}`}>
+                      <span className="text-lg">{c.emoji}</span>
+                      {c.label}
+                      {active && <span className="text-[10px] opacity-70 font-normal">← editing</span>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Dice face editor for selected character */}
+              <div className={`rounded-xl border ${charBorderColor} ${charBg} p-5 space-y-6`}>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">{activeChar.emoji}</span>
+                  <h3 className="text-lg font-bold">{activeChar.label} — Dice Set</h3>
+                  <span className="ml-auto text-xs text-zinc-400">6 faces × 3 types = 18 images total</span>
+                </div>
+
+                {DIE_TYPES.map(dieType => {
+                  const tm = DIE_TYPE_META[dieType];
+                  const borderCol = tm.color === 'rose' ? 'border-rose-700/50' : tm.color === 'sky' ? 'border-sky-700/50' : 'border-pink-700/50';
+                  const headerCol = tm.color === 'rose' ? 'text-rose-300' : tm.color === 'sky' ? 'text-sky-300' : 'text-pink-300';
+                  return (
+                    <div key={dieType} className={`rounded-lg border ${borderCol} bg-black/30 p-4 space-y-3`}>
+                      <div className={`flex items-center gap-2 ${headerCol} font-bold`}>
+                        <span className="text-lg">{tm.emoji}</span>
+                        {tm.label}
+                        <span className="text-xs font-normal text-zinc-400 ml-1">— paste image URLs for each face value</span>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+                        {[1,2,3,4,5,6].map(face => {
+                          const url = config.diceCosmetics?.[diceChar]?.[dieType]?.[face] || '';
+                          return (
+                            <div key={face} className="space-y-2">
+                              <div className="text-[10px] font-bold text-zinc-400 text-center">Face {face}{face === 6 ? ' ✦' : ''}</div>
+                              <div className="h-16 rounded-lg border border-zinc-700 bg-zinc-800 flex items-center justify-center overflow-hidden">
+                                {url
+                                  ? <img src={url} alt={`${dieType} face ${face}`} className="h-full w-full object-contain p-1" />
+                                  : <span className="text-2xl opacity-30">{tm.emoji}</span>
+                                }
+                              </div>
+                              <input
+                                type="text"
+                                placeholder="https://..."
+                                value={url}
+                                onChange={e => updateDiceUrl(diceChar, dieType, face, e.target.value)}
+                                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[10px] font-mono text-zinc-200 focus:border-amber-500 focus:outline-none"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <button onClick={() => saveConfig(config)} className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 font-bold text-white">
+                  💾 Save {activeChar.label} Dice Set to Server
+                </button>
+              </div>
+
+              {/* Quick copy/paste all 3 chars */}
+              <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-4">
+                <h3 className="font-semibold text-zinc-200 mb-2">📋 Bulk Edit — Raw JSON</h3>
+                <p className="text-zinc-400 text-xs mb-3">Advanced: edit all dice cosmetics as raw JSON. Useful for copy-pasting entire sets.</p>
+                <JsonEditor
+                  label="diceCosmetics (all characters)"
+                  value={config.diceCosmetics}
+                  onSave={(value) => { setConfig(p => ({ ...p, diceCosmetics: mergeCharDiceCosmetics(value) })); setLogicDirty(true); }}
+                  rows={14}
+                />
+              </div>
+            </section>
+          );
+        })()}
 
         {/* ── ENEMIES VIEWER ──────────────────────────────────────────────────────── */}
         {activeTab === 'enemies' && (
@@ -1108,6 +1374,182 @@ export default function DieInTheJungleAdmin() {
             </div>
           </div>
         )}
+
+        {/* ── CONTENT QUEUE ─────────────────────────────────────────────────────── */}
+        {activeTab === 'contentqueue' && (() => {
+          const CQ_KEY = 'jk_content_queue_v1';
+          const TYPE_COLORS = {
+            Monster: 'bg-rose-600/30 border-rose-500/50 text-rose-200',
+            Weapon: 'bg-amber-600/30 border-amber-500/50 text-amber-200',
+            Companion: 'bg-emerald-600/30 border-emerald-500/50 text-emerald-200',
+            Relic: 'bg-violet-600/30 border-violet-500/50 text-violet-200',
+            Artifact: 'bg-cyan-600/30 border-cyan-500/50 text-cyan-200',
+            Event: 'bg-orange-600/30 border-orange-500/50 text-orange-200',
+          };
+          const RARITY_BADGE = {
+            Common: 'bg-zinc-700 text-zinc-300',
+            Rare: 'bg-blue-700/50 text-blue-200',
+            Epic: 'bg-violet-700/50 text-violet-200',
+            Legendary: 'bg-amber-700/50 text-amber-200',
+          };
+
+          function saveQueue(next) {
+            localStorage.setItem(CQ_KEY, JSON.stringify(next));
+            setContentQueue(next);
+          }
+
+          function addEntry() {
+            if (!cqForm.date || !cqForm.name.trim()) return;
+            const entry = { id: Date.now(), ...cqForm, name: cqForm.name.trim() };
+            saveQueue([...contentQueue, entry].sort((a, b) => a.date.localeCompare(b.date)));
+            setCqForm({ date: '', type: 'Monster', name: '', rarity: 'Common', notes: '' });
+          }
+
+          function deleteEntry(id) {
+            saveQueue(contentQueue.filter(e => e.id !== id));
+          }
+
+          function exportQueue() {
+            const blob = new Blob([JSON.stringify(contentQueue, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `diejungle-content-queue-${Date.now()}.json`; a.click();
+          }
+
+          // Group by ISO week
+          function getWeekLabel(dateStr) {
+            const d = new Date(dateStr);
+            const jan4 = new Date(d.getFullYear(), 0, 4);
+            const startOfWeek = new Date(jan4);
+            startOfWeek.setDate(jan4.getDate() - jan4.getDay() + 1);
+            const weekNum = Math.ceil(((d - startOfWeek) / 86400000 + 1) / 7);
+            return `Week ${weekNum} · ${d.getFullYear()}`;
+          }
+
+          const grouped = contentQueue.reduce((acc, entry) => {
+            const wk = getWeekLabel(entry.date);
+            if (!acc[wk]) acc[wk] = [];
+            acc[wk].push(entry);
+            return acc;
+          }, {});
+
+          return (
+            <div className="space-y-6">
+              {/* Tutorial */}
+              <div className="rounded-xl border border-cyan-700/50 bg-cyan-900/20 p-4 text-sm text-cyan-200">
+                <div className="font-bold mb-1">📅 Content Release Queue</div>
+                <p className="text-xs text-cyan-300/80">Schedule content releases. Entries here are a planning tool — they don't automatically enable content in-game. Use this to pipeline a year of content releases and coordinate with your team.</p>
+              </div>
+
+              {/* Add form */}
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-4">
+                <h2 className="text-lg font-semibold">➕ Add Release</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">Date</label>
+                    <input
+                      type="date"
+                      value={cqForm.date}
+                      onChange={e => setCqForm(f => ({ ...f, date: e.target.value }))}
+                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">Type</label>
+                    <select
+                      value={cqForm.type}
+                      onChange={e => setCqForm(f => ({ ...f, type: e.target.value }))}
+                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none"
+                    >
+                      {['Monster', 'Weapon', 'Companion', 'Relic', 'Artifact', 'Event'].map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={cqForm.name}
+                      onChange={e => setCqForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="e.g. Void Serpent"
+                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">Rarity</label>
+                    <select
+                      value={cqForm.rarity}
+                      onChange={e => setCqForm(f => ({ ...f, rarity: e.target.value }))}
+                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none"
+                    >
+                      {['Common', 'Rare', 'Epic', 'Legendary'].map(r => <option key={r}>{r}</option>)}
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs text-zinc-400 mb-1">Notes (optional)</label>
+                    <textarea
+                      value={cqForm.notes}
+                      onChange={e => setCqForm(f => ({ ...f, notes: e.target.value }))}
+                      rows={2}
+                      placeholder="Design notes, dependencies, art status..."
+                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none resize-none"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={addEntry}
+                    disabled={!cqForm.date || !cqForm.name.trim()}
+                    className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-bold"
+                  >
+                    ➕ Add to Queue
+                  </button>
+                  <button onClick={exportQueue} className="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-sm font-medium">
+                    📤 Export JSON
+                  </button>
+                </div>
+              </div>
+
+              {/* Upcoming releases grouped by week */}
+              <div className="space-y-4">
+                {contentQueue.length === 0 ? (
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-8 text-center text-zinc-500 text-sm">
+                    No releases scheduled yet. Add your first entry above.
+                  </div>
+                ) : (
+                  Object.entries(grouped).map(([week, entries]) => (
+                    <div key={week} className="rounded-xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
+                      <div className="px-4 py-2 bg-zinc-800/60 text-xs font-bold text-zinc-300 border-b border-zinc-700">{week}</div>
+                      <div className="divide-y divide-zinc-800">
+                        {entries.map(entry => (
+                          <div key={entry.id} className="flex items-start gap-3 px-4 py-3">
+                            <div className="text-xs text-zinc-500 w-20 shrink-0 pt-0.5">{entry.date}</div>
+                            <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-bold ${TYPE_COLORS[entry.type] || 'bg-zinc-700 border-zinc-600 text-zinc-300'}`}>
+                              {entry.type}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-bold text-zinc-100">{entry.name}</span>
+                                <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${RARITY_BADGE[entry.rarity] || 'bg-zinc-700 text-zinc-300'}`}>
+                                  {entry.rarity}
+                                </span>
+                              </div>
+                              {entry.notes && <div className="text-xs text-zinc-500 mt-0.5 truncate">{entry.notes}</div>}
+                            </div>
+                            <button
+                              onClick={() => deleteEntry(entry.id)}
+                              className="shrink-0 rounded px-2 py-1 text-xs text-zinc-500 hover:bg-rose-900/40 hover:text-rose-400 transition"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
