@@ -740,9 +740,12 @@ export default function DieInTheJungleAdmin() {
     setConfig((prev) => ({ ...prev, npcEncounters: (prev.npcEncounters || []).filter(n => n.id !== id) }));
   }
 
+  const [sprintPriority, setSprintPriority] = useState('medium');
+  const [enemyFilter, setEnemyFilter] = useState('');
+
   function addSprintItem() {
     if (!newSprintItem.trim()) return;
-    const item = { id: Date.now().toString(), text: newSprintItem.trim(), done: false };
+    const item = { id: Date.now().toString(), text: newSprintItem.trim(), done: false, priority: sprintPriority };
     setConfig((prev) => ({ ...prev, sprintItems: [...(prev.sprintItems || []), item] }));
     setNewSprintItem('');
   }
@@ -1264,11 +1267,31 @@ export default function DieInTheJungleAdmin() {
         {activeTab === 'enemies' && (
           <div className="space-y-6">
             <SectionCard title="👹 Enemy Pool">
+              {/* Search + filter */}
+              <div className="flex gap-2 mb-2">
+                <input
+                  value={enemyFilter}
+                  onChange={(e) => setEnemyFilter(e.target.value)}
+                  placeholder="Search by name or trait..."
+                  className="flex-1 rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                />
+                {enemyFilter && <button onClick={() => setEnemyFilter('')} className="text-xs text-zinc-500 hover:text-zinc-300 border border-zinc-700 rounded px-2">✕ Clear</button>}
+                <div className="flex gap-1">
+                  {['all', 'mob', 'champion', 'boss'].map(t => (
+                    <button key={t} onClick={() => setEnemyFilter(t === 'all' ? '' : t)}
+                      className={`px-2 py-1 rounded text-xs border transition-colors capitalize ${enemyFilter === (t === 'all' ? '' : t) ? 'bg-amber-500/20 border-amber-400/60 text-amber-300' : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:border-zinc-500'}`}>
+                      {t === 'all' ? 'All' : t === 'mob' ? '⚔️ Mob' : t === 'champion' ? '🏅 Champion' : '💀 Boss'}
+                    </button>
+                  ))}
+                </div>
+              </div>
               {config.monsters.customMonsters.length === 0 ? (
                 <p className="text-zinc-500 text-sm">No custom enemies yet. Add one below.</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {config.monsters.customMonsters.map((enemy) => (
+                  {config.monsters.customMonsters
+                    .filter(e => !enemyFilter || e.name?.toLowerCase().includes(enemyFilter.toLowerCase()) || e.type === enemyFilter || (e.traits || []).some(t => t.toLowerCase().includes(enemyFilter.toLowerCase())))
+                    .map((enemy) => (
                     <div key={enemy.id} className="rounded-xl border border-zinc-700 bg-zinc-800/60 p-4 space-y-2">
                       {enemy.imageUrl && (
                         <img src={enemy.imageUrl} alt={enemy.name} className="w-full h-32 object-cover rounded-lg" />
@@ -2249,6 +2272,7 @@ export default function DieInTheJungleAdmin() {
         {activeTab === 'sprint' && (
           <div className="space-y-6">
             <SectionCard title="🏃 Current Sprint Goals">
+              {/* Add item */}
               <div className="flex gap-2">
                 <input
                   value={newSprintItem}
@@ -2257,38 +2281,79 @@ export default function DieInTheJungleAdmin() {
                   placeholder="Add sprint goal..."
                   className="flex-1 rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
                 />
+                <select value={sprintPriority} onChange={(e) => setSprintPriority(e.target.value)}
+                  className="rounded bg-zinc-800 border border-zinc-700 px-2 py-2 text-sm text-zinc-100">
+                  <option value="high">🔴 High</option>
+                  <option value="medium">🟡 Medium</option>
+                  <option value="low">🟢 Low</option>
+                </select>
                 <AmberBtn onClick={addSprintItem}>+ Add</AmberBtn>
               </div>
 
+              {/* Progress bar */}
+              {(config.sprintItems || []).length > 0 && (
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-500 transition-all"
+                      style={{ width: `${((config.sprintItems || []).filter(i => i.done).length / (config.sprintItems || []).length) * 100}%` }} />
+                  </div>
+                  <span className="text-xs text-zinc-400 shrink-0">
+                    {(config.sprintItems || []).filter(i => i.done).length} / {(config.sprintItems || []).length}
+                  </span>
+                </div>
+              )}
+
+              {/* Kanban view: Todo | In Progress | Done */}
               {(!config.sprintItems || config.sprintItems.length === 0) ? (
                 <p className="text-zinc-500 text-sm">No sprint goals yet. Add one above.</p>
               ) : (
-                <div className="space-y-2">
-                  {config.sprintItems.map((item) => (
-                    <div key={item.id} className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${item.done ? 'border-emerald-800/50 bg-emerald-900/10' : 'border-zinc-700 bg-zinc-800/40'}`}>
-                      <button
-                        onClick={() => toggleSprintItem(item.id)}
-                        className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${item.done ? 'bg-emerald-600 border-emerald-500' : 'border-zinc-600 hover:border-amber-400'}`}
-                      >
-                        {item.done && <span className="text-white text-xs">✓</span>}
-                      </button>
-                      <span className={`flex-1 text-sm ${item.done ? 'line-through text-zinc-500' : 'text-zinc-200'}`}>{item.text}</span>
-                      <button onClick={() => removeSprintItem(item.id)} className="text-xs text-zinc-600 hover:text-rose-400">✕</button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Todo */}
+                  <div>
+                    <div className="text-xs font-bold text-zinc-400 uppercase mb-2">📋 Todo ({(config.sprintItems || []).filter(i => !i.done).length})</div>
+                    <div className="space-y-2">
+                      {(config.sprintItems || []).filter(i => !i.done)
+                        .sort((a, b) => ({ high: 0, medium: 1, low: 2 }[a.priority || 'medium'] - { high: 0, medium: 1, low: 2 }[b.priority || 'medium']))
+                        .map((item) => (
+                        <div key={item.id} className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2.5">
+                          <button onClick={() => toggleSprintItem(item.id)}
+                            className="w-4 h-4 rounded border border-zinc-600 hover:border-amber-400 flex items-center justify-center shrink-0" />
+                          <span className="text-[10px]">{item.priority === 'high' ? '🔴' : item.priority === 'low' ? '🟢' : '🟡'}</span>
+                          <span className="flex-1 text-sm text-zinc-200">{item.text}</span>
+                          <button onClick={() => removeSprintItem(item.id)} className="text-xs text-zinc-600 hover:text-rose-400">✕</button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                  <div className="text-xs text-zinc-500 pt-1">
-                    {(config.sprintItems || []).filter(i => i.done).length} / {(config.sprintItems || []).length} done
+                  </div>
+                  {/* Done */}
+                  <div>
+                    <div className="text-xs font-bold text-emerald-400 uppercase mb-2">✅ Done ({(config.sprintItems || []).filter(i => i.done).length})</div>
+                    <div className="space-y-2">
+                      {(config.sprintItems || []).filter(i => i.done).map((item) => (
+                        <div key={item.id} className="flex items-center gap-2 rounded-lg border border-emerald-800/50 bg-emerald-900/10 px-3 py-2.5">
+                          <button onClick={() => toggleSprintItem(item.id)}
+                            className="w-4 h-4 rounded bg-emerald-600 border-emerald-500 flex items-center justify-center shrink-0">
+                            <span className="text-white text-[9px]">✓</span>
+                          </button>
+                          <span className="flex-1 text-sm line-through text-zinc-500">{item.text}</span>
+                          <button onClick={() => removeSprintItem(item.id)} className="text-xs text-zinc-600 hover:text-rose-400">✕</button>
+                        </div>
+                      ))}
+                      {(config.sprintItems || []).filter(i => i.done).length === 0 && (
+                        <p className="text-zinc-600 text-xs italic">Nothing done yet — ship it!</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
             </SectionCard>
 
-            <SectionCard title="Sprint Notes">
+            <SectionCard title="📝 Sprint Notes">
               <textarea
                 value={sprintNotes}
                 onChange={(e) => setSprintNotes(e.target.value)}
-                rows={8}
-                placeholder="Sprint retrospective, blockers, notes..."
+                rows={6}
+                placeholder="Sprint retrospective, blockers, notes, what to ship next..."
                 className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
               />
             </SectionCard>
@@ -2576,6 +2641,58 @@ export default function DieInTheJungleAdmin() {
               <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Brand Voice</AmberBtn>
             </SectionCard>
 
+            {/* Social Post Generator */}
+            <SectionCard title="✍️ Social Post Generator">
+              <p className="text-zinc-400 text-sm mb-4">Generate ready-to-post content for Twitter/X and Telegram. Click Copy to grab the text.</p>
+              {(() => {
+                const tagline = config.brandKit?.tagline || 'Roll. Fight. Die. Rise.';
+                const hashtags = config.brandKit?.hashtags || '#DieInTheJungle #JungleKabal';
+                const pitch = config.brandKit?.elevatorPitch || 'A roguelite dice combat game on Telegram.';
+                const posts = [
+                  {
+                    platform: '𝕏 Twitter/X',
+                    label: 'Announcement',
+                    text: `🎲 ${tagline}\n\nDie In The Jungle is live on Telegram Mini App.\nRoguelite dice combat. 3 zones. One life.\n\nPlay free → [LINK]\n\n${hashtags}`,
+                  },
+                  {
+                    platform: '𝕏 Twitter/X',
+                    label: 'Score Card',
+                    text: `Just hit Zone 3 in Die In The Jungle 🌿\n💀 Score: [SCORE] | Zone [ZONE] | [KILLS] kills\n\nBeat my score → [LINK]\n\n${hashtags}`,
+                  },
+                  {
+                    platform: '📱 Telegram',
+                    label: 'Channel Post',
+                    text: `🎮 *Die In The Jungle* is live!\n\n${pitch}\n\n🎲 Roll dice. Place in lanes. Trigger SURGE.\n💀 3 zones. Boss at each end. Die and try again.\n📈 XP and Gems carry over between runs.\n\n➡️ Play now: [LINK]`,
+                  },
+                  {
+                    platform: '📱 Telegram',
+                    label: 'Update Announcement',
+                    text: `🔥 *New Update — Die In The Jungle*\n\n${config.releaseNotes ? config.releaseNotes.split('\n').slice(0, 5).join('\n') : '• Bug fixes & balance tweaks\n• New enemy: [NAME]\n• Difficulty tuning\n• Performance improvements'}\n\nUpdate now → [LINK]`,
+                  },
+                ];
+                return (
+                  <div className="space-y-3">
+                    {posts.map((post, i) => (
+                      <div key={i} className="rounded-xl border border-zinc-700 bg-zinc-800/40 overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-2 bg-zinc-800 border-b border-zinc-700">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-zinc-200">{post.platform}</span>
+                            <span className="text-[10px] text-zinc-500 border border-zinc-700 rounded px-1.5 py-0.5">{post.label}</span>
+                          </div>
+                          <button
+                            onClick={() => { navigator.clipboard.writeText(post.text); setToast('Post copied!'); }}
+                            className="text-xs text-amber-400 hover:text-amber-300 border border-amber-500/40 rounded px-2 py-1">
+                            📋 Copy
+                          </button>
+                        </div>
+                        <pre className="px-4 py-3 text-sm text-zinc-300 whitespace-pre-wrap font-sans leading-relaxed">{post.text}</pre>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </SectionCard>
+
             {/* CSS Variables */}
             <SectionCard title="🖥️ CSS Color Variables">
               <div className="rounded-lg bg-zinc-950 border border-zinc-800 p-4 relative">
@@ -2603,7 +2720,35 @@ export default function DieInTheJungleAdmin() {
         {activeTab === 'advanced' && (
           <div className="space-y-6">
             <SectionCard title="🔬 Advanced — Raw JSON Editors">
-              <p className="text-zinc-400 text-sm">Edit raw game data. Invalid JSON will be rejected on save.</p>
+              <p className="text-zinc-400 text-sm mb-3">Edit raw game data. Invalid JSON will be rejected on save.</p>
+              <div className="flex gap-2">
+                <AmberBtn onClick={() => {
+                  const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `miniapp-config-${new Date().toISOString().slice(0, 10)}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  setToast('Config exported!');
+                }}>⬇️ Export Full Config JSON</AmberBtn>
+                <label className="px-3 py-1.5 rounded text-sm font-medium transition-colors bg-zinc-700 hover:bg-zinc-600 text-zinc-200 border border-zinc-600 cursor-pointer">
+                  ⬆️ Import Config JSON
+                  <input type="file" accept=".json,application/json" className="hidden" onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    try {
+                      const text = await f.text();
+                      const parsed = JSON.parse(text);
+                      setConfig(withDefaults(parsed));
+                      setToast('Config imported — review and save!');
+                    } catch (err) {
+                      setToast('❌ Invalid JSON file');
+                    }
+                    e.target.value = '';
+                  }} />
+                </label>
+              </div>
             </SectionCard>
             <SectionCard>
               <JsonEditor
