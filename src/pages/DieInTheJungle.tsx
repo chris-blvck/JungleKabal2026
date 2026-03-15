@@ -2778,20 +2778,6 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 </Button>
               )
             ) : null}
-            {game.phase === "place" ? (
-              BTN_IMAGES.reroll ? (
-                <ActionBtn
-                  imgSrc={BTN_IMAGES.reroll}
-                  label="🔁 REROLL"
-                  onClick={rerollActiveDie}
-                  disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null}
-                />
-              ) : (
-                <Button onClick={rerollActiveDie} disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null} className="rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-700/90 to-zinc-900 px-5 py-2.5 text-sm font-black text-white hover:from-zinc-600 hover:to-zinc-800 disabled:opacity-40">
-                  🔁 REROLL
-                </Button>
-              )
-            ) : null}
             {game.phase === "place" && game.grid.some(row => row.some(cell => cell !== null)) ? (
               BTN_IMAGES.resolve ? (
                 <ActionBtn
@@ -2804,16 +2790,6 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   ✅ RESOLVE
                 </Button>
               )
-            ) : null}
-            {game.player.companion && (game.phase === "roll" || game.phase === "place") ? (
-              <Button
-                onClick={activateCompanionActive}
-                disabled={game.player.companion.cooldownRemaining > 0}
-                className={`rounded-2xl border px-3 py-2.5 text-sm font-black transition ${game.player.companion.cooldownRemaining === 0 ? 'border-emerald-400/50 bg-emerald-600/25 text-emerald-100 hover:bg-emerald-600/40' : 'border-zinc-600/40 bg-zinc-800/50 text-zinc-500 cursor-not-allowed opacity-60'}`}
-              >
-                {game.player.companion.emoji} {game.player.companion.active.name}
-                {game.player.companion.cooldownRemaining > 0 ? ` (${game.player.companion.cooldownRemaining})` : ' ✓'}
-              </Button>
             ) : null}
             {(game.phase === "gameover" || game.phase === "victory") ? (
               <>
@@ -2851,6 +2827,35 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
               <Button onClick={() => shiftSelectedDie(1)} className="h-10 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-4 text-white hover:from-zinc-700 hover:to-zinc-800">➡️</Button>
             ) : null}
           </div>
+
+          {/* ── Small inline action buttons: REROLL + companion ────────────── */}
+          {game.phase === "place" ? (
+            <div className="mt-1.5 flex items-center justify-center gap-2">
+              <button
+                onClick={rerollActiveDie}
+                disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null}
+                className="flex items-center gap-1 rounded-xl border border-white/15 bg-zinc-800/80 px-2.5 py-1 text-sm disabled:opacity-35 hover:bg-zinc-700/80 transition"
+                title={`Reroll selected die (${game.player.rerollsLeft} left)`}
+              >
+                <span>🔁</span>
+                <span className="text-[10px] font-black text-zinc-300">{game.player.rerollsLeft}</span>
+              </button>
+              {game.player.companion ? (
+                <button
+                  onClick={activateCompanionActive}
+                  disabled={game.player.companion.cooldownRemaining > 0}
+                  className={`flex items-center gap-1 rounded-xl border px-2.5 py-1 text-sm transition disabled:opacity-35 ${game.player.companion.cooldownRemaining === 0 ? 'border-emerald-400/40 bg-emerald-900/40 hover:bg-emerald-800/50' : 'border-zinc-700/40 bg-zinc-800/50'}`}
+                  title={`${game.player.companion.active.name}${game.player.companion.cooldownRemaining > 0 ? ` — CD ${game.player.companion.cooldownRemaining}` : ' — READY'}`}
+                >
+                  <span>{game.player.companion.emoji}</span>
+                  {game.player.companion.cooldownRemaining > 0
+                    ? <span className="text-[10px] font-black text-zinc-400">{game.player.companion.cooldownRemaining}</span>
+                    : <span className="text-[10px] font-black text-emerald-300">✓</span>}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
           <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 text-[11px] text-zinc-400 select-none">
             <input
               type="checkbox"
