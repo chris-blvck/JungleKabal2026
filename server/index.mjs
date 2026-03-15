@@ -26,6 +26,7 @@ const miniappConfigFile = path.join(__dirname, 'data', 'miniapp-config.json');
 const sprintFile = path.join(__dirname, 'data', 'sprint.json');
 const crmFile = path.join(__dirname, 'data', 'crm.json');
 const academyProgressFile = path.join(__dirname, 'data', 'academy-progress.json');
+const narrativeFile = path.join(__dirname, 'data', 'narrative.json');
 
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -1242,6 +1243,28 @@ const server = createServer(async (req, res) => {
   }
 
   // ── Health ────────────────────────────────────────────────────────────────
+  // ── Narrative Board ───────────────────────────────────────────────────────
+  if (pathname === '/api/narrative/cards' && req.method === 'GET') {
+    try {
+      let data = { cards: [] };
+      try { data = JSON.parse(await readFile(narrativeFile, 'utf8')); } catch {}
+      return send(res, 200, { ok: true, cards: data.cards || [] });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathname === '/api/narrative/cards' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      if (!Array.isArray(body.cards)) return send(res, 400, { ok: false, error: 'cards must be an array' });
+      await writeFile(narrativeFile, JSON.stringify({ cards: body.cards, updatedAt: new Date().toISOString() }, null, 2));
+      return send(res, 200, { ok: true });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
   if (req.url === '/health') return send(res, 200, { ok: true });
   return send(res, 404, { ok: false, error: 'Not found' });
 });

@@ -4,6 +4,7 @@
 //   import Shell, { JK, Card, StatBox, ... } from '../components/JKShell'
 // ============================================================
 import { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 
 // ─── DESIGN TOKENS ──────────────────────────────────────────
 export const JK = {
@@ -200,6 +201,54 @@ export function FAQItem({ q, children }) {
   );
 }
 
+// ─── GLOBAL NAV ─────────────────────────────────────────────
+const NAV_ITEMS = [
+  { label: "HQ",        path: "/",                    icon: "◈" },
+  { label: "Board",     path: "/narrative-board",      icon: "🃏" },
+  { label: "Risk",      path: "/risk-manager",         icon: "⚡" },
+  { label: "War Room",  path: "/war-room",             icon: "⚔" },
+  { label: "Sprint",    path: "/sprint-board",         icon: "🎯" },
+  { label: "CRM",       path: "/crm-angel",            icon: "👼" },
+  { label: "Arsenal",   path: "/arsenal",              icon: "🛠" },
+  { label: "Academy",   path: "/academy",              icon: "🎓" },
+];
+
+export function JKTopNav() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{
+      position: "sticky", top: 0, zIndex: 200,
+      background: "rgba(13,13,13,0.96)", backdropFilter: "blur(16px)",
+      borderBottom: `1px solid rgba(245,166,35,0.12)`,
+      padding: "0 20px",
+    }}>
+      {/* Desktop nav */}
+      <div style={{ display: "flex", alignItems: "center", gap: 4, height: 42, overflowX: "auto" }}>
+        {NAV_ITEMS.map(({ label, path, icon }) => {
+          const active = location.pathname === path;
+          return (
+            <button key={path} onClick={() => navigate(path)} style={{
+              background: active ? "rgba(245,166,35,0.15)" : "transparent",
+              border: `1px solid ${active ? "rgba(245,166,35,0.4)" : "transparent"}`,
+              borderRadius: 7, padding: "5px 11px",
+              color: active ? JK.gold : "#555",
+              fontFamily: "'Cinzel', serif",
+              fontSize: 9, fontWeight: 700, letterSpacing: 1.5,
+              cursor: "pointer", whiteSpace: "nowrap",
+              transition: "all 0.15s",
+              display: "flex", alignItems: "center", gap: 5,
+            }}>
+              <span style={{ fontSize: 11 }}>{icon}</span> {label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── PAGE SHELL ─────────────────────────────────────────────
 /**
  * Shell wraps every page.
@@ -220,6 +269,8 @@ export default function Shell({ children, title, subtitle, maxWidth = 780 }) {
         strong.green { color: #22C55E; }
         strong.red { color: #EF4444; }
       `}</style>
+
+      <JKTopNav />
 
       {/* BG gradient subtil */}
       <div style={{

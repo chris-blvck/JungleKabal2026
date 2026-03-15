@@ -2,7 +2,7 @@
 // JUNGLE KABAL — ARSENAL
 // Scripts, tools & resources
 // ============================================================
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Shell, { JK, Card, Badge, Divider, SectionTitle } from "../components/JKShell";
 
@@ -83,9 +83,15 @@ function ToolItem({ item }) {
 
 export default function Arsenal() {
   const navigate = useNavigate();
-  const [customTools, setCustomTools] = useState([]);
+  const [customTools, setCustomTools] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("jk-arsenal-tools") || "[]"); } catch { return []; }
+  });
   const [addMode, setAddMode] = useState(false);
   const [draft, setDraft] = useState({ name: "", desc: "", url: "", icon: "🔗", category: "TRADING" });
+
+  useEffect(() => {
+    localStorage.setItem("jk-arsenal-tools", JSON.stringify(customTools));
+  }, [customTools]);
   const inp = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "9px 12px", color: "#fff", fontSize: 13, fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" };
 
   function addTool() {
@@ -93,6 +99,10 @@ export default function Arsenal() {
     setCustomTools(prev => [...prev, { ...draft, id: Date.now() }]);
     setDraft({ name: "", desc: "", url: "", icon: "🔗", category: "TRADING" });
     setAddMode(false);
+  }
+
+  function removeTool(id) {
+    setCustomTools(prev => prev.filter(t => t.id !== id));
   }
 
   const allGroups = [
@@ -156,7 +166,14 @@ export default function Arsenal() {
                 <span style={{ fontSize: 10, color: "#444" }}>{group.items.length} tools</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {group.items.map(item => <ToolItem key={item.name + (item.url || "")} item={item} />)}
+                {group.items.map(item => (
+                  <div key={item.name + (item.url || "")} style={{ position: "relative" }}>
+                    <ToolItem item={item} />
+                    {item.id && (
+                      <button onClick={() => removeTool(item.id)} style={{ position: "absolute", top: 8, right: 8, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 5, color: JK.red, fontSize: 9, cursor: "pointer", padding: "2px 7px", letterSpacing: 1, fontWeight: 700 }}>✕</button>
+                    )}
+                  </div>
+                ))}
               </div>
             </Card>
           );
