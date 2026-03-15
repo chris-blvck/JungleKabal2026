@@ -32,6 +32,7 @@ const SECTIONS = [
     icon: "📊",
     tools: [
       { id: "crm-angel", icon: "🤝", name: "CRM ANGEL", desc: "Deal pipeline · Investor tracking · Angel round", tag: "DEALS", tagColor: "#A855F7", status: "LIVE", statusColor: JK.green, href: "/crm-angel" },
+      { id: "angel-ops-dashboard", icon: "🦅", name: "ANGEL OPS DASHBOARD", desc: "Telegram mini-app · Suivi du bag angels · Epoch pulse", tag: "OPS", tagColor: JK.gold, status: "MVP", statusColor: JK.gold, href: "/telegram/angel-ops" },
     ],
   },
   {

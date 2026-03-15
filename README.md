@@ -53,3 +53,54 @@ Admin route (team subdomain): `/academy/admin`
 User route: `/academy`
 
 API endpoint used by admin/user pages: `GET/PUT /api/academy/content` (default `http://localhost:8787`).
+
+
+## Angel Ops mini-app (deploy-ready)
+
+### Local run (web + API)
+
+```bash
+# terminal 1
+npm run api
+
+# terminal 2
+npm run dev
+```
+
+Mini-app route (team context):
+- `/telegram/angel-ops`
+
+### Environment variables
+
+Create `.env` from `.env.example` and set at least:
+
+- `VITE_ANGEL_OPS_API_BASE` (frontend -> API base URL)
+- `ANGEL_OPS_ADMIN_TOKEN` (server write protection)
+- `VITE_ANGEL_OPS_ADMIN_TOKEN` (optional client token for admin writes)
+
+### Angel Ops API endpoints
+
+- `GET /api/angel-ops/state`
+- `PUT /api/angel-ops/wallets` (protected if `ANGEL_OPS_ADMIN_TOKEN` is set)
+- `POST /api/angel-ops/snapshot` (protected if `ANGEL_OPS_ADMIN_TOKEN` is set)
+
+### Production deployment checklist
+
+1. Deploy frontend (Vite build) and backend (`server/index.mjs`) behind HTTPS.
+2. Set `VITE_ANGEL_OPS_API_BASE` to the public API URL.
+3. Set `ANGEL_OPS_ADMIN_TOKEN` on server and rotate regularly.
+4. If using client-side admin actions, set `VITE_ANGEL_OPS_ADMIN_TOKEN` in secure private env (avoid exposing broad-scope token).
+5. Persist `server/data/angel-ops.json` on durable storage (or migrate to Postgres/Supabase for scale).
+6. Add a cron/worker to refresh snapshots periodically without relying on open client tabs.
+7. Configure monitoring (API health, 4xx/5xx rates, stale snapshot alerts).
+
+
+### Angel Ops deploy docs
+- Fast deploy runbook: `docs/ANGEL_OPS_DEPLOY_FAST.md`
+- Master remaining roadmap: `docs/ANGEL_OPS_ROADMAP_MASTER.md`
+
+
+Backend hardening vars (recommended in production):
+- `CORS_ALLOW_ORIGIN=https://your-frontend-domain`
+- `ANGEL_OPS_RATE_LIMIT_WINDOW_MS=60000`
+- `ANGEL_OPS_RATE_LIMIT_MAX=60`
