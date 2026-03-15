@@ -11,6 +11,7 @@ import CRMAngel from './pages/CRMAngel';
 import SprintBoard from './pages/SprintBoard';
 import Arsenal from './pages/Arsenal';
 import DieInTheJungle from './pages/DieInTheJungle';
+import DieInTheJunglePromo from './pages/DieInTheJunglePromo';
 import DieInTheJungleAdmin from './pages/DieInTheJungleAdmin';
 import DieInTheJungleVisualGuide from './pages/DieInTheJungleVisualGuide';
 import KabalAcademyMVP from './pages/KabalAcademyMVP';
@@ -66,6 +67,7 @@ export default function App() {
 
           {/* Die in the Jungle */}
           <Route path="/diejungle"                element={<DieInTheJungle />} />
+          <Route path="/diejungle/promo"          element={<DieInTheJunglePromo />} />
           <Route path="/diejungle/admin"          element={<DieInTheJungleAdmin />} />
 
           {/* Fallback */}
@@ -79,6 +81,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/diejungle" element={<DieInTheJungle />} />
+        <Route path="/diejungle/promo" element={<DieInTheJunglePromo />} />
         <Route path="/diejungle/admin" element={<DieInTheJungleAdmin />} />
         <Route path="/diejungle-visual-guide" element={<DieInTheJungleVisualGuide />} />
         <Route path="/trophy-room" element={<TrophyRoom />} />
