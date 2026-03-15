@@ -1544,6 +1544,19 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const intentTimeline = getIntentTimeline(game.enemy, 3);
   const expectedOutcome = estimatePlayerOutcome(game.grid, game.player);
   const streakMultiplier = getNoHitMultiplier(game.noHitTurns);
+
+  // Preview projected HP/shield changes before Resolve
+  const resolvePreview = useMemo(() => {
+    const hasAnyDie = game.grid.some(row => row.some(cell => cell !== null));
+    if (!hasAnyDie || game.phase !== "place") return null;
+    const result = resolvePlayerGrid({ ...game, grid: game.grid, enemy: game.enemy, player: game.player });
+    return {
+      playerHpAfter: Math.min(game.player.maxHp, result.player.hp),
+      playerShieldAfter: result.player.shield,
+      enemyHpAfter: Math.max(0, result.enemy.hp),
+      totals: result.totals,
+    };
+  }, [game.grid, game.phase, game.player, game.enemy]);
   const enemyAnchorRef = useRef(null);
   const playerAnchorRef = useRef(null);
 
@@ -1758,14 +1771,14 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
       dice: newDice,
       grid: newGrid,
       cooldowns: newCooldowns,
-      // Stay in "place" so player can manually resolve, or auto-resolve if toggled
-      phase: allPlaced ? "resolve" : "place",
+      // Always stay in "place" — player must click Resolve (or use auto-resolve toggle)
+      phase: "place",
       selectedDieIndex: nextIndex,
       avatarMood: placedMeta.kind === "attack" ? "fierce" : placedMeta.kind === "heal" ? "joy" : "guard",
       log: [`${lane.emoji} Put ${placedMeta.emoji} ${placedDie.value} in ${lane.name} x${rowMultiplier(g.player, y)}`, ...g.log].slice(0, 40),
     }));
 
-    if (allPlaced || autoResolve) {
+    if (autoResolve && allPlaced) {
       window.setTimeout(() => resolveTurn(newGrid, newCooldowns), 320);
     }
   }
@@ -2711,6 +2724,43 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   🔁 REROLL
                 </Button>
               )
+            ) : null}
+            {resolvePreview ? (
+              <div className="w-full rounded-2xl border border-white/10 bg-zinc-900/80 px-3 py-2 text-[11px]">
+                <div className="mb-1.5 text-center text-[10px] font-black uppercase tracking-widest text-zinc-400">If you resolve now</div>
+                <div className="flex items-center justify-center gap-4">
+                  {/* Enemy */}
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-[10px] text-zinc-500">Enemy HP</span>
+                    <div className="flex items-center gap-1 font-black">
+                      <span className="text-red-400">{game.enemy.hp}</span>
+                      <span className="text-zinc-500">→</span>
+                      <span className={resolvePreview.enemyHpAfter <= 0 ? "text-emerald-400" : "text-orange-300"}>{Math.max(0, resolvePreview.enemyHpAfter)}</span>
+                    </div>
+                    {resolvePreview.totals.attack > 0 && <span className="text-[10px] text-red-400">⚔️ -{resolvePreview.totals.attack}</span>}
+                  </div>
+                  <div className="h-8 w-px bg-white/10" />
+                  {/* Player HP */}
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-[10px] text-zinc-500">Your HP</span>
+                    <div className="flex items-center gap-1 font-black">
+                      <span className="text-zinc-300">{game.player.hp}</span>
+                      <span className="text-zinc-500">→</span>
+                      <span className={resolvePreview.playerHpAfter > game.player.hp ? "text-emerald-400" : "text-zinc-300"}>{resolvePreview.playerHpAfter}</span>
+                    </div>
+                    {resolvePreview.totals.heal > 0 && <span className="text-[10px] text-emerald-400">❤️ +{resolvePreview.totals.heal}</span>}
+                  </div>
+                  {resolvePreview.totals.shield > 0 && (
+                    <>
+                      <div className="h-8 w-px bg-white/10" />
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="text-[10px] text-zinc-500">Shield</span>
+                        <span className="font-black text-sky-300">+{resolvePreview.totals.shield}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
             ) : null}
             {game.phase === "place" && game.grid.some(row => row.some(cell => cell !== null)) ? (
               BTN_IMAGES.resolve ? (
