@@ -2600,13 +2600,18 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           <div className="mb-2 flex flex-wrap items-center justify-center gap-2">
             {game.phase === "roll" ? <div className="w-full text-center text-xs font-bold uppercase tracking-[0.18em] text-amber-200">Start turn: press roll, then place dice on board</div> : null}
             {(game.phase === "roll" || game.phase === "rolling") ? (
-              <Button onClick={startRoll} disabled={game.rolling} className={`rounded-2xl bg-amber-400 px-4 py-2.5 text-sm font-black text-black hover:bg-amber-300 disabled:opacity-60 ${game.phase === "roll" && !game.rolling ? "animate-pulse shadow-[0_0_0_6px_rgba(252,211,77,0.20)]" : ""}`}>
-                {game.rolling ? "🎲 Rolling..." : "🎲 ROLL"}
-              </Button>
+              <div className="relative w-full flex justify-center my-2">
+                {game.rolling && (
+                  <span className="absolute inset-0 mx-auto rounded-3xl bg-amber-400/50 animate-ping" style={{ width: 'fit-content', padding: '0 3.5rem' }} />
+                )}
+                <Button onClick={startRoll} disabled={game.rolling} className="relative rounded-3xl bg-amber-400 px-14 py-6 text-3xl font-black text-black hover:bg-amber-300 shadow-[0_0_30px_rgba(252,211,77,0.45)]">
+                  {game.rolling ? "🎲 Rolling..." : "🎲 ROLL"}
+                </Button>
+              </div>
             ) : null}
             {game.phase === "place" ? (
-              <Button onClick={rerollActiveDie} disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null} className="rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-700/90 to-zinc-900 px-5 py-2.5 text-sm font-black text-white hover:from-zinc-600 hover:to-zinc-800 disabled:opacity-40">
-                🔁 REROLL
+              <Button onClick={rerollActiveDie} disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null} className="rounded-xl border border-white/20 bg-gradient-to-b from-zinc-700/90 to-zinc-900 px-3 py-1.5 text-xs font-black text-white hover:from-zinc-600 hover:to-zinc-800 disabled:opacity-40">
+                🔁 {game.player.rerollsLeft}
               </Button>
             ) : null}
             {game.phase === "place" && game.grid.some(row => row.some(cell => cell !== null)) ? (
@@ -2634,9 +2639,6 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           </div>
 
           <div className="flex min-h-[56px] items-center justify-center gap-2">
-            {game.phase === "place" ? (
-              <Button onClick={() => shiftSelectedDie(-1)} className="h-10 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-4 text-white hover:from-zinc-700 hover:to-zinc-800">⬅️</Button>
-            ) : null}
             <div className="flex min-h-[56px] flex-wrap items-start justify-center gap-1.5">
             {game.dice.some((d) => d !== null) ? (
               game.dice.map((die, i) => die !== null ? (
@@ -2652,9 +2654,6 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
               <div className="text-[11px] text-zinc-100">🎲 No dice yet. Press <span className="font-black text-amber-300">ROLL</span>.</div>
             )}
             </div>
-            {game.phase === "place" ? (
-              <Button onClick={() => shiftSelectedDie(1)} className="h-10 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-4 text-white hover:from-zinc-700 hover:to-zinc-800">➡️</Button>
-            ) : null}
           </div>
           <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 text-[11px] text-zinc-400 select-none">
             <input
@@ -2704,8 +2703,9 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                       onClick={() => activeDieIndex !== null && placeDie(activeDieIndex, x, y)}
                       onMouseEnter={() => setHoveredSlot({ x, y })}
                       onMouseLeave={() => setHoveredSlot(null)}
-                      className={`relative h-[72px] w-[72px] overflow-hidden rounded-[10px] border text-white transition md:h-[84px] md:w-[84px] ${canPlace ? "border-amber-300/60 ring-2 ring-amber-300/20" : "border-white/20"}`}
+                      className={`relative h-[72px] w-[72px] overflow-hidden rounded-[10px] border text-white transition md:h-[84px] md:w-[84px] ${canPlace ? "border-amber-300/80 ring-2 ring-amber-300/30" : "border-white/20"}`}
                     >
+                      {canPlace && <span className="pointer-events-none absolute inset-0 rounded-[10px] border-2 border-amber-300/70 animate-ping" />}
                       <img src={LANE_IMAGES[y]} className="absolute inset-0 h-full w-full object-contain" />
                       {cell !== null ? (
                         <>
