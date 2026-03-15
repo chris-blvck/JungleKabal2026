@@ -29,7 +29,9 @@ import {
   type MetaProgressionState,
   type UnlockId,
   type RunReward,
+  type LevelReward,
   UNLOCKS,
+  LEVEL_REWARDS,
   loadMeta,
   saveMeta,
   recordRunEnd,
@@ -43,8 +45,24 @@ import {
   hasLaneBonuses,
   getUnlockedCompanions,
 } from "@/lib/metaProgression";
+import {
+  type BiomeId,
+  BIOMES,
+  getBiomeBackground,
+  pickNextBiome,
+  ENEMY_BIOME_MAP,
+} from "@/game/biomeSystem";
 
 const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
+
+// Button image URLs — replace with real assets when available
+// Can be overridden via config.visuals.buttonImages from admin panel
+const BTN_IMAGES: Record<string, string> = {
+  roll:    '',
+  reroll:  '',
+  resolve: '',
+  restart: '',
+};
 
 type RunSummary = {
   score: number;
@@ -1296,6 +1314,8 @@ function makeInitialState() {
     boardWillSaturateWarning: false,
     // Track last floor where a boss was killed (for meta progression)
     lastBossFloor: null as number | null,
+    // Current biome (changes after each boss kill)
+    currentBiome: 'jungle' as BiomeId,
   };
 }
 
@@ -1336,6 +1356,8 @@ function hydrateGameState(rawState) {
   safe.currentMapNodeId = safe.currentMapNodeId ?? null;
   safe.pendingEvent = safe.pendingEvent ?? null;
   safe.shopInventory = safe.shopInventory ?? null;
+  safe.currentBiome = safe.currentBiome ?? 'jungle';
+  safe.lastBossFloor = safe.lastBossFloor ?? null;
   if (!safe.player.coins) safe.player.coins = 0;
   if (safe.player.companion === undefined) safe.player.companion = null;
   if (!safe.player._fortressShield) safe.player._fortressShield = 0;
@@ -1401,6 +1423,24 @@ function LifeBar({ label, current, max, tone, size = "md" }) {
         <div className={`h-full rounded-full bg-gradient-to-r ${fill} transition-all duration-300`} style={{ width: `${pct}%` }} />
       </div>
     </div>
+  );
+}
+
+function ActionBtn({ imgSrc, label, onClick, disabled = false, pulse = false, className = "" }: {
+  imgSrc?: string; label: string; onClick?: () => void; disabled?: boolean; pulse?: boolean; className?: string;
+}) {
+  return (
+    <button
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      className={`relative transition-all select-none ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${pulse ? 'animate-pulse' : ''} ${className}`}
+    >
+      {imgSrc ? (
+        <img src={imgSrc} alt={label} className="h-12 w-auto max-w-[140px] object-contain drop-shadow-lg" />
+      ) : (
+        <span className="inline-block rounded-2xl px-4 py-2.5 text-sm font-black">{label}</span>
+      )}
+    </button>
   );
 }
 
@@ -1487,6 +1527,9 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     try { return localStorage.getItem('jk_auto_resolve') === 'true'; } catch { return false; }
   });
   const [showAdvancedGuide, setShowAdvancedGuide] = useState(false);
+  const [showRestartConfirm, setShowRestartConfirm] = useState(false);
+  const [meta, setMeta] = useState<MetaProgressionState>(loadMeta);
+  const [lastRunReward, setLastRunReward] = useState<RunReward | null>(null);
 
   const activeDieIndex = useMemo(() => {
     if (game.selectedDieIndex !== null && game.dice[game.selectedDieIndex] !== null) return game.selectedDieIndex;
@@ -1952,6 +1995,11 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
       // Track boss floor for meta achievement (boss kill on this floor)
       const lastBossFloor = (enemyDied && g.enemy.tier === "boss") ? g.floor : (g.lastBossFloor ?? null);
 
+      // Switch biome after boss kill
+      const currentBiome: BiomeId = (enemyDied && g.enemy.tier === "boss")
+        ? pickNextBiome(g.floor, g.runSeed + ':' + g.floor)
+        : (g.currentBiome ?? 'jungle');
+
       return {
         ...g,
         score,
@@ -1982,6 +2030,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         comboPopup,
         lastOutcome,
         lastBossFloor,
+        currentBiome,
       };
     });
 
@@ -2305,6 +2354,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
       setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "🚫 No run tickets left", tone: "rose" } }));
       return;
     }
+    setLastRunReward(null);
+    setShowRestartConfirm(false);
     setGame(makeInitialState());
   }
 
@@ -2317,15 +2368,17 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     notifiedRunRef.current = runId;
 
     // Award XP/gems and update unlock tree
-    const meta = loadMeta();
+    const currentMeta = loadMeta();
     const bossZone = game.lastBossFloor ?? undefined;
-    const { next } = recordRunEnd(meta, {
+    const { next, reward } = recordRunEnd(currentMeta, {
       score: game.score,
       floor: game.floor,
       kills: game.winStreak,
       bossZone,
     });
     saveMeta(next);
+    setMeta(next);
+    setLastRunReward(reward);
 
     if (onRunEnded) {
       onRunEnded({
@@ -2424,15 +2477,24 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const hoveredPreview = hoveredSlot && activeDieValue
     ? (() => {
       const mult = rowMultiplier(game.player, hoveredSlot.y);
-      const meta = getDieMeta(activeDieValue);
-      if (meta.kind === "shield") return `${meta.emoji} ${activeDieValue.value} ×${mult} = ${activeDieValue.value * mult}`;
-      if (meta.kind === "heal") return `${meta.emoji} ${activeDieValue.value} ×${mult} = ${(activeDieValue.value + game.player.healBonus) * mult}`;
-      return `${meta.emoji} ${activeDieValue.value} ×${mult} = ${(activeDieValue.value + game.player.attackBonus + game.player.attackDieValueBonus) * mult}`;
+      const dieMeta = getDieMeta(activeDieValue);
+      if (dieMeta.kind === "shield") return `${dieMeta.emoji} ${activeDieValue.value} ×${mult} = ${activeDieValue.value * mult}`;
+      if (dieMeta.kind === "heal") return `${dieMeta.emoji} ${activeDieValue.value} ×${mult} = ${(activeDieValue.value + game.player.healBonus) * mult}`;
+      return `${dieMeta.emoji} ${activeDieValue.value} ×${mult} = ${(activeDieValue.value + game.player.attackBonus + game.player.attackDieValueBonus) * mult}`;
     })()
     : null;
 
+  // Biome background
+  const biome = BIOMES[game.currentBiome ?? 'jungle'] ?? BIOMES.jungle;
+  const bgUrl = getBiomeBackground(game.currentBiome ?? 'jungle');
+  const effectiveBg = bgUrl || BG_URL;
+
+  // XP bar
+  const xpInfo = xpToNextLevel(meta.xp);
+  const xpPct = xpInfo.needed > 0 ? Math.min(100, (xpInfo.current / xpInfo.needed) * 100) : 100;
+
   return (
-    <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.78)), url(${BG_URL})` }}>
+    <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.78)), url(${effectiveBg})` }}>
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-1.5 pb-3 md:gap-2">
         <div className="rounded-[22px] border border-amber-300/20 bg-black/35 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md md:p-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2440,23 +2502,36 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
               <img src={LOGO_URL} alt="Kabal logo" className="h-9 w-9 object-contain" />
               <div>
                 <h1 className="font-serif text-base italic tracking-wide text-amber-300 md:text-2xl">DIE JUNGLE</h1>
-                <p className="text-[10px] text-zinc-100 md:text-xs">Roguelite run · intents · reroll · artifacts · endless zones</p>
+                <p className="text-[10px] text-zinc-100 md:text-xs">{biome.emoji} {biome.name} · zone {game.floor}</p>
               </div>
             </div>
             <div className="flex items-center gap-1.5 md:gap-2">
+              {/* XP bar */}
+              <div className="hidden md:flex flex-col items-end gap-0.5">
+                <div className="flex items-center gap-1 text-[9px] text-amber-300">
+                  <span>Lv.{xpInfo.level}</span>
+                  <span className="text-zinc-400">{xpInfo.current}/{xpInfo.needed || '∞'} XP</span>
+                </div>
+                <div className="h-1.5 w-20 overflow-hidden rounded-full bg-zinc-800 border border-zinc-700">
+                  <div className="h-full rounded-full bg-amber-400 transition-all duration-500" style={{ width: `${xpPct}%` }} />
+                </div>
+              </div>
               <div className="rounded-xl border border-white/10 bg-black/40 px-2 py-1.5 text-right">
-                <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Zone</div>
-                <div className="text-xs font-black text-amber-300 md:text-sm">{game.floor}</div>
+                <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Score</div>
+                <div className="text-xs font-black text-violet-300 md:text-sm">{game.score}</div>
               </div>
               <div className="rounded-xl border border-white/10 bg-black/40 px-2 py-1.5 text-right">
                 <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Phase</div>
                 <div className="text-xs font-black uppercase text-amber-300 md:text-sm">{game.phase}</div>
               </div>
-              <div className="rounded-xl border border-white/10 bg-black/40 px-2 py-1.5 text-right">
-                <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Seed</div>
-                <div className="text-xs font-black text-cyan-200 md:text-sm">#{game.runSeed}</div>
-              </div>
-              <Button onClick={() => setGame((g) => ({ ...g, showHowToPlay: true }))} className="rounded-xl bg-white/10 px-2.5 py-2 text-white hover:bg-white/20">❓ Score</Button>
+              <Button onClick={() => setGame((g) => ({ ...g, showHowToPlay: true }))} className="rounded-xl bg-white/10 px-2.5 py-2 text-white hover:bg-white/20">❓</Button>
+              {/* Restart button — always visible in header */}
+              {!game.runEnded && game.phase !== 'reward' && game.phase !== 'map' && (
+                <Button
+                  onClick={() => setShowRestartConfirm(true)}
+                  className="rounded-xl bg-rose-500/15 px-2.5 py-2 text-rose-300 hover:bg-rose-500/30 text-xs"
+                >↺</Button>
+              )}
             </div>
           </div>
         </div>
@@ -2609,19 +2684,46 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           <div className="mb-2 flex flex-wrap items-center justify-center gap-2">
             {game.phase === "roll" ? <div className="w-full text-center text-xs font-bold uppercase tracking-[0.18em] text-amber-200">Start turn: press roll, then place dice on board</div> : null}
             {(game.phase === "roll" || game.phase === "rolling") ? (
-              <Button onClick={startRoll} disabled={game.rolling} className={`rounded-2xl bg-amber-400 px-4 py-2.5 text-sm font-black text-black hover:bg-amber-300 disabled:opacity-60 ${game.phase === "roll" && !game.rolling ? "animate-pulse shadow-[0_0_0_6px_rgba(252,211,77,0.20)]" : ""}`}>
-                {game.rolling ? "🎲 Rolling..." : "🎲 ROLL"}
-              </Button>
+              BTN_IMAGES.roll ? (
+                <ActionBtn
+                  imgSrc={BTN_IMAGES.roll}
+                  label={game.rolling ? "🎲 Rolling..." : "🎲 ROLL"}
+                  onClick={startRoll}
+                  disabled={game.rolling}
+                  pulse={game.phase === "roll" && !game.rolling}
+                />
+              ) : (
+                <Button onClick={startRoll} disabled={game.rolling} className={`rounded-2xl bg-amber-400 px-4 py-2.5 text-sm font-black text-black hover:bg-amber-300 disabled:opacity-60 ${game.phase === "roll" && !game.rolling ? "animate-pulse shadow-[0_0_0_6px_rgba(252,211,77,0.20)]" : ""}`}>
+                  {game.rolling ? "🎲 Rolling..." : "🎲 ROLL"}
+                </Button>
+              )
             ) : null}
             {game.phase === "place" ? (
-              <Button onClick={rerollActiveDie} disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null} className="rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-700/90 to-zinc-900 px-5 py-2.5 text-sm font-black text-white hover:from-zinc-600 hover:to-zinc-800 disabled:opacity-40">
-                🔁 REROLL
-              </Button>
+              BTN_IMAGES.reroll ? (
+                <ActionBtn
+                  imgSrc={BTN_IMAGES.reroll}
+                  label="🔁 REROLL"
+                  onClick={rerollActiveDie}
+                  disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null}
+                />
+              ) : (
+                <Button onClick={rerollActiveDie} disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null} className="rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-700/90 to-zinc-900 px-5 py-2.5 text-sm font-black text-white hover:from-zinc-600 hover:to-zinc-800 disabled:opacity-40">
+                  🔁 REROLL
+                </Button>
+              )
             ) : null}
             {game.phase === "place" && game.grid.some(row => row.some(cell => cell !== null)) ? (
-              <Button onClick={manualResolve} className="rounded-2xl border border-emerald-400/40 bg-gradient-to-b from-emerald-700/70 to-emerald-900/80 px-5 py-2.5 text-sm font-black text-white hover:from-emerald-600/80 hover:to-emerald-800 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]">
-                ✅ RESOLVE
-              </Button>
+              BTN_IMAGES.resolve ? (
+                <ActionBtn
+                  imgSrc={BTN_IMAGES.resolve}
+                  label="✅ RESOLVE"
+                  onClick={manualResolve}
+                />
+              ) : (
+                <Button onClick={manualResolve} className="rounded-2xl border border-emerald-400/40 bg-gradient-to-b from-emerald-700/70 to-emerald-900/80 px-5 py-2.5 text-sm font-black text-white hover:from-emerald-600/80 hover:to-emerald-800 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]">
+                  ✅ RESOLVE
+                </Button>
+              )
             ) : null}
             {game.player.companion && (game.phase === "roll" || game.phase === "place") ? (
               <Button
@@ -2637,7 +2739,11 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
               <>
                 <Button onClick={submitScoreToLeaderboard} className="rounded-2xl bg-violet-500/30 px-4 py-2.5 text-sm font-black text-white hover:bg-violet-500/45">Submit score</Button>
                 <Button onClick={shareRun} className="rounded-2xl bg-sky-500/35 px-4 py-2.5 text-sm font-black text-white hover:bg-sky-500/50">Share run</Button>
-                <Button onClick={restart} className="rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-black hover:bg-zinc-200">Play again</Button>
+                {BTN_IMAGES.restart ? (
+                  <ActionBtn imgSrc={BTN_IMAGES.restart} label="↺ RESTART" onClick={restart} />
+                ) : (
+                  <Button onClick={restart} className="rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-black hover:bg-zinc-200">↺ Play again</Button>
+                )}
               </>
             ) : null}
           </div>
@@ -3202,6 +3308,116 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   </div>
                 ) : null}
               </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        {/* Restart confirm modal */}
+        <AnimatePresence>
+          {showRestartConfirm ? (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+            >
+              <motion.div
+                initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                className="w-full max-w-sm rounded-[24px] border border-rose-300/30 bg-zinc-950/95 p-6 text-center shadow-[0_20px_80px_rgba(0,0,0,0.6)]"
+              >
+                <div className="mb-2 text-4xl">⚠️</div>
+                <div className="mb-1 font-serif text-xl italic text-rose-300">Abandon Run?</div>
+                <div className="mb-5 text-sm text-zinc-400">Your current run progress will be lost. Are you sure?</div>
+                <div className="flex gap-3 justify-center">
+                  <Button onClick={() => setShowRestartConfirm(false)} className="rounded-2xl border border-white/15 bg-zinc-800/80 px-5 py-2.5 text-sm font-black text-white hover:bg-zinc-700">
+                    Cancel
+                  </Button>
+                  <Button onClick={restart} className="rounded-2xl bg-rose-600 px-5 py-2.5 text-sm font-black text-white hover:bg-rose-500">
+                    ↺ Restart
+                  </Button>
+                </div>
+              </motion.div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        {/* Battle Pass run reward panel */}
+        <AnimatePresence>
+          {lastRunReward && game.runEnded ? (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[55] flex items-end justify-center bg-black/60 p-4 backdrop-blur-sm md:items-center"
+            >
+              <motion.div
+                initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+                className="w-full max-w-sm rounded-[24px] border border-amber-300/25 bg-zinc-950/96 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.65)]"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="font-serif text-lg italic text-amber-300">Run Complete</div>
+                  <Button onClick={() => setLastRunReward(null)} className="rounded-xl bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20">✕</Button>
+                </div>
+                {/* XP gain */}
+                <div className="mb-3 rounded-xl border border-amber-300/20 bg-amber-950/25 p-3">
+                  <div className="mb-1.5 flex items-center justify-between text-xs">
+                    <span className="text-amber-300 font-black">XP Gained</span>
+                    <span className="text-amber-200">+{lastRunReward.xpGained} XP · +{lastRunReward.gemsGained} 💎</span>
+                  </div>
+                  <div className="mb-1 flex items-center gap-1.5 text-[10px] text-zinc-400">
+                    <span>Lv.{lastRunReward.oldLevel}</span>
+                    <div className="flex-1 h-2 overflow-hidden rounded-full bg-zinc-800 border border-zinc-700">
+                      <motion.div
+                        initial={{ width: `${(lastRunReward.oldLevel / 20) * 100}%` }}
+                        animate={{ width: `${(lastRunReward.newLevel / 20) * 100}%` }}
+                        transition={{ duration: 0.8, delay: 0.3 }}
+                        className="h-full rounded-full bg-amber-400"
+                      />
+                    </div>
+                    <span>Lv.{lastRunReward.newLevel}</span>
+                  </div>
+                  {lastRunReward.newLevel > lastRunReward.oldLevel && (
+                    <motion.div
+                      initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.5 }}
+                      className="text-center text-sm font-black text-amber-300"
+                    >
+                      ⬆️ Level Up! {lastRunReward.oldLevel} → {lastRunReward.newLevel}
+                    </motion.div>
+                  )}
+                </div>
+                {/* Level rewards */}
+                {lastRunReward.levelUpRewards.length > 0 && (
+                  <div className="mb-3 space-y-1.5">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-300">Battle Pass Rewards</div>
+                    {lastRunReward.levelUpRewards.map((r, i) => (
+                      <motion.div
+                        key={r.level}
+                        initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.4 + i * 0.1 }}
+                        className="flex items-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-950/25 px-3 py-2 text-xs"
+                      >
+                        <span className="text-base">{r.emoji}</span>
+                        <span className="font-black text-emerald-300">Lv.{r.level}</span>
+                        <span className="text-zinc-200">{r.label}</span>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+                {/* New unlocks */}
+                {lastRunReward.newUnlocks.length > 0 && (
+                  <div className="mb-3 space-y-1">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-violet-300">Unlocked</div>
+                    {lastRunReward.newUnlocks.map((id) => {
+                      const def = UNLOCKS.find(u => u.id === id);
+                      return def ? (
+                        <div key={id} className="flex items-center gap-2 rounded-xl border border-violet-400/25 bg-violet-950/25 px-3 py-2 text-xs">
+                          <span>✨</span>
+                          <span className="font-black text-violet-300">{def.name}</span>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+                <Button onClick={restart} className="w-full rounded-2xl bg-amber-400 py-2.5 text-sm font-black text-black hover:bg-amber-300">
+                  ↺ Play Again
+                </Button>
+              </motion.div>
             </motion.div>
           ) : null}
         </AnimatePresence>

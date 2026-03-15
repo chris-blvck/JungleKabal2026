@@ -134,7 +134,13 @@ const EMPTY_CONFIG = {
   assets: { monsters: { mob: [], champions: [], boss: [] }, backgrounds: { jungle: [], ruins: [], temple: [] }, zones: { general: [] }, events: { general: [] } },
   gameLogic: { enemyHpScale: 1, enemyDamageScale: 1, scoreScale: 1, randomEventChance: 0.2, waveGrowthPerStage: 0.12, bossHpMultiplier: 2.4, bossDamageMultiplier: 1.8, critChance: 0.12, critMultiplier: 1.75, dodgeChance: 0.08, lifeSteal: 0.05, shieldDecayPerTurn: 0.15, comboWindowTurns: 2, rerollCostScore: 20, reviveHpRatio: 0.35, eventIntensityScale: 1, dropRateMultiplier: 1 },
   randomEvents: [],
-  visuals: { backgroundUrl: '', logoUrl: '', storyFragmentImageUrl: '' },
+  visuals: {
+    backgroundUrl: '',
+    logoUrl: '',
+    storyFragmentImageUrl: '',
+    buttonImages: { roll: '', reroll: '', resolve: '', restart: '' },
+    biomeBackgrounds: { jungle: '', ruins: '', temple: '', abyss: '', void: '' },
+  },
   characters: { playable: {}, emotionUrls: {} },
   narrative: { kabalian: [], kkm: [] },
   adminBacklog: [],
@@ -278,7 +284,12 @@ function withDefaults(raw = {}) {
     ...EMPTY_CONFIG, ...raw,
     assets: ensureStructuredAssets(raw.assets || {}),
     gameLogic: { ...EMPTY_CONFIG.gameLogic, ...(raw.gameLogic || {}) },
-    visuals: { ...EMPTY_CONFIG.visuals, ...(raw.visuals || {}) },
+    visuals: {
+      ...EMPTY_CONFIG.visuals,
+      ...(raw.visuals || {}),
+      buttonImages: { ...EMPTY_CONFIG.visuals.buttonImages, ...(raw.visuals?.buttonImages || {}) },
+      biomeBackgrounds: { ...EMPTY_CONFIG.visuals.biomeBackgrounds, ...(raw.visuals?.biomeBackgrounds || {}) },
+    },
     characters: { playable: { ...(raw.characters?.playable || {}) }, emotionUrls: { ...(raw.characters?.emotionUrls || {}) } },
     narrative: { kabalian: Array.isArray(raw.narrative?.kabalian) ? raw.narrative.kabalian : [], kkm: Array.isArray(raw.narrative?.kkm) ? raw.narrative.kkm : [] },
     monsters: { traitsCatalog: Array.isArray(raw.monsters?.traitsCatalog) ? raw.monsters.traitsCatalog : [], customMonsters: Array.isArray(raw.monsters?.customMonsters) ? raw.monsters.customMonsters : [] },
@@ -951,6 +962,64 @@ export default function DieInTheJungleAdmin() {
             <JsonEditor label="characters.playable" value={config.characters.playable} onSave={(value) => setConfig((p) => ({ ...p, characters: { ...p.characters, playable: value } }))} />
             <JsonEditor label="characters.emotionUrls" value={config.characters.emotionUrls} onSave={(value) => setConfig((p) => ({ ...p, characters: { ...p.characters, emotionUrls: value } }))} />
             <JsonEditor label="visuals (background, logo, storyFragment URLs)" value={config.visuals} onSave={(value) => setConfig((p) => ({ ...p, visuals: value }))} rows={6} />
+
+            {/* Button Images */}
+            <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 space-y-3">
+              <div className="font-semibold text-amber-300">🎮 Action Button Images</div>
+              <p className="text-zinc-400 text-xs">Paste image URLs for each action button. Leave blank to use text fallback.</p>
+              {['roll', 'reroll', 'resolve', 'restart'].map(key => (
+                <div key={key} className="flex items-center gap-3">
+                  <label className="w-16 text-xs text-zinc-300 font-mono uppercase">{key}</label>
+                  <input
+                    type="text"
+                    className="flex-1 rounded bg-zinc-900 border border-zinc-700 px-2 py-1 text-xs text-zinc-100 font-mono"
+                    placeholder={`URL for ${key} button image`}
+                    value={config.visuals?.buttonImages?.[key] || ''}
+                    onChange={e => setConfig(p => ({
+                      ...p,
+                      visuals: {
+                        ...p.visuals,
+                        buttonImages: { ...p.visuals.buttonImages, [key]: e.target.value }
+                      }
+                    }))}
+                  />
+                  {config.visuals?.buttonImages?.[key] && (
+                    <img src={config.visuals.buttonImages[key]} alt={key} className="h-10 w-auto object-contain rounded border border-zinc-600" />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Biome Backgrounds */}
+            <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 space-y-3">
+              <div className="font-semibold text-emerald-300">🌿 Biome Background Images</div>
+              <p className="text-zinc-400 text-xs">Background URL per biome. Changes dynamically in game after boss kills.</p>
+              {[
+                { id: 'jungle', label: '🌿 Jungle Profonde', placeholder: 'https://i.postimg.cc/YSmfqq2c/Background-desktop.png' },
+                { id: 'ruins',  label: '🏛️ Ruines Ka',       placeholder: 'URL for ruins background' },
+                { id: 'temple', label: '⛩️ Temple Maudit',   placeholder: 'URL for temple background' },
+                { id: 'abyss',  label: '🌑 Abysse',          placeholder: 'URL for abyss background' },
+                { id: 'void',   label: '⚡ Vide Éternel',    placeholder: 'URL for void background' },
+              ].map(b => (
+                <div key={b.id} className="flex items-center gap-3">
+                  <label className="w-32 text-xs text-zinc-300">{b.label}</label>
+                  <input
+                    type="text"
+                    className="flex-1 rounded bg-zinc-900 border border-zinc-700 px-2 py-1 text-xs text-zinc-100 font-mono"
+                    placeholder={b.placeholder}
+                    value={config.visuals?.biomeBackgrounds?.[b.id] || ''}
+                    onChange={e => setConfig(p => ({
+                      ...p,
+                      visuals: {
+                        ...p.visuals,
+                        biomeBackgrounds: { ...p.visuals.biomeBackgrounds, [b.id]: e.target.value }
+                      }
+                    }))}
+                  />
+                </div>
+              ))}
+            </div>
+
             <button onClick={() => saveConfig(config)} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Save to server</button>
           </section>
         )}
