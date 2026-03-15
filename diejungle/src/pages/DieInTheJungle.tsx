@@ -3824,6 +3824,70 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           ) : null}
         </AnimatePresence>
 
+        {/* ── XP Panel overlay ──────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {showXpPanel ? (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[62] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+              onClick={() => setShowXpPanel(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.93, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.93, y: 20 }}
+                className="w-full max-w-sm rounded-[28px] border border-amber-400/30 bg-zinc-950/97 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.7)]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="font-serif text-xl italic text-amber-300">Battle Pass</div>
+                  <button onClick={() => setShowXpPanel(false)} className="rounded-xl border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20">✕</button>
+                </div>
+                {/* Big level number */}
+                <div className="mb-4 flex flex-col items-center gap-2">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-amber-400/50 bg-amber-950/40 text-4xl font-black text-amber-300">
+                    {xpInfo.level}
+                  </div>
+                  <div className="text-sm font-black text-zinc-300">Level {xpInfo.level}</div>
+                </div>
+                {/* XP progress bar */}
+                <div className="mb-4 rounded-xl border border-amber-400/20 bg-amber-950/20 p-3">
+                  <div className="mb-1.5 flex items-center justify-between text-[11px]">
+                    <span className="font-black text-amber-300">XP Progress</span>
+                    <span className="text-zinc-400">{xpInfo.current} / {xpInfo.needed > 0 ? xpInfo.needed : '∞'}</span>
+                  </div>
+                  <div className="h-3 overflow-hidden rounded-full bg-zinc-800 border border-zinc-700">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${xpPct}%` }}
+                      transition={{ duration: 0.6, delay: 0.1 }}
+                      className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-300"
+                    />
+                  </div>
+                  <div className="mt-1 text-[10px] text-zinc-500">{Math.round(xpPct)}% to next level</div>
+                </div>
+                {/* Relic slots */}
+                <div className="mb-3 flex items-center justify-between rounded-xl border border-violet-400/20 bg-violet-950/20 px-3 py-2">
+                  <span className="text-[11px] text-zinc-300">Relic Slots</span>
+                  <span className="font-black text-violet-300">{getRelicSlotCount(meta)}</span>
+                </div>
+                {/* Next unlocks */}
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-300">Upcoming unlocks</div>
+                  {LEVEL_REWARDS.filter((r) => r.level > xpInfo.level).slice(0, 3).map((reward) => (
+                    <div key={reward.level} className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-[11px]">
+                      <span className="text-base">{reward.emoji}</span>
+                      <span className="font-black text-zinc-200">Lv.{reward.level}</span>
+                      <span className="text-zinc-400 flex-1">{reward.label}</span>
+                    </div>
+                  ))}
+                  {LEVEL_REWARDS.filter((r) => r.level > xpInfo.level).length === 0 && (
+                    <div className="text-center text-[11px] text-zinc-400">All rewards unlocked!</div>
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
         {/* Arsenal / Gems screen */}
         <AnimatePresence>
           {showArsenal ? (
