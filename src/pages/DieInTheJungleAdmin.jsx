@@ -303,6 +303,92 @@ function readLocalMeta() {
   try { const raw = localStorage.getItem(META_KEY); if (!raw) return null; return JSON.parse(raw); } catch { return null; }
 }
 
+// ─── Asset Card Component ─────────────────────────────────────────────────────
+function AssetCard({ asset, meta, statusColor, onMetaChange, onReplace, onDelete }) {
+  const [replaceMode, setReplaceMode] = React.useState(false);
+  const [replaceUrl, setReplaceUrl] = React.useState('');
+  const [copied, setCopied] = React.useState(false);
+
+  function copyUrl() {
+    navigator.clipboard.writeText(asset.url).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+  }
+
+  function commitReplace() {
+    if (replaceUrl.trim()) { onReplace(replaceUrl.trim()); }
+    setReplaceMode(false);
+    setReplaceUrl('');
+  }
+
+  return (
+    <figure className={`rounded-xl border ${statusColor} bg-zinc-800/80 overflow-hidden flex flex-col`}>
+      {/* Preview */}
+      <div className="relative group h-28 bg-zinc-900 overflow-hidden cursor-pointer" onClick={() => window.open(asset.url, '_blank')}>
+        <img src={asset.url} alt={asset.originalName || asset.fileName || 'asset'} className="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-105" />
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+          <span className="text-xs font-bold text-white bg-black/60 px-2 py-1 rounded">🔍 Open</span>
+        </div>
+        {meta.status && meta.status !== 'active' && (
+          <div className={`absolute top-1 right-1 text-[9px] font-bold px-1.5 py-0.5 rounded ${meta.status === 'draft' ? 'bg-amber-600 text-white' : 'bg-red-700 text-white'}`}>{meta.status}</div>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="p-2 flex flex-col gap-1.5 flex-1">
+        <div className="text-[10px] text-zinc-300 truncate font-mono leading-tight" title={asset.originalName || asset.url}>
+          {asset.originalName || asset.fileName || '(no name)'}
+        </div>
+
+        {/* Tags */}
+        <input
+          placeholder="tags: boss, mob..."
+          value={meta.tags || ''}
+          onChange={(e) => onMetaChange({ tags: e.target.value })}
+          className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-1.5 py-1 text-zinc-100 placeholder-zinc-600"
+        />
+
+        {/* Status */}
+        <select
+          value={meta.status || 'active'}
+          onChange={(e) => onMetaChange({ status: e.target.value })}
+          className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-1.5 py-1 text-zinc-100"
+        >
+          <option value="active">✅ active</option>
+          <option value="draft">⏳ draft</option>
+          <option value="deprecated">🗑️ deprecated</option>
+        </select>
+
+        {/* Replace URL mode */}
+        {replaceMode ? (
+          <div className="flex gap-1">
+            <input
+              autoFocus
+              placeholder="Paste new image URL..."
+              value={replaceUrl}
+              onChange={(e) => setReplaceUrl(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitReplace(); if (e.key === 'Escape') setReplaceMode(false); }}
+              className="flex-1 text-[10px] rounded bg-zinc-900 border border-amber-500/60 px-1.5 py-1 text-zinc-100 placeholder-zinc-600"
+            />
+            <button onClick={commitReplace} className="text-[10px] rounded bg-amber-600 hover:bg-amber-500 px-2 py-1 text-white font-bold">✓</button>
+            <button onClick={() => setReplaceMode(false)} className="text-[10px] rounded bg-zinc-700 hover:bg-zinc-600 px-2 py-1 text-zinc-300">✕</button>
+          </div>
+        ) : (
+          <div className="flex gap-1">
+            <button onClick={copyUrl} className={`flex-1 text-[9px] rounded px-1.5 py-1 font-bold transition ${copied ? 'bg-emerald-700 text-white' : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-300'}`}>
+              {copied ? '✅ Copied' : '📋 Copy URL'}
+            </button>
+            <button onClick={() => setReplaceMode(true)} className="flex-1 text-[9px] rounded bg-amber-700/70 hover:bg-amber-600/80 px-1.5 py-1 font-bold text-amber-100">
+              🔄 Replace
+            </button>
+            <button onClick={onDelete} className="text-[9px] rounded bg-red-900/70 hover:bg-red-800 px-1.5 py-1 font-bold text-red-300" title="Remove from bucket">
+              🗑️
+            </button>
+          </div>
+        )}
+      </div>
+    </figure>
+  );
+}
+
 function readLocalGameState() {
   try { const raw = localStorage.getItem(GAME_KEY); if (!raw) return null; return JSON.parse(raw); } catch { return null; }
 }
@@ -975,46 +1061,79 @@ export default function DieInTheJungleAdmin() {
 
         {/* ── ASSETS ──────────────────────────────────────────────────────────────── */}
         {activeTab === 'assets' && (
-          <section className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-4">
-            <h2 className="text-xl font-semibold">🖼️ Asset Manager</h2>
-            <div className="flex flex-wrap items-end gap-3">
+          <section className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-5">
+            <div>
+              <h2 className="text-xl font-semibold">🖼️ Asset Library</h2>
+              <p className="text-zinc-400 text-sm mt-1">Upload images, manage existing ones. Each asset can be tagged, replaced, or removed.</p>
+            </div>
+
+            {/* Filters + Upload */}
+            <div className="flex flex-wrap items-end gap-3 rounded-xl border border-zinc-700 bg-zinc-800/50 p-4">
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Category</label>
-                <select value={category} onChange={(e) => setCategory(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm">
+                <label className="block text-xs font-bold text-zinc-400 mb-1 uppercase tracking-wide">Category</label>
+                <select value={category} onChange={(e) => setCategory(e.target.value)} className="bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-100">
                   {Object.keys(ASSET_SCHEMA).map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Subcategory</label>
-                <select value={subcategory} onChange={(e) => setSubcategory(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm">
+                <label className="block text-xs font-bold text-zinc-400 mb-1 uppercase tracking-wide">Sub-category</label>
+                <select value={subcategory} onChange={(e) => setSubcategory(e.target.value)} className="bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-100">
                   {availableSubcategories.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm text-zinc-400 mb-1">Upload (max 30)</label>
-                <input type="file" accept="image/*" multiple onChange={onUpload} disabled={loading} className="text-sm" />
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-xs font-bold text-zinc-400 mb-1 uppercase tracking-wide">Upload images (max 30 at once)</label>
+                <input type="file" accept="image/*" multiple onChange={onUpload} disabled={loading} className="block w-full text-sm text-zinc-300 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-zinc-700 file:text-zinc-100 file:text-sm file:cursor-pointer hover:file:bg-zinc-600" />
               </div>
+              <div className="text-xs text-zinc-500 font-mono">{assetBucket.length} asset{assetBucket.length !== 1 ? 's' : ''} in <span className="text-zinc-300">{category}/{subcategory}</span></div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {assetBucket.slice(0, 120).map((asset) => {
-                const key = asset.id || asset.url;
-                const meta = config.assetsMeta?.[key] || {};
-                return (
-                  <figure key={key} className="rounded border border-zinc-700 bg-zinc-800 p-2 space-y-2">
-                    <img src={asset.url} alt={asset.originalName || asset.fileName || 'asset'} className="w-full h-24 object-cover rounded" />
-                    <figcaption className="text-[10px] text-zinc-300 truncate">{asset.originalName || asset.fileName}</figcaption>
-                    <input placeholder="tags: poison,boss" value={meta.tags || ''} onChange={(e) => updateAssetMeta(asset, { tags: e.target.value })} className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-2 py-1" />
-                    <select value={meta.status || 'active'} onChange={(e) => updateAssetMeta(asset, { status: e.target.value })} className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-2 py-1">
-                      <option value="active">active</option>
-                      <option value="draft">draft</option>
-                      <option value="deprecated">deprecated</option>
-                    </select>
-                  </figure>
-                );
-              })}
-              {assetBucket.length === 0 && <div className="col-span-full text-zinc-500 text-sm">No assets in this bucket yet. Upload some above.</div>}
-            </div>
-            <button onClick={() => saveConfig(config)} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Save asset metadata</button>
+
+            {/* Asset Grid */}
+            {assetBucket.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/40 py-12 text-center text-zinc-500">
+                <div className="text-3xl mb-2">📂</div>
+                <div className="text-sm">No assets in <span className="text-zinc-300 font-mono">{category}/{subcategory}</span> yet.</div>
+                <div className="text-xs mt-1">Upload images using the file picker above.</div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                {assetBucket.slice(0, 120).map((asset) => {
+                  const key = asset.id || asset.url;
+                  const meta = config.assetsMeta?.[key] || {};
+                  const statusColor = meta.status === 'deprecated' ? 'border-red-700/50 opacity-60' : meta.status === 'draft' ? 'border-amber-600/50' : 'border-zinc-700';
+                  return (
+                    <AssetCard
+                      key={key}
+                      asset={asset}
+                      meta={meta}
+                      statusColor={statusColor}
+                      onMetaChange={(patch) => updateAssetMeta(asset, patch)}
+                      onReplace={(newUrl) => {
+                        setConfig((prev) => {
+                          const assets = JSON.parse(JSON.stringify(prev.assets || {}));
+                          const bucket = assets?.[category]?.[subcategory];
+                          if (!bucket) return prev;
+                          const idx = bucket.findIndex((a) => (a.id || a.url) === key);
+                          if (idx !== -1) bucket[idx] = { ...bucket[idx], url: newUrl };
+                          return { ...prev, assets };
+                        });
+                      }}
+                      onDelete={() => {
+                        setConfig((prev) => {
+                          const assets = JSON.parse(JSON.stringify(prev.assets || {}));
+                          const bucket = assets?.[category]?.[subcategory];
+                          if (!bucket) return prev;
+                          assets[category][subcategory] = bucket.filter((a) => (a.id || a.url) !== key);
+                          return { ...prev, assets };
+                        });
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            <button onClick={() => saveConfig(config)} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Save changes to server</button>
           </section>
         )}
 
@@ -1058,11 +1177,11 @@ export default function DieInTheJungleAdmin() {
               <div className="font-semibold text-emerald-300">🌿 Biome Background Images</div>
               <p className="text-zinc-400 text-xs">Background URL per biome. Changes dynamically in game after boss kills.</p>
               {[
-                { id: 'jungle', label: '🌿 Jungle Profonde', placeholder: 'https://i.postimg.cc/YSmfqq2c/Background-desktop.png' },
-                { id: 'ruins',  label: '🏛️ Ruines Ka',       placeholder: 'URL for ruins background' },
-                { id: 'temple', label: '⛩️ Temple Maudit',   placeholder: 'URL for temple background' },
-                { id: 'abyss',  label: '🌑 Abysse',          placeholder: 'URL for abyss background' },
-                { id: 'void',   label: '⚡ Vide Éternel',    placeholder: 'URL for void background' },
+                { id: 'jungle', label: '🌿 Deep Jungle',    placeholder: 'https://i.postimg.cc/YSmfqq2c/Background-desktop.png' },
+                { id: 'ruins',  label: '🏛️ Ka Ruins',       placeholder: 'URL for ruins background' },
+                { id: 'temple', label: '⛩️ Cursed Temple',  placeholder: 'URL for temple background' },
+                { id: 'abyss',  label: '🌑 Abyss',          placeholder: 'URL for abyss background' },
+                { id: 'void',   label: '⚡ Eternal Void',   placeholder: 'URL for void background' },
               ].map(b => (
                 <div key={b.id} className="flex items-center gap-3">
                   <label className="w-32 text-xs text-zinc-300">{b.label}</label>

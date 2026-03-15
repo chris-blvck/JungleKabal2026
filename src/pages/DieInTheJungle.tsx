@@ -58,10 +58,10 @@ const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
 // Button image URLs — replace with real assets when available
 // Can be overridden via config.visuals.buttonImages from admin panel
 const BTN_IMAGES: Record<string, string> = {
-  roll:    '',
+  roll:    'https://i.postimg.cc/dtMH8DW1/Chat-GPT-Image-15-mars-2026-23-09-00.png',
   reroll:  '',
-  resolve: '',
-  restart: '',
+  resolve: 'https://i.postimg.cc/6pJ0GSpm/Chat-GPT-Image-15-mars-2026-23-07-03.png',
+  restart: 'https://i.postimg.cc/1zZs295V/Chat-GPT-Image-15-mars-2026-20-00-06.png',
 };
 
 type RunSummary = {
@@ -169,6 +169,72 @@ const ROW_INFO = [
   { name: "Mid", emoji: "✨", mult: 2, role: "+1 HEAL", laneBonus: { attack: 0, shield: 0, heal: 1 } },
   { name: "Bot", emoji: "🪨", mult: 1, role: "+1 SHIELD", laneBonus: { attack: 0, shield: 1, heal: 0 } },
 ];
+
+// ─── Slot images ──────────────────────────────────────────────────────────────
+// Slot 1 (column 0) + Slot Mid (x=1,y=1) define the lane skin.
+// When both are set, all other slots copy the mid design.
+const SLOT_IMAGES = {
+  slot1:   'https://i.postimg.cc/vm6XgsWf/Chat-GPT-Image-15-mars-2026-23-23-55.png',
+  slotMid: 'https://i.postimg.cc/vm6XgsWf/Chat-GPT-Image-15-mars-2026-23-23-55.png',
+};
+
+function getSlotBg(x: number, _y: number): string {
+  if (x === 0) return SLOT_IMAGES.slot1;
+  return SLOT_IMAGES.slotMid || SLOT_IMAGES.slot1;
+}
+
+// Dynamic lane bonuses: pool shuffled each turn, influenced by player preferences
+type LaneBonus = { attack: number; shield: number; heal: number };
+type LanePref = 'attack' | 'heal' | 'shield' | 'any';
+
+const LANE_BONUS_POOL: LaneBonus[] = [
+  { attack: 1, shield: 0, heal: 0 },
+  { attack: 0, shield: 0, heal: 1 },
+  { attack: 0, shield: 1, heal: 0 },
+];
+
+const LANE_BONUS_META: Record<string, { emoji: string; label: string; color: string }> = {
+  attack:  { emoji: '⚔️', label: '+1 ATK',   color: 'bg-red-500/90 border-red-300/60' },
+  heal:    { emoji: '❤️', label: '+1 HEAL',  color: 'bg-emerald-600/90 border-emerald-300/60' },
+  shield:  { emoji: '🛡️', label: '+1 SHIELD', color: 'bg-sky-600/90 border-sky-300/60' },
+};
+
+function getBonusType(bonus: LaneBonus): 'attack' | 'heal' | 'shield' {
+  if (bonus.attack > 0) return 'attack';
+  if (bonus.heal > 0) return 'heal';
+  return 'shield';
+}
+
+function generateTurnLaneBonuses(prefs: LanePref[]): LaneBonus[] {
+  const pool = [...LANE_BONUS_POOL];
+  const assigned: (LaneBonus | null)[] = [null, null, null];
+  const used = new Set<number>();
+
+  // First pass: satisfy non-'any' preferences
+  for (let i = 0; i < 3; i++) {
+    const pref = prefs[i];
+    if (pref === 'any') continue;
+    const poolIdx = pref === 'attack' ? 0 : pref === 'heal' ? 1 : 2;
+    if (!used.has(poolIdx)) {
+      assigned[i] = pool[poolIdx];
+      used.add(poolIdx);
+    }
+  }
+
+  // Shuffle remaining bonuses
+  const remaining = pool.filter((_, i) => !used.has(i));
+  for (let i = remaining.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+  }
+
+  let ri = 0;
+  for (let i = 0; i < 3; i++) {
+    if (assigned[i] === null) assigned[i] = remaining[ri++];
+  }
+
+  return assigned as LaneBonus[];
+}
 
 const ENEMY_POOLS = {
   mob: [
@@ -436,7 +502,7 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "relic",
     tags: ["survival"],
-    image: "https://i.postimg.cc/0jTsM1zb/Chat-GPT-Image-Mar-12-2026-03-01-43-PM.png",
+    image: "https://i.postimg.cc/g24QGmGB/golden-spirit-lantern.png",
     effectText: "🧬 +6 Max HP · ❤️ Heal 6.",
     apply: (player) => ({ ...player, maxHp: player.maxHp + 6, hp: Math.min(player.maxHp + 6, player.hp + 6) }),
   },
@@ -456,7 +522,7 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "idol",
     tags: ["heal"],
-    image: "https://i.postimg.cc/vTRq5Yt6/Chat-GPT-Image-Mar-12-2026-02-58-04-PM.png",
+    image: "https://i.postimg.cc/JzKvRMRK/golden-light-pods.png",
     effectText: "❤️ Heal dice restore +1 extra heal.",
     apply: (player) => ({ ...player, healBonus: player.healBonus + 1 }),
   },
@@ -466,7 +532,7 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "totem",
     tags: ["shield"],
-    image: "https://i.postimg.cc/prwZnRKp/Chat-GPT-Image-Mar-12-2026-03-09-00-PM.png",
+    image: "https://i.postimg.cc/mD1539C6/golden-verdant-totem.png",
     effectText: "🛡️ Start each combat with 4 shield.",
     apply: (player) => ({ ...player, combatStartShield: player.combatStartShield + 4 }),
   },
@@ -486,7 +552,7 @@ const ARTIFACT_POOL = [
     rarity: "gray",
     category: "fang",
     tags: ["attack", "curse"],
-    image: "https://i.postimg.cc/MpxGd1Gc/Chat-GPT-Image-Mar-12-2026-03-04-39-PM.png",
+    image: "https://i.postimg.cc/ZRvMPNpM/golden-venom-serpent.png",
     effectText: "⚔️ +2 attack damage · ☠️ lose 3 max HP.",
     apply: (player) => {
       const nextMaxHp = Math.max(8, player.maxHp - 3);
@@ -499,7 +565,7 @@ const ARTIFACT_POOL = [
     rarity: "gray",
     category: "totem",
     tags: ["shield", "curse"],
-    image: "https://i.postimg.cc/d1RHmMNs/Chat-GPT-Image-Mar-12-2026-03-05-52-PM.png",
+    image: "https://i.postimg.cc/jSvmRtRF/golden-toxic-totem.png",
     effectText: "🛡️ Start with 3 shield · ☠️ cooldown base +1.",
     apply: (player) => ({ ...player, combatStartShield: player.combatStartShield + 3, cooldownBase: player.cooldownBase + 1 }),
   },
@@ -509,7 +575,7 @@ const ARTIFACT_POOL = [
     rarity: "gray",
     category: "charm",
     tags: ["attack", "curse"],
-    image: "https://i.postimg.cc/HsyHBYRw/Chat-GPT-Image-Mar-12-2026-03-25-24-PM.png",
+    image: "https://i.postimg.cc/JnH23XZg/verdant-bone-wreath.png",
     effectText: "⚔️ Attack dice +1 value · ☠️ lose 1 HP at turn start.",
     apply: (player) => ({ ...player, attackDieValueBonus: player.attackDieValueBonus + 1, selfBleed: player.selfBleed + 1 }),
   },
@@ -559,7 +625,7 @@ const ARTIFACT_POOL = [
     rarity: "chrome",
     category: "sigil",
     tags: ["survival"],
-    image: "https://i.postimg.cc/Dy4GtQFd/Chat-GPT-Image-Mar-12-2026-03-09-46-PM.png",
+    image: "https://i.postimg.cc/2SCgpVNZ/golden-jungle-watcher.png",
     effectText: "✨ Gain one revive per zone (revive at 40% HP).",
     apply: (player) => ({ ...player, reviveOnce: true }),
   },
@@ -569,7 +635,7 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "coin",
     tags: ["survival", "tempo"],
-    image: "https://i.postimg.cc/0jTsM1zb/Chat-GPT-Image-Mar-12-2026-03-01-43-PM.png",
+    image: "https://i.postimg.cc/PxWkXdgx/Chat-GPT-Image-14-mars-2026-22-02-48.png",
     effectText: "🧬 +3 max HP · 🔁 +1 reroll per turn.",
     apply: (player) => ({ ...player, maxHp: player.maxHp + 3, hp: player.hp + 3, rerollsPerTurn: player.rerollsPerTurn + 1, rerollsLeft: player.rerollsLeft + 1 }),
   },
@@ -592,6 +658,60 @@ const ARTIFACT_POOL = [
     image: "https://i.postimg.cc/bJ5c9WTX/Chat-GPT-Image-Mar-12-2026-04-15-09-PM.png",
     effectText: "❤️ +2 heal bonus · 🔁 +1 reroll each turn.",
     apply: (player) => ({ ...player, healBonus: player.healBonus + 2, rerollsPerTurn: player.rerollsPerTurn + 1, rerollsLeft: player.rerollsLeft + 1 }),
+  },
+  // ── Weapon artifacts (blades) ─────────────────────────────────────────────
+  {
+    id: "jungle-blade",
+    name: "Jungle Blade",
+    rarity: "gray",
+    category: "weapon",
+    tags: ["attack"],
+    image: "https://i.postimg.cc/bwdH2hxw/Chat-GPT-Image-Mar-15-2026-01-07-26-AM.png",
+    effectText: "⚔️ +1 attack bonus · attack dice min value 2.",
+    apply: (player) => ({ ...player, attackBonus: player.attackBonus + 1, attackDieValueBonus: (player.attackDieValueBonus || 0) + 1 }),
+  },
+  {
+    id: "venomfang-dagger",
+    name: "Venomfang Dagger",
+    rarity: "gray",
+    category: "weapon",
+    tags: ["attack", "curse"],
+    image: "https://i.postimg.cc/XYhKfzLq/Chat-GPT-Image-Mar-15-2026-01-07-27-AM.png",
+    effectText: "⚔️ +2 attack bonus · ☠️ lose 2 max HP.",
+    apply: (player) => {
+      const nextMaxHp = Math.max(8, player.maxHp - 2);
+      return { ...player, attackBonus: player.attackBonus + 2, maxHp: nextMaxHp, hp: Math.min(nextMaxHp, player.hp) };
+    },
+  },
+  {
+    id: "kabal-machete",
+    name: "Kabal Machete",
+    rarity: "gold",
+    category: "weapon",
+    tags: ["attack"],
+    image: "https://i.postimg.cc/C1CjVLg4/Chat-GPT-Image-Mar-15-2026-01-07-30-AM.png",
+    effectText: "⚔️ +2 attack bonus · attack dice deal +1 damage.",
+    apply: (player) => ({ ...player, attackBonus: player.attackBonus + 2, attackDieValueBonus: (player.attackDieValueBonus || 0) + 1 }),
+  },
+  {
+    id: "spirit-cleaver",
+    name: "Spirit Cleaver",
+    rarity: "chrome",
+    category: "weapon",
+    tags: ["attack", "tempo"],
+    image: "https://i.postimg.cc/Fz90F5rp/Chat-GPT-Image-Mar-15-2026-01-07-35-AM.png",
+    effectText: "⚔️ +3 attack bonus · top row multiplier +1.",
+    apply: (player) => ({ ...player, attackBonus: player.attackBonus + 3, topRowBonus: player.topRowBonus + 1 }),
+  },
+  {
+    id: "twilight-fang",
+    name: "Twilight Fang",
+    rarity: "chrome",
+    category: "weapon",
+    tags: ["attack", "survival"],
+    image: "https://i.postimg.cc/fywYWnzv/Chat-GPT-Image-Mar-15-2026-01-17-23-AM.png",
+    effectText: "⚔️ +2 attack bonus · 🧬 +4 max HP.",
+    apply: (player) => ({ ...player, attackBonus: player.attackBonus + 2, maxHp: player.maxHp + 4, hp: player.hp + 4 }),
   },
 
 ];
@@ -1099,9 +1219,10 @@ function resolvePlayerGrid(state) {
       }
     });
 
-    if (rowAttack > 0) rowAttack += ROW_INFO[rowIndex].laneBonus.attack;
-    if (rowShield > 0) rowShield += ROW_INFO[rowIndex].laneBonus.shield;
-    if (rowHeal > 0) rowHeal += ROW_INFO[rowIndex].laneBonus.heal;
+    const laneBonus = (state.turnLaneBonuses?.[rowIndex]) ?? ROW_INFO[rowIndex].laneBonus;
+    if (rowAttack > 0) rowAttack += laneBonus.attack;
+    if (rowShield > 0) rowShield += laneBonus.shield;
+    if (rowHeal > 0) rowHeal += laneBonus.heal;
 
     // Mid row combo: 2+ of same type → +5 bonus
     if (midRowKinds) {
@@ -1189,7 +1310,7 @@ function resolvePlayerGrid(state) {
   };
 }
 
-function estimatePlayerOutcome(grid, player) {
+function estimatePlayerOutcome(grid, player, turnLaneBonuses?: LaneBonus[]) {
   let totalAttack = 0;
   let totalShield = 0;
   let totalHeal = 0;
@@ -1211,9 +1332,10 @@ function estimatePlayerOutcome(grid, player) {
       }
     });
 
-    if (rowAttack > 0) rowAttack += ROW_INFO[rowIndex].laneBonus.attack;
-    if (rowShield > 0) rowShield += ROW_INFO[rowIndex].laneBonus.shield;
-    if (rowHeal > 0) rowHeal += ROW_INFO[rowIndex].laneBonus.heal;
+    const laneBonus = (turnLaneBonuses?.[rowIndex]) ?? ROW_INFO[rowIndex].laneBonus;
+    if (rowAttack > 0) rowAttack += laneBonus.attack;
+    if (rowShield > 0) rowShield += laneBonus.shield;
+    if (rowHeal > 0) rowHeal += laneBonus.heal;
 
     totalAttack += rowAttack;
     totalShield += rowShield;
@@ -1293,6 +1415,7 @@ function makeInitialState() {
     combatRewardPending: false,
     startRewardPending: true,
     characterSelectPending: true,
+    companionSelectPending: false,
     score: 0,
     noHitTurns: 0,
     runSeed,
@@ -1316,6 +1439,8 @@ function makeInitialState() {
     lastBossFloor: null as number | null,
     // Current biome (changes after each boss kill)
     currentBiome: 'jungle' as BiomeId,
+    // Dynamic lane bonuses (reshuffled each turn)
+    turnLaneBonuses: generateTurnLaneBonuses(['any', 'any', 'any']) as LaneBonus[],
   };
 }
 
@@ -1352,6 +1477,7 @@ function hydrateGameState(rawState) {
   safe.noHitTurns = Number.isFinite(safe.noHitTurns) ? safe.noHitTurns : 0;
   safe.runSeed = safe.runSeed || generateRunSeed();
   safe.characterSelectPending = Boolean(safe.characterSelectPending);
+  safe.companionSelectPending = Boolean(safe.companionSelectPending);
   safe.mapLayers = safe.mapLayers ?? null;
   safe.currentMapNodeId = safe.currentMapNodeId ?? null;
   safe.pendingEvent = safe.pendingEvent ?? null;
@@ -1528,6 +1654,10 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   });
   const [showAdvancedGuide, setShowAdvancedGuide] = useState(false);
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
+  const [showLaneCustomize, setShowLaneCustomize] = useState(false);
+  const [lanePreferences, setLanePreferences] = useState<LanePref[]>(() => {
+    try { return JSON.parse(localStorage.getItem('jk_lane_prefs') || '["any","any","any"]'); } catch { return ['any','any','any']; }
+  });
   const [meta, setMeta] = useState<MetaProgressionState>(loadMeta);
   const [lastRunReward, setLastRunReward] = useState<RunReward | null>(null);
 
@@ -1542,7 +1672,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const latestAction = game.log[0] || "No action yet. Press ROLL.";
   const intent = getIntentPreview(game.enemy);
   const intentTimeline = getIntentTimeline(game.enemy, 3);
-  const expectedOutcome = estimatePlayerOutcome(game.grid, game.player);
+  const expectedOutcome = estimatePlayerOutcome(game.grid, game.player, game.turnLaneBonuses);
   const streakMultiplier = getNoHitMultiplier(game.noHitTurns);
   const enemyAnchorRef = useRef(null);
   const playerAnchorRef = useRef(null);
@@ -1640,12 +1770,41 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         ...g,
         player: nextPlayer,
         characterSelectPending: false,
+        companionSelectPending: true,
         phase: "map",
         mapLayers,
         currentMapNodeId: null,
         avatarMood: "focus",
-        actionFlash: { id: Date.now(), text: `🧭 ${selected.name} — choose your path`, tone: "sky" },
-        log: [`🧭 Character selected: ${selected.name}`, `🗺️ Zone ${g.floor} map generated`, ...g.log].slice(0, 40),
+        actionFlash: { id: Date.now(), text: `🧭 ${selected.name} — now pick your companion`, tone: "sky" },
+        log: [`🧭 Character selected: ${selected.name}`, ...g.log].slice(0, 40),
+      };
+    });
+  }
+
+  function pickCompanion(companionId: string) {
+    const chosen = COMPANIONS.find(c => c.id === companionId);
+    if (!chosen) return;
+    setGame((g) => {
+      const companion = { ...chosen, cooldownRemaining: 0 };
+      // Apply passive bonuses to player stats
+      const player = { ...g.player };
+      if (companion.passive.attackBonus) player.attackBonus = (player.attackBonus || 0) + companion.passive.attackBonus;
+      if (companion.passive.healBonus) player.healBonus = (player.healBonus || 0) + companion.passive.healBonus;
+      if (companion.passive.shieldBonus) {
+        player.combatStartShield = (player.combatStartShield || 0) + companion.passive.shieldBonus;
+        player.shield = (player.shield || 0) + companion.passive.shieldBonus;
+      }
+      if (companion.passive.rerollBonus) {
+        player.rerollsPerTurn = (player.rerollsPerTurn || 1) + companion.passive.rerollBonus;
+        player.rerollsLeft = (player.rerollsLeft || 0) + companion.passive.rerollBonus;
+      }
+      player.companion = companion;
+      return {
+        ...g,
+        player,
+        companionSelectPending: false,
+        actionFlash: { id: Date.now(), text: `${companion.emoji} ${companion.name} joins you!`, tone: 'emerald' },
+        log: [`${companion.emoji} Companion: ${companion.name} — ${companion.passive.desc}`, `🗺️ Zone ${g.floor} map generated`, ...g.log].slice(0, 40),
       };
     });
   }
@@ -1693,6 +1852,11 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         const specialFaces = hasDiceSpecials(meta);
         const geckoBonus = g.player.companion?.passive?.attackDieBonus ?? 0;
         const dice = rollDice(g.player.dicePerTurn, specialFaces, geckoBonus);
+        // Regenerate lane bonuses each turn respecting preferences
+        const lanePrefs: LanePref[] = (() => {
+          try { return JSON.parse(localStorage.getItem('jk_lane_prefs') || '["any","any","any"]'); } catch { return ['any','any','any']; }
+        })();
+        const turnLaneBonuses = generateTurnLaneBonuses(lanePrefs);
         return {
           ...g,
           dice,
@@ -1701,6 +1865,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           rolling: false,
           selectedDieIndex: 0,
           avatarMood: "focus",
+          turnLaneBonuses,
           actionFlash: { id: Date.now(), text: `🎲 ${dice.map((d) => `${getDieMeta(d).emoji}${d.value}${d.special ? '✦' : ''}`).join(" · ")}`, tone: "amber" },
           log: [`🎲 Rolled: ${dice.map((d) => `${getDieMeta(d).label} ${d.value}${d.special ? ` (${d.special})` : ''}`).join(" - ")}`, ...g.log].slice(0, 40),
         };
@@ -2314,11 +2479,24 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
       if (companion.active.type === 'skip_intent') {
         player.companionHypnosisActive = true;
-        log.unshift(`🦎 Hypnose — enemy will skip their next intent!`);
+        log.unshift(`${companion.active.abilityEmoji ?? '😴'} ${companion.active.name} — enemy will skip their next intent!`);
       } else if (companion.active.type === 'flat_damage') {
         const dmg = companion.active.value ?? 8;
         enemy.hp -= dmg;
-        log.unshift(`🐊 Leap — ${dmg} flat damage, ignores shield!`);
+        log.unshift(`${companion.active.abilityEmoji ?? '💥'} ${companion.active.name} — ${dmg} flat damage, ignores shield!`);
+      } else if (companion.active.type === 'instant_heal') {
+        const heal = companion.active.value ?? 6;
+        player.hp = Math.min(player.maxHp, player.hp + heal);
+        log.unshift(`${companion.active.abilityEmoji ?? '🌿'} ${companion.active.name} — healed ${heal} HP!`);
+      } else if (companion.active.type === 'instant_shield') {
+        const shield = companion.active.value ?? 6;
+        player.shield = (player.shield || 0) + shield;
+        log.unshift(`${companion.active.abilityEmoji ?? '🛡️'} ${companion.active.name} — gained ${shield} shield!`);
+      } else if (companion.active.type === 'restore_reroll') {
+        const heal = companion.active.value ?? 4;
+        player.rerollsLeft = Math.min(player.rerollsLeft + 1, player.rerollsPerTurn + 1);
+        player.hp = Math.min(player.maxHp, player.hp + heal);
+        log.unshift(`${companion.active.abilityEmoji ?? '👻'} ${companion.active.name} — +1 reroll & healed ${heal} HP!`);
       } else if (companion.active.type === 'free_reroll_choice') {
         // Free reroll all current dice
         const meta = loadMeta();
@@ -2494,7 +2672,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const xpPct = xpInfo.needed > 0 ? Math.min(100, (xpInfo.current / xpInfo.needed) * 100) : 100;
 
   return (
-    <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.78)), url(${effectiveBg})` }}>
+    <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `radial-gradient(ellipse at center, rgba(0,0,0,.55) 0%, rgba(0,0,0,.10) 70%), linear-gradient(rgba(0,0,0,.74), rgba(0,0,0,.88)), url(${effectiveBg})` }}>
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-1.5 pb-3 md:gap-2">
         <div className="rounded-[22px] border border-amber-300/20 bg-black/35 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md md:p-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2698,20 +2876,6 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 </Button>
               )
             ) : null}
-            {game.phase === "place" ? (
-              BTN_IMAGES.reroll ? (
-                <ActionBtn
-                  imgSrc={BTN_IMAGES.reroll}
-                  label="🔁 REROLL"
-                  onClick={rerollActiveDie}
-                  disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null}
-                />
-              ) : (
-                <Button onClick={rerollActiveDie} disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null} className="rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-700/90 to-zinc-900 px-5 py-2.5 text-sm font-black text-white hover:from-zinc-600 hover:to-zinc-800 disabled:opacity-40">
-                  🔁 REROLL
-                </Button>
-              )
-            ) : null}
             {game.phase === "place" && game.grid.some(row => row.some(cell => cell !== null)) ? (
               BTN_IMAGES.resolve ? (
                 <ActionBtn
@@ -2724,16 +2888,6 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   ✅ RESOLVE
                 </Button>
               )
-            ) : null}
-            {game.player.companion && (game.phase === "roll" || game.phase === "place") ? (
-              <Button
-                onClick={activateCompanionActive}
-                disabled={game.player.companion.cooldownRemaining > 0}
-                className={`rounded-2xl border px-3 py-2.5 text-sm font-black transition ${game.player.companion.cooldownRemaining === 0 ? 'border-emerald-400/50 bg-emerald-600/25 text-emerald-100 hover:bg-emerald-600/40' : 'border-zinc-600/40 bg-zinc-800/50 text-zinc-500 cursor-not-allowed opacity-60'}`}
-              >
-                {game.player.companion.emoji} {game.player.companion.active.name}
-                {game.player.companion.cooldownRemaining > 0 ? ` (${game.player.companion.cooldownRemaining})` : ' ✓'}
-              </Button>
             ) : null}
             {(game.phase === "gameover" || game.phase === "victory") ? (
               <>
@@ -2771,6 +2925,35 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
               <Button onClick={() => shiftSelectedDie(1)} className="h-10 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-4 text-white hover:from-zinc-700 hover:to-zinc-800">➡️</Button>
             ) : null}
           </div>
+
+          {/* ── Small inline action buttons: REROLL + companion ────────────── */}
+          {game.phase === "place" ? (
+            <div className="mt-1.5 flex items-center justify-center gap-2">
+              <button
+                onClick={rerollActiveDie}
+                disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null}
+                className="flex items-center gap-1 rounded-xl border border-white/15 bg-zinc-800/80 px-2.5 py-1 text-sm disabled:opacity-35 hover:bg-zinc-700/80 transition"
+                title={`Reroll selected die (${game.player.rerollsLeft} left)`}
+              >
+                <span>🔁</span>
+                <span className="text-[10px] font-black text-zinc-300">{game.player.rerollsLeft}</span>
+              </button>
+              {game.player.companion ? (
+                <button
+                  onClick={activateCompanionActive}
+                  disabled={game.player.companion.cooldownRemaining > 0}
+                  className={`flex items-center gap-1 rounded-xl border px-2.5 py-1 text-sm transition disabled:opacity-35 ${game.player.companion.cooldownRemaining === 0 ? 'border-emerald-400/40 bg-emerald-900/40 hover:bg-emerald-800/50' : 'border-zinc-700/40 bg-zinc-800/50'}`}
+                  title={`${game.player.companion.active.name}${game.player.companion.cooldownRemaining > 0 ? ` — CD ${game.player.companion.cooldownRemaining}` : ' — READY'}`}
+                >
+                  <span>{game.player.companion.active.abilityEmoji ?? game.player.companion.emoji}</span>
+                  {game.player.companion.cooldownRemaining > 0
+                    ? <span className="text-[10px] font-black text-zinc-400">{game.player.companion.cooldownRemaining}</span>
+                    : <span className="text-[10px] font-black text-emerald-300">✓</span>}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
           <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 text-[11px] text-zinc-400 select-none">
             <input
               type="checkbox"
@@ -2789,7 +2972,9 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
 
 
-        <SectionCard title="Board" className="order-3 md:order-3" right={<div className="text-[9px] text-zinc-300">Place dice on available slots</div>}>
+        <SectionCard title="Board" className="order-3 md:order-3" right={
+          <button onClick={() => setShowLaneCustomize(true)} className="rounded-lg border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[9px] font-black text-amber-200 hover:bg-amber-300/20">⚙️ Lanes</button>
+        }>
           {activeDieMeta && game.phase === "place" ? (
             <div className="mb-2 flex items-center gap-2 rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-2 py-1.5 text-[11px] text-white">
               <span className="text-lg">{activeDieMeta.emoji}</span>
@@ -2800,13 +2985,20 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
             </div>
           ) : null}
 
-          <div className="grid justify-center gap-1 [grid-template-columns:32px_repeat(3,72px)] md:[grid-template-columns:40px_repeat(3,84px)]">
-            {ROW_INFO.map((row, y) => (
+          <div className="grid justify-center gap-1 [grid-template-columns:48px_repeat(3,72px)] md:[grid-template-columns:56px_repeat(3,84px)]">
+            {ROW_INFO.map((row, y) => {
+              const bonus = game.turnLaneBonuses?.[y] ?? row.laneBonus;
+              const bonusType = getBonusType(bonus);
+              const bonusMeta = LANE_BONUS_META[bonusType];
+              return (
               <React.Fragment key={row.name}>
-                <div className="h-[72px] rounded-[10px] border border-white/15 bg-black flex flex-col items-center justify-center text-[9px] font-black text-white md:h-[84px] md:text-[10px]">
-                  <span>{row.emoji}</span>
-                  <span>x{rowMultiplier(game.player, y)}</span>
-                  <span className="text-[8px] text-zinc-300">{row.role}</span>
+                {/* Lane label with big bonus badge */}
+                <div className="h-[72px] rounded-[10px] border border-white/15 bg-zinc-900 flex flex-col items-center justify-center gap-0.5 md:h-[84px]">
+                  <span className="text-[10px] font-black text-white">x{rowMultiplier(game.player, y)}</span>
+                  <div className={`rounded-md border px-1 py-0.5 text-center ${bonusMeta.color}`}>
+                    <div className="text-base leading-none">{bonusMeta.emoji}</div>
+                    <div className="text-[8px] font-black text-white leading-tight">{bonusMeta.label}</div>
+                  </div>
                 </div>
                 {game.grid[y].map((cell, x) => {
                   const cooldown = game.cooldowns[y][x];
@@ -2819,30 +3011,33 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                       onClick={() => activeDieIndex !== null && placeDie(activeDieIndex, x, y)}
                       onMouseEnter={() => setHoveredSlot({ x, y })}
                       onMouseLeave={() => setHoveredSlot(null)}
-                      className={`relative h-[72px] w-[72px] overflow-hidden rounded-[10px] border text-white transition md:h-[84px] md:w-[84px] ${canPlace ? "border-amber-300/60 ring-2 ring-amber-300/20" : "border-white/20"}`}
+                      className={`relative h-[72px] w-[72px] overflow-hidden rounded-[10px] border text-white transition md:h-[84px] md:w-[84px] ${canPlace ? "border-amber-300/60 ring-2 ring-amber-300/20 animate-pulse" : "border-white/15"}`}
                     >
-                      <img src={LANE_IMAGES[y]} className="absolute inset-0 h-full w-full object-contain" />
+                      {/* Slot image background */}
+                      {getSlotBg(x, y) ? (
+                        <img src={getSlotBg(x, y)} className="absolute inset-0 h-full w-full object-cover" alt="" />
+                      ) : (
+                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/90 via-zinc-900 to-zinc-950" />
+                      )}
+                      <div className="absolute inset-0 bg-black/20" />
                       {cell !== null ? (
                         <>
-                          <div className="absolute inset-0 bg-black/10" />
-                          <img src={getDieImage(cell)} className="absolute inset-0 h-full w-full object-contain" />
-                          <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 rounded bg-black/60 px-1 text-[9px] font-black">
+                          <img src={getDieImage(cell)} className="absolute inset-0 h-full w-full object-contain p-1" />
+                          <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 rounded bg-black/70 px-1 text-[9px] font-black">
                             {meta?.emoji} {cell.value}
                           </div>
                         </>
                       ) : blocked ? (
                         <>
-                          <div className="absolute inset-0 bg-red-950/60" />
+                          <div className="absolute inset-0 bg-red-950/70" />
                           <div className="absolute inset-0 flex flex-col items-center justify-center text-[10px] font-bold">
                             ⏳ {cooldown}
                           </div>
                         </>
                       ) : (
                         <>
-                          <div className="absolute inset-0 bg-black/25" />
-                          <div className="absolute inset-0 flex flex-col items-center justify-center text-[13px] font-bold tracking-[0.08em]">
-                            PLACE
-                            {canPlace ? <span className="text-[10px] text-amber-200">{activeDieMeta?.emoji}</span> : null}
+                          <div className="absolute inset-0 flex flex-col items-center justify-center text-[11px] font-bold tracking-[0.06em] text-zinc-400">
+                            {canPlace ? <span className="text-xl">{activeDieMeta?.emoji}</span> : <span className="text-[10px] text-zinc-500">PLACE</span>}
                           </div>
                         </>
                       )}
@@ -2850,7 +3045,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   );
                 })}
               </React.Fragment>
-            ))}
+              );
+            })}
           </div>
         </SectionCard>
 
@@ -3001,8 +3197,49 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         </AnimatePresence>
 
         {/* ── Map overlay ──────────────────────────────────────────────────── */}
+        {/* ── Companion selection modal ──────────────────────────────────── */}
         <AnimatePresence>
-          {game.phase === "map" && game.mapLayers && !game.characterSelectPending ? (() => {
+          {game.companionSelectPending ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-3xl rounded-[28px] border border-emerald-400/20 bg-zinc-950/97 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
+                <div className="mb-4 text-center">
+                  <div className="font-serif text-2xl italic text-emerald-300">Choose your companion</div>
+                  <div className="text-sm text-zinc-400">Your companion fights alongside you — passive always active, ability on cooldown.</div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {COMPANIONS.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => pickCompanion(c.id)}
+                      className="rounded-2xl border border-white/10 bg-black/50 p-3 text-left transition hover:border-emerald-400/50 hover:bg-black/75"
+                    >
+                      {c.image ? (
+                        <img src={c.image} alt={c.name} className="mb-2 h-28 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
+                      ) : (
+                        <div className="mb-2 flex h-28 items-center justify-center text-5xl">{c.emoji}</div>
+                      )}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base">{c.emoji}</span>
+                        <span className="font-black text-sm text-amber-200">{c.name}</span>
+                        <span className="ml-auto rounded-full bg-zinc-800 px-1.5 py-0.5 text-[9px] font-bold uppercase text-zinc-400">{c.archetype}</span>
+                      </div>
+                      <div className="mt-1 text-[10px] text-zinc-400">{c.passive.desc}</div>
+                      <div className="mt-1.5 flex items-center gap-1 rounded-lg border border-zinc-700/40 bg-zinc-900/60 px-2 py-1">
+                        <span className="text-sm">{c.active.abilityEmoji}</span>
+                        <span className="text-[10px] font-bold text-zinc-300">{c.active.name}</span>
+                        <span className="ml-auto text-[9px] text-zinc-500">CD {c.active.cooldown}</span>
+                      </div>
+                      <div className="mt-0.5 text-[9px] text-zinc-500 italic">{c.active.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {game.phase === "map" && game.mapLayers && !game.characterSelectPending && !game.companionSelectPending ? (() => {
             const available = getAvailableNodes(game.mapLayers, game.currentMapNodeId);
             return (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm">
@@ -3076,7 +3313,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         {/* ── Event overlay ─────────────────────────────────────────────────── */}
         <AnimatePresence>
           {game.phase === "event" && game.pendingEvent ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 py-4 px-4 backdrop-blur-sm">
               <div className="w-full max-w-sm rounded-[28px] border border-cyan-300/20 bg-zinc-950/98 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
                 <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-cyan-400">❓ Random Event</div>
                 <div className="mb-2 font-serif text-xl italic text-amber-300">{game.pendingEvent.title}</div>
@@ -3186,7 +3423,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
         <AnimatePresence>
           {game.phase === "reward" && !game.characterSelectPending ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 py-4 px-4 backdrop-blur-sm">
               <div className="w-full max-w-5xl rounded-[28px] border border-amber-300/20 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
@@ -3422,6 +3659,76 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           ) : null}
         </AnimatePresence>
       </div>
+
+      {/* ── Lane Customization Modal ──────────────────────────────────────── */}
+      <AnimatePresence>
+        {showLaneCustomize ? (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="w-full max-w-sm rounded-[28px] border border-amber-300/20 bg-zinc-950/98 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <div className="font-serif text-xl italic text-amber-300">⚙️ Customize Lanes</div>
+                  <div className="text-[11px] text-zinc-400">Set a preferred bonus for each row. Takes effect next ROLL.</div>
+                </div>
+                <button onClick={() => setShowLaneCustomize(false)} className="rounded-xl border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20">✕</button>
+              </div>
+
+              <div className="space-y-3">
+                {ROW_INFO.map((row, y) => {
+                  const currentBonus = game.turnLaneBonuses?.[y];
+                  const currentType = currentBonus ? getBonusType(currentBonus) : null;
+                  const bonusMeta = currentType ? LANE_BONUS_META[currentType] : null;
+                  return (
+                    <div key={row.name} className="rounded-xl border border-white/10 bg-black/30 p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="text-sm font-black text-white">{row.emoji} {row.name} Row <span className="text-zinc-400 font-normal">×{rowMultiplier(game.player, y)}</span></div>
+                        {bonusMeta ? (
+                          <div className={`rounded-md border px-1.5 py-0.5 text-[10px] font-black ${bonusMeta.color} text-white`}>{bonusMeta.emoji} This turn</div>
+                        ) : null}
+                      </div>
+                      <div className="grid grid-cols-4 gap-1">
+                        {(['attack', 'heal', 'shield', 'any'] as LanePref[]).map((pref) => {
+                          const isActive = lanePreferences[y] === pref;
+                          const prefMeta = pref !== 'any' ? LANE_BONUS_META[pref] : null;
+                          return (
+                            <button
+                              key={pref}
+                              onClick={() => {
+                                const next: LanePref[] = [...lanePreferences] as LanePref[];
+                                next[y] = pref;
+                                setLanePreferences(next);
+                                try { localStorage.setItem('jk_lane_prefs', JSON.stringify(next)); } catch {}
+                              }}
+                              className={`rounded-lg border py-1.5 text-[10px] font-black transition ${isActive ? (prefMeta ? `${prefMeta.color} text-white` : 'border-amber-300/60 bg-amber-500/20 text-amber-200') : 'border-white/15 bg-white/5 text-zinc-300 hover:bg-white/10'}`}
+                            >
+                              {pref === 'any' ? '🎲 Any' : `${prefMeta!.emoji} ${pref === 'attack' ? 'ATK' : pref === 'heal' ? 'HEAL' : 'SHD'}`}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 rounded-xl border border-zinc-700/40 bg-zinc-900/50 p-2.5 text-[10px] text-zinc-400">
+                🎲 <span className="font-black text-zinc-300">Any</span> = random each turn &nbsp;·&nbsp;
+                ⚔️ <span className="font-black text-zinc-300">ATK/HEAL/SHD</span> = guaranteed for this row (if available)
+              </div>
+
+              <button
+                onClick={() => {
+                  const newBonuses = generateTurnLaneBonuses(lanePreferences);
+                  setGame((g) => ({ ...g, turnLaneBonuses: newBonuses }));
+                }}
+                className="mt-3 w-full rounded-xl border border-amber-300/30 bg-amber-500/15 py-2 text-sm font-black text-amber-200 hover:bg-amber-500/25"
+              >
+                🔀 Preview new bonuses now
+              </button>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }
