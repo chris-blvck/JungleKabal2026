@@ -72,6 +72,31 @@ ACADEMY_API_PORT=8787
 SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 PAYMENT_WALLET_POOL=wallet1,wallet2,wallet3
 # ou PAYMENT_WALLET=wallet_unique
+TELEGRAM_BOT_TOKEN=123456:ABC...
+TELEGRAM_STRICT_AUTH=0
 ```
 
 Le backend fait une rotation automatique des wallets de réception via `PAYMENT_WALLET_POOL` (pour sécurité/opsec).
+
+
+## Telegram Mini App Migration
+
+A dedicated Telegram Mini App repo scaffold now exists in `telegram-miniapp/` to migrate **Die In The Jungle** while keeping desktop routes unchanged.
+
+
+### Mini App backend endpoints (MVP)
+
+When running `npm run api`, the same Node server now also exposes Telegram Mini App MVP endpoints:
+
+- `POST /api/runs/finish` (`mode: competitive|practice`)
+- `GET /api/runs/leaderboard?limit=20&mode=competitive|practice`
+- `POST /api/runs/friends-leaderboard`
+- `POST /api/referrals/claim`
+- `GET /api/referrals/stats/:code`
+- `POST /api/miniapp/auth/check`
+- `POST /api/telemetry/event`
+- `GET /api/telemetry/summary`
+
+Miniapp run rules (current MVP):
+- **Competitive daily**: 1 run/day by default (fair board), with extra daily attempts unlocked when a competitive run reaches zone 6+.
+- **Practice**: capped to **10 runs/day**.
