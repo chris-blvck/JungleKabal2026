@@ -227,6 +227,20 @@ export function getRelicSlotCount(level: number): number {
 }
 
 // ─────────────────────────────────────────────
+// GLOBAL STAT CAPS — prevent infinite stacking
+// ─────────────────────────────────────────────
+
+export const STAT_CAPS = {
+  attackBonus:        6,   // max +6 ATK total from all sources
+  attackDieValueBonus:3,   // max +3 die value bonus
+  healBonus:          5,   // max +5 heal bonus
+  shieldMultiplier:   3,   // max ×3 shield multiplier
+  topRowBonusMax:     5,   // top row: base 3 + max +2 = ×5 total
+  cooldownTick:       3,   // max +3 cooldown tick
+  dicePerTurn:        4,   // hard cap: never more than 4 dice/turn
+} as const;
+
+// ─────────────────────────────────────────────
 // APPLY RELICS TO PLAYER
 // ─────────────────────────────────────────────
 
@@ -295,8 +309,17 @@ export function applyRelicsToPlayer(basePlayer: any, equippedRelicIds: string[])
     if (c.topRowBonus)         p.topRowBonus = (p.topRowBonus || 0) + c.topRowBonus;
   }
 
-  // Clamp values
-  p.shieldMultiplier = Math.max(0.1, p.shieldMultiplier);
+  // ── Apply global stat caps ───────────────────────────────────────────────
+  p.attackBonus         = Math.min(p.attackBonus,         STAT_CAPS.attackBonus);
+  p.attackDieValueBonus = Math.min(p.attackDieValueBonus, STAT_CAPS.attackDieValueBonus);
+  p.healBonus           = Math.min(p.healBonus,           STAT_CAPS.healBonus);
+  p.shieldMultiplier    = Math.min(
+    Math.max(0.1, p.shieldMultiplier),
+    STAT_CAPS.shieldMultiplier,
+  );
+  p.topRowBonus         = Math.min(p.topRowBonus || 0,    STAT_CAPS.topRowBonusMax - 3); // base is 3, cap bonus at +2
+  p.cooldownTick        = Math.min(p.cooldownTick,        STAT_CAPS.cooldownTick);
+  p.dicePerTurn         = Math.min(p.dicePerTurn,         STAT_CAPS.dicePerTurn);
 
   return p;
 }

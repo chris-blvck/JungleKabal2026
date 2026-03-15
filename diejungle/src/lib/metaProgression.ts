@@ -7,6 +7,7 @@
 
 export type UnlockId =
   | 'character_kkm'
+  | 'character_krex'     // K-REX, level 8 unlock
   | 'weapon_slot_2'
   | 'companion_slot'
   | 'companion_gecko'
@@ -15,7 +16,7 @@ export type UnlockId =
   | 'dice_specials'
   | 'lane_bonuses'
   | 'relic_slot_1'       // level 5
-  | 'relic_slot_2'       // level 10
+  | 'relic_slot_2'       // level 11
   | 'relic_slot_3'       // level 15
   | 'starter_weapon_blade'
   | 'starter_weapon_staff'
@@ -85,6 +86,14 @@ export const UNLOCKS: Record<UnlockId, Unlock> = {
     emoji: '🤖',
     currency: 'gems',
     cost: 200,
+  },
+  character_krex: {
+    id: 'character_krex',
+    name: 'K-REX',
+    desc: 'Unlock K-REX. Lumbering T-Rex warrior — 42 HP, +3 ATK, 1 reroll. Cooldown base +1.',
+    emoji: '🦖',
+    currency: 'xp',
+    cost: 0, // auto-unlocked at level 8
   },
   weapon_slot_2: {
     id: 'weapon_slot_2',
@@ -226,36 +235,51 @@ export const UNLOCKS: Record<UnlockId, Unlock> = {
 // XP LEVEL TABLE
 // ─────────────────────────────────────────────
 
+// 20-level table — 1 meaningful unlock per level, ~70h to fully complete
 const LEVEL_XP_TABLE = [
-  0,    // level 1
-  100,  // level 2
-  250,  // level 3
-  450,  // level 4
-  700,  // level 5
-  1000, // level 6
-  1400, // level 7
-  1900, // level 8
-  2500, // level 9
-  3200, // level 10
-  4000, // level 11
-  5000, // level 12
+  0,      // level 1
+  200,    // level 2
+  450,    // level 3
+  800,    // level 4
+  1300,   // level 5
+  2000,   // level 6
+  2900,   // level 7
+  4000,   // level 8
+  5400,   // level 9
+  7000,   // level 10
+  9000,   // level 11
+  11500,  // level 12
+  14500,  // level 13
+  18000,  // level 14
+  22500,  // level 15
+  28000,  // level 16
+  35000,  // level 17
+  44000,  // level 18
+  55000,  // level 19
+  70000,  // level 20
 ];
 
+// 1 unlock per level — everything reachable if you grind, nothing trivially skippable
 export const LEVEL_REWARDS: LevelReward[] = [
-  { level: 2,  desc: '+50 gems' },
-  { level: 3,  desc: 'Unlock: Special Die Faces', unlockId: 'dice_specials' },
-  { level: 4,  desc: '+100 gems' },
-  { level: 5,  desc: 'Unlock: Lane Bonuses + Relic Slot 1', unlockId: 'lane_bonuses' },
-  { level: 6,  desc: '+150 gems' },
-  { level: 7,  desc: 'Unlock: Companion Slot',    unlockId: 'companion_slot' },
-  { level: 8,  desc: '+200 gems' },
-  { level: 9,  desc: '+200 gems' },
-  { level: 10, desc: '+300 gems — Relic Slot 2 · You are a Kabalian', unlockId: 'relic_slot_2' },
-  { level: 11, desc: '+200 gems' },
-  { level: 12, desc: '+250 gems' },
-  { level: 13, desc: '+250 gems' },
-  { level: 14, desc: '+300 gems' },
-  { level: 15, desc: '+400 gems — Relic Slot 3 · Titre "Maître Kabal"', unlockId: 'relic_slot_3' },
+  { level: 2,  desc: '+50 gems 💎' },
+  { level: 3,  desc: 'Unlock: Special Die Faces ✦', unlockId: 'dice_specials' },
+  { level: 4,  desc: '+100 gems 💎' },
+  { level: 5,  desc: 'Unlock: Relic Slot 1 💠', unlockId: 'relic_slot_1' },
+  { level: 6,  desc: '+150 gems 💎' },
+  { level: 7,  desc: 'Unlock: Lane Bonuses 🎯', unlockId: 'lane_bonuses' },
+  { level: 8,  desc: 'Unlock: K-REX 🦖', unlockId: 'character_krex' },
+  { level: 9,  desc: '+200 gems 💎' },
+  { level: 10, desc: 'Unlock: Companion Slot 🦎', unlockId: 'companion_slot' },
+  { level: 11, desc: 'Unlock: Relic Slot 2 💠', unlockId: 'relic_slot_2' },
+  { level: 12, desc: '+250 gems 💎' },
+  { level: 13, desc: 'Unlock: Jungle Blade 🗡️', unlockId: 'starter_weapon_blade' },
+  { level: 14, desc: 'Unlock: Gecko Mystique 🦎', unlockId: 'companion_gecko' },
+  { level: 15, desc: 'Unlock: Relic Slot 3 💠 · +400 gems · Titre "Maître Kabal"', unlockId: 'relic_slot_3' },
+  { level: 16, desc: 'Unlock: Off-Hand Slot ⚔️', unlockId: 'weapon_slot_2' },
+  { level: 17, desc: 'Unlock: Croak Jr. 🐊', unlockId: 'companion_croak' },
+  { level: 18, desc: '+300 gems 💎 + Amber Staff 🪄', unlockId: 'starter_weapon_staff' },
+  { level: 19, desc: "Unlock: L'Œil 👁️", unlockId: 'companion_oeil' },
+  { level: 20, desc: '👑 Jungle King · +500 gems · Chrome Cannon 💥', unlockId: 'starter_weapon_cannon' },
 ];
 
 // ─────────────────────────────────────────────
@@ -268,9 +292,10 @@ export function computeLevel(xp: number): number {
     if (xp >= LEVEL_XP_TABLE[i]) level = i + 1;
     else break;
   }
+  // After level 20, each 2000 XP = +1 level (prestige)
   if (xp >= LEVEL_XP_TABLE[LEVEL_XP_TABLE.length - 1]) {
     const overflow = xp - LEVEL_XP_TABLE[LEVEL_XP_TABLE.length - 1];
-    level = LEVEL_XP_TABLE.length + Math.floor(overflow / 1000);
+    level = LEVEL_XP_TABLE.length + Math.floor(overflow / 2000);
   }
   return level;
 }
@@ -329,10 +354,6 @@ export function recordRunEnd(
         levelRewards.push(reward);
         if (reward.unlockId && !autoUnlocked.includes(reward.unlockId)) {
           autoUnlocked.push(reward.unlockId);
-        }
-        // Level 5 also unlocks relic_slot_1
-        if (lvl === 5 && !autoUnlocked.includes('relic_slot_1')) {
-          autoUnlocked.push('relic_slot_1');
         }
         const gemMatch = reward.desc.match(/\+(\d+) gems/);
         if (gemMatch) bonusGems += parseInt(gemMatch[1], 10);
@@ -394,6 +415,10 @@ export function tryUnlockWithGems(
 
 export function canPlayKKM(meta: MetaProgressionState): boolean {
   return meta.unlocked.includes('character_kkm');
+}
+
+export function canPlayKRex(meta: MetaProgressionState): boolean {
+  return meta.unlocked.includes('character_krex');
 }
 
 export function hasWeaponSlot(meta: MetaProgressionState, slot: 1 | 2 = 1): boolean {

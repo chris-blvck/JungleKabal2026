@@ -39,6 +39,7 @@ import {
   computeLevel,
   xpToNextLevel,
   canPlayKKM,
+  canPlayKRex,
   hasWeaponSlot,
   hasCompanionSlot,
   hasDiceSpecials,
@@ -107,20 +108,31 @@ const PLAYER_EMOTION_URLS = {
   victory: PLAYER_AVATAR_URL,
 };
 
+const KREX_AVATAR_URL = "https://i.postimg.cc/Kv8zygVk/KKM-Mascot-2.png"; // placeholder — replace with real K-REX asset
+
 const PLAYER_CHARACTERS = {
   kabalian: {
     id: "kabalian",
     name: "Kabalian",
     avatar: PLAYER_AVATAR_URL,
     subtitle: "Aggro · 24 HP · +1 ATK · 2 rerolls",
-    stats: { maxHp: 24, attackBonus: 1, rerollsPerTurn: 2, combatStartShield: 0 },
+    stats: { maxHp: 24, attackBonus: 1, rerollsPerTurn: 2, combatStartShield: 0, cooldownBase: 3 },
   },
   kkm: {
     id: "kkm",
     name: "KKM",
     avatar: KKM_AVATAR_URL,
     subtitle: "Tank · 34 HP · +4 start shield",
-    stats: { maxHp: 34, attackBonus: 0, rerollsPerTurn: 1, combatStartShield: 4 },
+    stats: { maxHp: 34, attackBonus: 0, rerollsPerTurn: 1, combatStartShield: 4, cooldownBase: 3 },
+  },
+  krex: {
+    id: "krex",
+    name: "K-REX",
+    avatar: KREX_AVATAR_URL,
+    subtitle: "Brute · 42 HP · +3 ATK · 1 reroll · CD base +1",
+    // Lumbering T-Rex: powerful but slow. Thick hide = high HP, big claws = +3 ATK,
+    // heavy limbs = only 1 reroll + cooldown base 4 (harder to reset grid).
+    stats: { maxHp: 42, attackBonus: 3, rerollsPerTurn: 1, combatStartShield: 0, cooldownBase: 4 },
   },
 };
 
@@ -691,12 +703,14 @@ function buildRoute(floor = 1) {
   return ROUTE_TEMPLATE.map((type, index) => {
     const source = enemyBuckets[type][used[type]++];
     const base = cloneEnemy(source);
-    const scale = floor - 1;
+    // Non-linear scaling: fast ramp to floor 5, soft-cap after (reduces casual/hardcore gap)
+    const rawFloor = floor - 1;
+    const scale = Math.min(rawFloor, 4) * 0.8 + Math.max(0, rawFloor - 4) * 0.3;
     const hpScale = type === "boss" ? 8 : type === "elite" ? 5 : 3;
     const dmgScale = type === "boss" ? 2 : 1;
-    base.hp += scale * hpScale;
+    base.hp += Math.round(scale * hpScale);
     base.maxHp = base.hp;
-    base.damage += scale * dmgScale;
+    base.damage += Math.round(scale * dmgScale);
     if (type === "elite") {
       base.elite = true;
       base.eliteStars = getEliteStarCount(floor);
@@ -1257,7 +1271,7 @@ function makeInitialPlayer(characterId = "kabalian") {
     shield: 0,
     avatar: selected.avatar,
     characterId: selected.id,
-    cooldownBase: 3,
+    cooldownBase: selected.stats.cooldownBase ?? 3,
     cooldownTick: 1,
     dicePerTurn: 3,
     rerollsPerTurn: selected.stats.rerollsPerTurn,
@@ -1541,6 +1555,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const [weaponArchFilter, setWeaponArchFilter] = useState<string>('all');
   const [meta, setMeta] = useState<MetaProgressionState>(loadMeta);
   const [showXpPanel, setShowXpPanel] = useState(false);
+  const [showPlayerDrawer, setShowPlayerDrawer] = useState(false);
   const [lastRunReward, setLastRunReward] = useState<RunReward | null>(null);
   const [leaderboard, setLeaderboard] = useState<Array<{ name: string; score: number; floor: number; date: string; seed: number }>>(() => {
     try { const raw = localStorage.getItem('jungle_kabal_leaderboard_v1'); return raw ? JSON.parse(raw) : []; } catch { return []; }
@@ -1604,7 +1619,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   }
 
   function shareRun() {
-    const characterName = game.player.characterId === "kkm" ? "KKM" : "Kabalian";
+    const characterName = game.player.PLAYER_CHARACTERS[game.player.characterId]?.name ?? game.player.characterId;
     const text = `I reached Zone ${game.floor} in DIE JUNGLE 🌴\nScore: ${game.score} | ${characterName}\nSeed: ${game.runSeed}\n#KabalBlessing\ndiejungle.fun`;
     const tg = (window as any).Telegram?.WebApp;
     if (tg?.shareUrl) {
@@ -1635,6 +1650,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         shield: selected.stats.combatStartShield || 0,
         rerollsPerTurn: selected.stats.rerollsPerTurn,
         rerollsLeft: selected.stats.rerollsPerTurn,
+        cooldownBase: selected.stats.cooldownBase ?? 3,
         coins: 0,
       };
       // Apply starter weapon if selected
@@ -2272,12 +2288,13 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         const rng = createRng(g.runSeed + ':' + nodeId);
         const source = sourcePool[Math.floor(rng() * sourcePool.length)];
         const base = cloneEnemy(source);
-        const scale = g.floor - 1;
+        const rawFloor2 = g.floor - 1;
+        const scale = Math.min(rawFloor2, 4) * 0.8 + Math.max(0, rawFloor2 - 4) * 0.3;
         const hpScale = tier === "boss" ? 8 : tier === "medium" ? 5 : 3;
         const dmgScale = tier === "boss" ? 2 : 1;
-        base.hp += scale * hpScale;
+        base.hp += Math.round(scale * hpScale);
         base.maxHp = base.hp;
-        base.damage += scale * dmgScale;
+        base.damage += Math.round(scale * dmgScale);
         if (tier === "medium") {
           base.elite = true;
           base.eliteStars = Math.min(3, g.floor);
@@ -2776,7 +2793,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   className={`h-[90px] w-full rounded-2xl border border-white/10 bg-black/40 object-contain md:h-[128px] ${avatarRing}`}
                 />
                 <div className="min-w-0">
-                  <div className="text-sm font-black">{game.player.characterId === "kkm" ? "KKM" : "Kabalian"}</div>
+                  <div className="text-sm font-black">{game.player.PLAYER_CHARACTERS[game.player.characterId]?.name ?? game.player.characterId}</div>
                   <div className="text-[9px] text-zinc-300">CD {game.player.cooldownBase} · Tick {game.player.cooldownTick} · Arts {totalArtifacts}</div>
                 </div>
                 <img src={LOGO_URL} alt="Kabal logo" className="h-6 w-6 object-contain opacity-90" />
@@ -3215,8 +3232,13 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                     </div>
                     <div className="grid gap-3 md:grid-cols-2">
                       {Object.values(PLAYER_CHARACTERS).map((character: any) => {
-                        const isLocked = character.id === 'kkm' && !canPlayKKM(charSelectMeta);
+                        const isLocked =
+                          (character.id === 'kkm'  && !canPlayKKM(charSelectMeta)) ||
+                          (character.id === 'krex' && !canPlayKRex(charSelectMeta));
                         const isSelected = selectedStartCharacter === character.id;
+                        const lockLabel =
+                          character.id === 'kkm'  ? 'Unlock with 200 gems' :
+                          character.id === 'krex' ? 'Unlock at Level 8'    : '';
                         return (
                           <button
                             key={character.id}
@@ -3231,8 +3253,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                                 <div className="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-black text-xs font-black">✓</div>
                               )}
                             </div>
-                            <div className="font-black text-sm text-amber-200">{character.name} {isLocked ? '(Locked)' : ''}</div>
-                            <div className="text-[10px] text-zinc-300">{isLocked ? 'Defeat Zone 1 boss or spend 100 gems to unlock' : character.subtitle}</div>
+                            <div className="font-black text-sm text-amber-200">{character.name} {isLocked ? '🔒' : ''}</div>
+                            <div className="text-[10px] text-zinc-300">{isLocked ? lockLabel : character.subtitle}</div>
                           </button>
                         );
                       })}
@@ -3554,7 +3576,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
               <div className="w-full max-w-xl rounded-[28px] border border-amber-300/25 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
                 <div className="mb-3 text-center font-serif text-2xl italic text-amber-300">{game.phase === "victory" ? "RUN SUMMARY · KABAL BLESSING" : "RUN SUMMARY · LIQUIDATED"}</div>
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">Character: <span className="font-black">{game.player.characterId === "kkm" ? "KKM" : "Kabalian"}</span></div>
+                  <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">Character: <span className="font-black">{game.player.PLAYER_CHARACTERS[game.player.characterId]?.name ?? game.player.characterId}</span></div>
                   <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">Zone: <span className="font-black">{game.floor}</span></div>
                   <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">Score: <span className="font-black">{game.score}</span></div>
                   <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">No-hit: <span className="font-black">{game.noHitTurns}T</span></div>
