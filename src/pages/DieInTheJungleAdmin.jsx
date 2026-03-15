@@ -1395,11 +1395,35 @@ export default function DieInTheJungleAdmin() {
         {activeTab === 'artifacts' && (
           <div className="space-y-6">
             <SectionCard title="💎 Artifacts">
-              {config.artifacts.customArtifacts.length === 0 ? (
-                <p className="text-zinc-500 text-sm">No custom artifacts yet. Add one below.</p>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {config.artifacts.customArtifacts.map((art) => (
+              {/* Rarity filter */}
+              {config.artifacts.customArtifacts.length > 0 && (
+                <div className="flex gap-2 flex-wrap mb-2">
+                  {['all', 'common', 'rare', 'epic', 'legendary'].map(r => {
+                    const [artRarityFilter, setArtRarityFilter] = React.useState('all');
+                    return null; // handled outside
+                  })}
+                </div>
+              )}
+              {(() => {
+                const [artFilter, setArtFilter] = React.useState('all');
+                const rarityColors = { legendary: 'border-amber-500/60 text-amber-300', epic: 'border-violet-500/60 text-violet-300', rare: 'border-blue-500/60 text-blue-300', common: 'border-zinc-500/60 text-zinc-300' };
+                const filtered = config.artifacts.customArtifacts.filter(a => artFilter === 'all' || a.rarity === artFilter);
+                return (
+                  <>
+                    <div className="flex gap-2 flex-wrap mb-3">
+                      {['all', 'common', 'rare', 'epic', 'legendary'].map(r => (
+                        <button key={r} onClick={() => setArtFilter(r)}
+                          className={`px-2 py-1 rounded text-xs border transition-colors capitalize ${artFilter === r ? 'bg-amber-500/20 border-amber-400/60 text-amber-300' : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:border-zinc-500'}`}>
+                          {r === 'legendary' ? '🌟' : r === 'epic' ? '💜' : r === 'rare' ? '💙' : r === 'common' ? '⬜' : ''} {r}
+                          {r !== 'all' && <span className="ml-1 text-zinc-600">({config.artifacts.customArtifacts.filter(a => a.rarity === r).length})</span>}
+                        </button>
+                      ))}
+                    </div>
+                    {filtered.length === 0 ? (
+                      <p className="text-zinc-500 text-sm">{config.artifacts.customArtifacts.length === 0 ? 'No custom artifacts yet. Add one below.' : `No ${artFilter} artifacts.`}</p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {filtered.map((art) => (
                     <div key={art.id} className="rounded-xl border border-zinc-700 bg-zinc-800/60 p-4 space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <div>
@@ -1420,8 +1444,11 @@ export default function DieInTheJungleAdmin() {
                       </div>
                     </div>
                   ))}
-                </div>
-              )}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </SectionCard>
 
             <SectionCard title="Add New Artifact">
@@ -1842,7 +1869,43 @@ export default function DieInTheJungleAdmin() {
               ))}
             </div>
 
+            {/* Arc overview bar */}
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+              {NARRATIVE_ARCS.map((arc, i) => {
+                const lines = getArcLines(i).lines || [];
+                const filled = lines.filter(l => l && l.trim()).length;
+                const pct = Math.round((filled / 33) * 100);
+                return (
+                  <div key={i} onClick={() => setActiveArc(i)} className={`cursor-pointer rounded-lg border p-2 transition-colors ${activeArc === i ? 'border-amber-500/50 bg-amber-500/10' : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-500'}`}>
+                    <div className="text-[10px] text-zinc-500 mb-1">Arc {i + 1}</div>
+                    <div className="h-1.5 bg-zinc-700 rounded-full overflow-hidden mb-1">
+                      <div className="h-full bg-amber-500 transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                    <div className="text-[10px] text-zinc-400">{filled}/33 lines</div>
+                  </div>
+                );
+              })}
+            </div>
+
             <SectionCard title={'📖 Arc ' + (activeArc + 1) + ': ' + NARRATIVE_ARCS[activeArc]}>
+              {/* Word count header */}
+              {(() => {
+                const lines = getArcLines(activeArc).lines || [];
+                const filled = lines.filter(l => l && l.trim()).length;
+                const wordCount = lines.join(' ').split(/\s+/).filter(w => w.trim()).length;
+                return (
+                  <div className="flex items-center gap-4 p-3 rounded-lg bg-zinc-800/50 border border-zinc-700 text-xs text-zinc-400 mb-3">
+                    <span>📝 <strong className="text-zinc-300">{filled}</strong>/33 lines filled</span>
+                    <span>💬 <strong className="text-zinc-300">{wordCount}</strong> words</span>
+                    <span>📊 <strong className={filled === 33 ? 'text-emerald-400' : filled >= 20 ? 'text-amber-400' : 'text-zinc-300'}>{Math.round((filled / 33) * 100)}%</strong> complete</span>
+                    <button onClick={() => {
+                      const text = (getArcLines(activeArc).lines || []).filter(l => l.trim()).join('\n');
+                      navigator.clipboard.writeText(text);
+                      setToast('Arc text copied!');
+                    }} className="ml-auto text-xs text-amber-400 hover:text-amber-300 border border-amber-500/40 rounded px-2 py-0.5">📋 Copy text</button>
+                  </div>
+                );
+              })()}
               <div className="space-y-3">
                 <div className="space-y-1">
                   <label className="text-sm text-zinc-400">Arc Image URL</label>
@@ -1976,9 +2039,15 @@ export default function DieInTheJungleAdmin() {
                         title="Delete asset"
                       >✕</button>
                       <img src={asset.url} alt={asset.originalName || asset.fileName || 'asset'} className="w-full h-24 object-cover rounded" />
-                      <figcaption className="text-[10px] text-zinc-300 truncate" title={asset.originalName || asset.fileName}>
-                        {asset.originalName || asset.fileName}
-                      </figcaption>
+                      <div className="flex items-center justify-between gap-1">
+                        <figcaption className="text-[10px] text-zinc-300 truncate flex-1" title={asset.originalName || asset.fileName}>
+                          {asset.originalName || asset.fileName}
+                        </figcaption>
+                        <button onClick={() => { navigator.clipboard.writeText(asset.url); setToast('URL copied!'); }}
+                          className="text-[9px] text-zinc-600 hover:text-amber-400 border border-zinc-700 rounded px-1 shrink-0">
+                          copy
+                        </button>
+                      </div>
                       <input
                         placeholder="tags: poison,boss"
                         value={meta.tags || ''}
@@ -2403,8 +2472,12 @@ export default function DieInTheJungleAdmin() {
               },
             ].map((doc) => (
               <details key={doc.title} className="rounded-xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
-                <summary className="px-5 py-4 cursor-pointer hover:bg-zinc-800/50 font-semibold text-amber-300 text-base">
-                  {doc.title}
+                <summary className="px-5 py-4 cursor-pointer hover:bg-zinc-800/50 font-semibold text-amber-300 text-base flex items-center justify-between">
+                  <span>{doc.title}</span>
+                  <button onClick={(e) => { e.preventDefault(); navigator.clipboard.writeText(doc.content); setToast('Copied: ' + doc.title); }}
+                    className="text-xs text-zinc-500 hover:text-amber-400 border border-zinc-700 rounded px-2 py-1 ml-2 shrink-0">
+                    📋 Copy
+                  </button>
                 </summary>
                 <div className="px-5 pb-5">
                   <pre className="text-sm text-zinc-300 whitespace-pre-wrap font-sans leading-relaxed">{doc.content}</pre>
