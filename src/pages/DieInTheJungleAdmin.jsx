@@ -4,6 +4,26 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 const META_KEY = 'jk_meta_progression_v1';
 const GAME_KEY = 'jungle_kabal_run_state_v1';
 const LB_KEY = 'jungle_kabal_leaderboard_v1';
+const CHANGELOG_KEY = 'jungle_kabal_changelog_v1';
+const GL_PROFILES_KEY = 'jungle_kabal_gl_profiles_v1';
+const TUTORIAL_KEY = 'jk_tutorial_seen_v1';
+
+function readChangelog() {
+  try { return JSON.parse(localStorage.getItem(CHANGELOG_KEY) || '[]'); } catch { return []; }
+}
+function appendChangelog(entry) {
+  const log = readChangelog();
+  log.unshift({ ...entry, ts: new Date().toISOString() });
+  localStorage.setItem(CHANGELOG_KEY, JSON.stringify(log.slice(0, 50)));
+}
+function readGLProfiles() {
+  try { return JSON.parse(localStorage.getItem(GL_PROFILES_KEY) || '{}'); } catch { return {}; }
+}
+function saveGLProfile(name, gameLogic) {
+  const profiles = readGLProfiles();
+  profiles[name] = { gameLogic, savedAt: new Date().toISOString() };
+  localStorage.setItem(GL_PROFILES_KEY, JSON.stringify(profiles));
+}
 
 // ─── All unlock IDs ───────────────────────────────────────────────────────────
 const ALL_UNLOCK_IDS = [
@@ -156,6 +176,7 @@ const TABS = [
   { id: 'ops', label: '🎮 OPS' },
   { id: 'difficulty', label: '💀 Difficulty' },
   { id: 'pool', label: '🎱 Pool' },
+  { id: 'visuals', label: '🌿 Visuals' },
   { id: 'enemies', label: '👹 Enemies' },
   { id: 'artifacts', label: '💎 Artifacts' },
   { id: 'events', label: '🎲 Events' },
@@ -168,6 +189,7 @@ const TABS = [
   { id: 'docs', label: '📚 Docs' },
   { id: 'sound', label: '🎵 Sound' },
   { id: 'brand', label: '🎨 Brand Kit' },
+  { id: 'deploy', label: '🚀 Deploy' },
   { id: 'testgame', label: '🕹️ Test Game' },
   { id: 'advanced', label: '🔬 Advanced' },
 ];
@@ -282,6 +304,38 @@ const EMPTY_CONFIG = {
     shopItemEnabled: {},
     mapNodeWeights: { combat: 3, shop: 1, rest: 1, event: 1 },
   },
+  featureFlags: {
+    kkm_gating: true,
+    tutorial_enabled: true,
+    wallet_button: false,
+    companion_select_screen: true,
+    daily_login_enabled: true,
+    biome_backgrounds: true,
+    post_combat_loot: false,
+    boss_artifact_reward: false,
+    mana_system: false,
+  },
+  biomeBackgrounds: {
+    jungle: ['', '', '', ''],
+    ruins: ['', '', '', ''],
+    temple: ['', '', '', ''],
+    abyss: ['', '', '', ''],
+  },
+  dailyLogin: {
+    enabled: true,
+    rewards: [
+      { day: 1, gems: 10, tickets: 0, label: 'Daily Gem' },
+      { day: 2, gems: 15, tickets: 0, label: 'Daily Gem' },
+      { day: 3, gems: 20, tickets: 0, label: 'Daily Gem' },
+      { day: 4, gems: 25, tickets: 0, label: 'Daily Gem' },
+      { day: 5, gems: 30, tickets: 0, label: 'Daily Gem' },
+      { day: 6, gems: 40, tickets: 0, label: 'Daily Gem' },
+      { day: 7, gems: 80, tickets: 1, label: '🏆 Week 1 Bonus' },
+      { day: 14, gems: 150, tickets: 2, label: '🏆 Week 2 Bonus' },
+      { day: 30, gems: 400, tickets: 3, label: '👑 Month Streak' },
+    ],
+  },
+  releaseNotes: '',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -351,6 +405,18 @@ function withDefaults(raw = {}) {
       shopItemEnabled: raw.pools?.shopItemEnabled && typeof raw.pools.shopItemEnabled === 'object' ? raw.pools.shopItemEnabled : {},
       mapNodeWeights: { ...EMPTY_CONFIG.pools.mapNodeWeights, ...(raw.pools?.mapNodeWeights || {}) },
     },
+    featureFlags: { ...EMPTY_CONFIG.featureFlags, ...(raw.featureFlags || {}) },
+    biomeBackgrounds: {
+      jungle: Array.isArray(raw.biomeBackgrounds?.jungle) ? raw.biomeBackgrounds.jungle : ['', '', '', ''],
+      ruins: Array.isArray(raw.biomeBackgrounds?.ruins) ? raw.biomeBackgrounds.ruins : ['', '', '', ''],
+      temple: Array.isArray(raw.biomeBackgrounds?.temple) ? raw.biomeBackgrounds.temple : ['', '', '', ''],
+      abyss: Array.isArray(raw.biomeBackgrounds?.abyss) ? raw.biomeBackgrounds.abyss : ['', '', '', ''],
+    },
+    dailyLogin: {
+      enabled: raw.dailyLogin?.enabled !== undefined ? raw.dailyLogin.enabled : true,
+      rewards: Array.isArray(raw.dailyLogin?.rewards) ? raw.dailyLogin.rewards : EMPTY_CONFIG.dailyLogin.rewards,
+    },
+    releaseNotes: typeof raw.releaseNotes === 'string' ? raw.releaseNotes : '',
   };
 }
 
@@ -476,6 +542,14 @@ export default function DieInTheJungleAdmin() {
   const [difficultyMaster, setDifficultyMaster] = useState(2);
   // Characters sub-tab
   const [activeCharacter, setActiveCharacter] = useState('kabalian');
+  // Changelog
+  const [changelog, setChangelog] = useState(() => readChangelog());
+  const [changelogNote, setChangelogNote] = useState('');
+  // GL Profiles
+  const [glProfiles, setGlProfiles] = useState(() => readGLProfiles());
+  const [newProfileName, setNewProfileName] = useState('');
+  // Deploy tab
+  const [deployNotes, setDeployNotes] = useState('');
 
   const availableSubcategories = ASSET_SCHEMA[category] || ['general'];
 
@@ -526,6 +600,9 @@ export default function DieInTheJungleAdmin() {
       if (!res.ok || !payload.ok) throw new Error(payload.error || 'Save failed');
       setConfig(withDefaults(payload.config || nextConfig));
       setStatus('✅ Config saved');
+      appendChangelog({ tab: activeTab, action: 'Config saved', note: changelogNote || '' });
+      setChangelog(readChangelog());
+      if (changelogNote) setChangelogNote('');
     } catch (error) {
       setStatus('❌ ' + error.message);
     } finally {
@@ -923,6 +1000,131 @@ export default function DieInTheJungleAdmin() {
                 <div className="text-zinc-500 text-sm">No meta progression found in localStorage. Apply a preset or play a run.</div>
               )}
             </SectionCard>
+
+            {/* Feature Flags */}
+            <SectionCard title="🚩 Feature Flags">
+              <p className="text-zinc-400 text-sm mb-4">Toggle game features on/off. The game reads these from config on load.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {[
+                  { key: 'kkm_gating', label: 'KKM Gating', desc: 'KKM locked until character_kkm is unlocked', badge: 'bug-fix' },
+                  { key: 'tutorial_enabled', label: 'Tutorial Mode', desc: 'Show 4-screen tutorial on first run (totalRuns === 0)', badge: 'ux' },
+                  { key: 'wallet_button', label: 'Wallet Button', desc: 'Show Solana wallet connect in game UI', badge: 'ui' },
+                  { key: 'companion_select_screen', label: 'Companion Select', desc: 'Pre-run companion selection screen', badge: 'feature' },
+                  { key: 'daily_login_enabled', label: 'Daily Login', desc: 'Daily streak reward calendar', badge: 'retention' },
+                  { key: 'biome_backgrounds', label: 'Biome Backgrounds', desc: 'Change background per zone/biome', badge: 'visual' },
+                  { key: 'post_combat_loot', label: 'Post-Combat Loot', desc: 'Loot popup after each mob kill (HP/Mana/Coin)', badge: 'wip' },
+                  { key: 'boss_artifact_reward', label: 'Boss Artifact Pick', desc: 'Free artifact choice after boss kill', badge: 'wip' },
+                  { key: 'mana_system', label: 'Mana System', desc: 'Mana resource for weapon specials & companion actives', badge: 'wip' },
+                ].map(({ key, label, desc, badge }) => {
+                  const enabled = config.featureFlags?.[key] !== false;
+                  const badgeColor = badge === 'bug-fix' ? 'bg-rose-700/40 text-rose-300' : badge === 'ux' ? 'bg-cyan-700/40 text-cyan-300' : badge === 'retention' ? 'bg-emerald-700/40 text-emerald-300' : badge === 'visual' ? 'bg-violet-700/40 text-violet-300' : badge === 'wip' ? 'bg-zinc-600/40 text-zinc-400' : 'bg-amber-700/40 text-amber-300';
+                  return (
+                    <div key={key} className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${enabled ? 'border-amber-500/30 bg-amber-500/5' : 'border-zinc-700 bg-zinc-800/30'}`}
+                      onClick={() => setConfig(p => ({ ...p, featureFlags: { ...(p.featureFlags || {}), [key]: !enabled } }))}>
+                      <div className={`w-9 h-5 rounded-full flex-shrink-0 transition-colors relative ${enabled ? 'bg-amber-500' : 'bg-zinc-600'}`}>
+                        <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-zinc-200">{label}</span>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono uppercase ${badgeColor}`}>{badge}</span>
+                        </div>
+                        <div className="text-xs text-zinc-500 mt-0.5">{desc}</div>
+                      </div>
+                      <span className={`text-xs font-bold ${enabled ? 'text-emerald-400' : 'text-zinc-600'}`}>{enabled ? 'ON' : 'OFF'}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex gap-2 pt-2">
+                <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Flags</AmberBtn>
+                <AmberBtn variant="secondary" onClick={() => {
+                  localStorage.removeItem(TUTORIAL_KEY);
+                  setStatus('✅ Tutorial flag reset — next game open will show tutorial');
+                }}>🔄 Reset Tutorial Flag</AmberBtn>
+              </div>
+            </SectionCard>
+
+            {/* Game Logic Profiles */}
+            <SectionCard title="💾 Game Logic Profiles">
+              <p className="text-zinc-400 text-sm mb-4">Save named snapshots of the current game logic config. Load them anytime to switch between setups.</p>
+              <div className="flex gap-2 mb-4">
+                <input
+                  value={newProfileName}
+                  onChange={(e) => setNewProfileName(e.target.value)}
+                  placeholder="Profile name (e.g. Easy Playtest)"
+                  className="flex-1 rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                />
+                <AmberBtn onClick={() => {
+                  if (!newProfileName.trim()) return;
+                  saveGLProfile(newProfileName.trim(), config.gameLogic);
+                  setGlProfiles(readGLProfiles());
+                  setNewProfileName('');
+                  setStatus('✅ Profile saved: ' + newProfileName.trim());
+                }}>💾 Save Current</AmberBtn>
+              </div>
+              {Object.keys(glProfiles).length === 0 ? (
+                <div className="text-zinc-500 text-sm">No profiles saved yet.</div>
+              ) : (
+                <div className="space-y-2">
+                  {Object.entries(glProfiles).map(([name, { gameLogic, savedAt }]) => (
+                    <div key={name} className="flex items-center gap-3 p-3 rounded-lg border border-zinc-700 bg-zinc-800/40">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-zinc-200">{name}</div>
+                        <div className="text-[10px] text-zinc-500">{new Date(savedAt).toLocaleString()}</div>
+                      </div>
+                      <AmberBtn variant="secondary" onClick={() => {
+                        setConfig(p => ({ ...p, gameLogic: { ...p.gameLogic, ...gameLogic } }));
+                        setStatus('✅ Profile loaded: ' + name);
+                      }}>Load</AmberBtn>
+                      <AmberBtn variant="danger" onClick={() => {
+                        const p = readGLProfiles();
+                        delete p[name];
+                        localStorage.setItem(GL_PROFILES_KEY, JSON.stringify(p));
+                        setGlProfiles(readGLProfiles());
+                      }}>✕</AmberBtn>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+
+            {/* Changelog */}
+            <SectionCard title="📋 Config Changelog">
+              <p className="text-zinc-400 text-sm mb-3">Auto-logged on every save. Add a note to describe what you changed.</p>
+              <div className="flex gap-2 mb-3">
+                <input
+                  value={changelogNote}
+                  onChange={(e) => setChangelogNote(e.target.value)}
+                  placeholder="Note for next save (e.g. 'Tuned boss HP for playtest')"
+                  className="flex-1 rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                />
+                <AmberBtn variant="secondary" onClick={() => {
+                  if (!changelogNote.trim()) return;
+                  appendChangelog({ tab: activeTab, action: 'Manual note', note: changelogNote });
+                  setChangelog(readChangelog());
+                  setChangelogNote('');
+                }}>+ Add Note</AmberBtn>
+                <AmberBtn variant="danger" onClick={() => {
+                  localStorage.removeItem(CHANGELOG_KEY);
+                  setChangelog([]);
+                }}>Clear</AmberBtn>
+              </div>
+              {changelog.length === 0 ? (
+                <div className="text-zinc-500 text-sm">No changes logged yet. Start saving configs to build history.</div>
+              ) : (
+                <div className="space-y-1 max-h-64 overflow-y-auto">
+                  {changelog.map((entry, i) => (
+                    <div key={i} className="flex items-start gap-3 p-2 rounded bg-zinc-800/50 border border-zinc-700/50 text-xs">
+                      <span className="text-zinc-600 w-32 shrink-0 font-mono">{new Date(entry.ts).toLocaleString()}</span>
+                      <span className="text-amber-400/80 w-20 shrink-0">[{entry.tab}]</span>
+                      <span className="text-zinc-300">{entry.action}</span>
+                      {entry.note && <span className="text-zinc-500 italic">— {entry.note}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
           </div>
         )}
 
@@ -987,6 +1189,70 @@ export default function DieInTheJungleAdmin() {
                   💾 Save Difficulty Settings
                 </AmberBtn>
               </div>
+            </SectionCard>
+
+            {/* Balance Calculator */}
+            <SectionCard title="⚖️ Balance Calculator">
+              <p className="text-zinc-400 text-sm mb-4">Estimate Turns-To-Kill (TTK) and survivability given current difficulty settings and typical player stats.</p>
+              {(() => {
+                const gl = config.gameLogic || {};
+                const baseEnemyHp = [25, 40, 65, 100];
+                const baseBossHp = [80, 140, 220, 350];
+                const playerAvgDmgPerTurn = 12; // approx avg dice output
+                const enemyHpScale = gl.enemyHpScale ?? 1;
+                const enemyDmgScale = gl.enemyDamageScale ?? 1;
+                const bossHpMult = gl.bossHpMultiplier ?? 2.4;
+                const bossDmgMult = gl.bossDamageMultiplier ?? 1.8;
+                const baseEnemyDmg = [6, 10, 14, 20];
+                const playerHp = 30;
+                return (
+                  <div className="space-y-4">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-zinc-700 text-zinc-400 text-xs">
+                            <th className="text-left py-2 pr-4">Zone</th>
+                            <th className="text-left py-2 pr-4">Enemy HP</th>
+                            <th className="text-left py-2 pr-4">TTK (Mob)</th>
+                            <th className="text-left py-2 pr-4">Enemy DMG/turn</th>
+                            <th className="text-left py-2 pr-4">Turns before death</th>
+                            <th className="text-left py-2">Boss HP</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[1, 2, 3, 4].map(zone => {
+                            const eHp = Math.round(baseEnemyHp[zone - 1] * enemyHpScale);
+                            const ttk = Math.ceil(eHp / playerAvgDmgPerTurn);
+                            const eDmg = Math.round(baseEnemyDmg[zone - 1] * enemyDmgScale);
+                            const survivalTurns = Math.ceil(playerHp / Math.max(1, eDmg));
+                            const bHp = Math.round(baseBossHp[zone - 1] * enemyHpScale * bossHpMult);
+                            const bDmg = Math.round(baseEnemyDmg[zone - 1] * enemyDmgScale * bossDmgMult);
+                            const danger = survivalTurns <= ttk;
+                            return (
+                              <tr key={zone} className={`border-b border-zinc-800/60 ${danger ? 'bg-rose-500/5' : 'hover:bg-zinc-800/30'}`}>
+                                <td className="py-2 pr-4 font-bold text-amber-400">Zone {zone}</td>
+                                <td className="py-2 pr-4 text-zinc-200">{eHp} HP</td>
+                                <td className="py-2 pr-4">
+                                  <span className={`font-bold ${ttk <= 2 ? 'text-emerald-400' : ttk <= 4 ? 'text-amber-400' : 'text-rose-400'}`}>{ttk}T</span>
+                                </td>
+                                <td className="py-2 pr-4 text-zinc-200">{eDmg} DMG</td>
+                                <td className="py-2 pr-4">
+                                  <span className={`font-bold ${survivalTurns >= 5 ? 'text-emerald-400' : survivalTurns >= 3 ? 'text-amber-400' : 'text-rose-400'}`}>{survivalTurns}T {danger ? '⚠️' : ''}</span>
+                                </td>
+                                <td className="py-2 text-violet-300 font-medium">{bHp} HP · {bDmg} DMG</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="text-xs text-zinc-500 space-y-1">
+                      <div>Assumes player avg <strong className="text-zinc-400">{playerAvgDmgPerTurn} DMG/turn</strong> (standard dice, no SURGE) and <strong className="text-zinc-400">{playerHp} base HP</strong>.</div>
+                      <div>⚠️ = enemy likely kills player before player kills enemy. Consider lowering <code className="text-amber-400">enemyDamageScale</code> or <code className="text-amber-400">enemyHpScale</code>.</div>
+                    </div>
+                  </div>
+                );
+              })()}
             </SectionCard>
           </div>
         )}
@@ -1421,23 +1687,28 @@ export default function DieInTheJungleAdmin() {
         ══════════════════════════════════════════════════════════════════════ */}
         {activeTab === 'characters' && (
           <div className="space-y-6">
-            <div className="flex gap-2">
-              {['kabalian', 'kkm'].map((char) => (
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { id: 'kabalian', label: '🐍 Kabalian', sub: '30HP · Balanced' },
+                { id: 'kkm', label: '⚡ KKM', sub: '24HP · Speed · unlock: character_kkm' },
+                { id: 'nomade_ka', label: '🌀 Nomade Ka', sub: '28HP · Adaptation · WIP' },
+              ].map((char) => (
                 <button
-                  key={char}
-                  onClick={() => setActiveCharacter(char)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors capitalize ${
-                    activeCharacter === char
+                  key={char.id}
+                  onClick={() => setActiveCharacter(char.id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors text-left ${
+                    activeCharacter === char.id
                       ? 'bg-amber-500/20 border-amber-400/60 text-amber-300'
                       : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'
                   }`}
                 >
-                  {char === 'kabalian' ? '🐍 Kabalian' : '⚡ KKM'}
+                  <div>{char.label}</div>
+                  <div className="text-[10px] text-zinc-500 mt-0.5">{char.sub}</div>
                 </button>
               ))}
             </div>
 
-            <SectionCard title={activeCharacter === 'kabalian' ? '🐍 Kabalian' : '⚡ KKM'}>
+            <SectionCard title={activeCharacter === 'kabalian' ? '🐍 Kabalian' : activeCharacter === 'kkm' ? '⚡ KKM' : '🌀 Nomade Ka'}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Portrait upload */}
                 <div className="space-y-3">
@@ -1613,9 +1884,23 @@ export default function DieInTheJungleAdmin() {
                     {availableSubcategories.map((item) => <option key={item} value={item}>{item}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Select files (max 30)</label>
-                  <input type="file" accept="image/*" multiple onChange={onUpload} disabled={loading} className="text-sm text-zinc-300" />
+                <div className="flex-1">
+                  <label
+                    className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl p-6 cursor-pointer transition-colors ${loading ? 'opacity-50 cursor-not-allowed border-zinc-700' : 'border-zinc-600 hover:border-amber-500/60 hover:bg-amber-500/5'}`}
+                    onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-amber-400', 'bg-amber-500/10'); }}
+                    onDragLeave={(e) => { e.currentTarget.classList.remove('border-amber-400', 'bg-amber-500/10'); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.remove('border-amber-400', 'bg-amber-500/10');
+                      const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')).slice(0, 30);
+                      if (files.length) onUpload({ target: { files, value: '' } });
+                    }}
+                  >
+                    <span className="text-3xl">🖼️</span>
+                    <span className="text-sm text-zinc-400">Drag & drop images here</span>
+                    <span className="text-xs text-zinc-600">or click to browse (max 30 files)</span>
+                    <input type="file" accept="image/*" multiple onChange={onUpload} disabled={loading} className="hidden" />
+                  </label>
                 </div>
               </div>
 
@@ -1645,7 +1930,28 @@ export default function DieInTheJungleAdmin() {
                   const key = asset.id || asset.url;
                   const meta = config.assetsMeta?.[key] || {};
                   return (
-                    <figure key={key} className="rounded border border-zinc-700 bg-zinc-800 p-2 space-y-2">
+                    <figure key={key} className="relative group rounded border border-zinc-700 bg-zinc-800 p-2 space-y-2">
+                      {/* Delete button */}
+                      <button
+                        onClick={() => {
+                          if (!window.confirm(`Delete "${asset.originalName || asset.fileName || key}"?`)) return;
+                          setConfig(p => {
+                            const newAssets = JSON.parse(JSON.stringify(p.assets || {}));
+                            Object.keys(newAssets).forEach(cat => {
+                              Object.keys(newAssets[cat]).forEach(sub => {
+                                if (Array.isArray(newAssets[cat][sub])) {
+                                  newAssets[cat][sub] = newAssets[cat][sub].filter(a => (a.id || a.url) !== key);
+                                }
+                              });
+                            });
+                            const newMeta = { ...(p.assetsMeta || {}) };
+                            delete newMeta[key];
+                            return { ...p, assets: newAssets, assetsMeta: newMeta };
+                          });
+                        }}
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600 text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10 hover:bg-rose-500"
+                        title="Delete asset"
+                      >✕</button>
                       <img src={asset.url} alt={asset.originalName || asset.fileName || 'asset'} className="w-full h-24 object-cover rounded" />
                       <figcaption className="text-[10px] text-zinc-300 truncate" title={asset.originalName || asset.fileName}>
                         {asset.originalName || asset.fileName}
@@ -1789,6 +2095,65 @@ export default function DieInTheJungleAdmin() {
                   </React.Fragment>
                 ))}
               </div>
+            </SectionCard>
+
+            {/* Daily Login Config */}
+            <SectionCard title="📅 Daily Login Streak">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-sm text-zinc-300">Daily Login Enabled</span>
+                <button onClick={() => setConfig(p => ({ ...p, dailyLogin: { ...(p.dailyLogin || {}), enabled: !(p.dailyLogin?.enabled ?? true) } }))}
+                  className={`w-9 h-5 rounded-full relative flex-shrink-0 transition-colors ${config.dailyLogin?.enabled !== false ? 'bg-amber-500' : 'bg-zinc-600'}`}>
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${config.dailyLogin?.enabled !== false ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                </button>
+              </div>
+              <p className="text-zinc-400 text-sm mb-4">Configure rewards for each streak day. Special milestone rewards at day 7, 14, and 30.</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-700 text-zinc-400 text-xs">
+                      <th className="text-left py-2 pr-3 w-12">Day</th>
+                      <th className="text-left py-2 pr-3">Gems 💎</th>
+                      <th className="text-left py-2 pr-3">Tickets 🎟️</th>
+                      <th className="text-left py-2">Label</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(config.dailyLogin?.rewards || EMPTY_CONFIG.dailyLogin.rewards).map((reward, i) => (
+                      <tr key={i} className={`border-b border-zinc-800/60 ${reward.day === 7 || reward.day === 14 || reward.day === 30 ? 'bg-amber-500/5' : 'hover:bg-zinc-800/30'}`}>
+                        <td className="py-1.5 pr-3 font-bold text-amber-400">D{reward.day}</td>
+                        <td className="py-1.5 pr-3">
+                          <input type="number" min={0} max={9999} value={reward.gems}
+                            onChange={(e) => {
+                              const rewards = [...(config.dailyLogin?.rewards || EMPTY_CONFIG.dailyLogin.rewards)];
+                              rewards[i] = { ...rewards[i], gems: Number(e.target.value) };
+                              setConfig(p => ({ ...p, dailyLogin: { ...(p.dailyLogin || {}), rewards } }));
+                            }}
+                            className="w-16 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-sm text-zinc-100" />
+                        </td>
+                        <td className="py-1.5 pr-3">
+                          <input type="number" min={0} max={10} value={reward.tickets}
+                            onChange={(e) => {
+                              const rewards = [...(config.dailyLogin?.rewards || EMPTY_CONFIG.dailyLogin.rewards)];
+                              rewards[i] = { ...rewards[i], tickets: Number(e.target.value) };
+                              setConfig(p => ({ ...p, dailyLogin: { ...(p.dailyLogin || {}), rewards } }));
+                            }}
+                            className="w-16 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-sm text-zinc-100" />
+                        </td>
+                        <td className="py-1.5">
+                          <input type="text" value={reward.label}
+                            onChange={(e) => {
+                              const rewards = [...(config.dailyLogin?.rewards || EMPTY_CONFIG.dailyLogin.rewards)];
+                              rewards[i] = { ...rewards[i], label: e.target.value };
+                              setConfig(p => ({ ...p, dailyLogin: { ...(p.dailyLogin || {}), rewards } }));
+                            }}
+                            className="w-40 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-xs text-zinc-300" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Daily Login</AmberBtn>
             </SectionCard>
           </div>
         )}
@@ -2761,6 +3126,238 @@ export default function DieInTheJungleAdmin() {
                   <p className="text-zinc-300 text-sm leading-relaxed">"🎲 Die In The Jungle drops today on Telegram Mini App.\nRoguelite dice combat. 3 zones. One life.\nEvery roll matters. Every death teaches you.\nPlay now → [link] #JungleKabal"</p>
                 </div>
               </div>
+            </SectionCard>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            VISUALS TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'visuals' && (
+          <div className="space-y-6">
+            <SectionCard title="🌿 Global Visuals">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { key: 'backgroundUrl', label: '🖼️ Default Background URL', placeholder: 'https://i.postimg.cc/...' },
+                  { key: 'logoUrl', label: '🏷️ Logo URL', placeholder: 'https://i.postimg.cc/...' },
+                  { key: 'storyFragmentImageUrl', label: '📜 Story Fragment Image', placeholder: 'https://i.postimg.cc/...' },
+                ].map(({ key, label, placeholder }) => (
+                  <div key={key} className="space-y-2">
+                    <label className="text-sm text-zinc-400">{label}</label>
+                    {config.visuals?.[key] && <img src={config.visuals[key]} alt={key} className="w-full h-24 object-cover rounded border border-zinc-700" />}
+                    <input
+                      value={config.visuals?.[key] || ''}
+                      onChange={(e) => setConfig(p => ({ ...p, visuals: { ...(p.visuals || {}), [key]: e.target.value } }))}
+                      placeholder={placeholder}
+                      className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                    />
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            {/* Biome Backgrounds */}
+            <SectionCard title="🌍 Biome Backgrounds (per Zone)">
+              <p className="text-zinc-400 text-sm mb-4">Up to 4 background variants per biome. The game randomly picks one when entering a zone. Biome order: Zone 1 = Jungle, Zone 2 = Ruins, Zone 3 = Temple, Zone 4+ = Abyss.</p>
+              {[
+                { id: 'jungle', label: '🌿 Jungle (Zone 1)', color: 'emerald' },
+                { id: 'ruins', label: '🏛️ Ruins (Zone 2)', color: 'amber' },
+                { id: 'temple', label: '⛩️ Temple (Zone 3)', color: 'violet' },
+                { id: 'abyss', label: '🌑 Abyss (Zone 4+)', color: 'zinc' },
+              ].map(({ id, label, color }) => (
+                <div key={id} className={`p-4 rounded-xl border mb-4 ${color === 'emerald' ? 'border-emerald-800/40 bg-emerald-900/10' : color === 'amber' ? 'border-amber-800/40 bg-amber-900/10' : color === 'violet' ? 'border-violet-800/40 bg-violet-900/10' : 'border-zinc-700 bg-zinc-800/30'}`}>
+                  <div className="font-medium text-zinc-200 mb-3">{label}</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {[0, 1, 2, 3].map((slot) => {
+                      const url = config.biomeBackgrounds?.[id]?.[slot] || '';
+                      return (
+                        <div key={slot} className="space-y-1">
+                          <div className="text-xs text-zinc-500">Variant {slot + 1}</div>
+                          <div className="flex gap-2 items-start">
+                            {url && <img src={url} alt={`${id}-${slot}`} className="w-16 h-10 object-cover rounded border border-zinc-700 shrink-0" />}
+                            <input
+                              value={url}
+                              onChange={(e) => {
+                                const bgs = JSON.parse(JSON.stringify(config.biomeBackgrounds || EMPTY_CONFIG.biomeBackgrounds));
+                                if (!Array.isArray(bgs[id])) bgs[id] = ['', '', '', ''];
+                                bgs[id][slot] = e.target.value;
+                                setConfig(p => ({ ...p, biomeBackgrounds: bgs }));
+                              }}
+                              placeholder="https://..."
+                              className="flex-1 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-xs text-zinc-100"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Visuals</AmberBtn>
+            </SectionCard>
+
+            {/* UI Colors quick override */}
+            <SectionCard title="🎨 Quick Color Override">
+              <p className="text-zinc-400 text-sm mb-4">Override brand colors without going to Brand Kit. These sync with the CSS variables.</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { key: 'primaryColor', label: 'Primary' },
+                  { key: 'secondaryColor', label: 'Secondary' },
+                  { key: 'accentColor', label: 'Accent' },
+                  { key: 'backgroundColor', label: 'Background' },
+                ].map(({ key, label }) => (
+                  <div key={key} className="space-y-2">
+                    <label className="text-xs text-zinc-400">{label}</label>
+                    <div className="flex items-center gap-2">
+                      <input type="color"
+                        value={config.brandKit?.[key] || '#000000'}
+                        onChange={(e) => setConfig(p => ({ ...p, brandKit: { ...(p.brandKit || {}), [key]: e.target.value } }))}
+                        className="w-10 h-10 rounded cursor-pointer border border-zinc-700 bg-transparent" />
+                      <input type="text"
+                        value={config.brandKit?.[key] || ''}
+                        onChange={(e) => setConfig(p => ({ ...p, brandKit: { ...(p.brandKit || {}), [key]: e.target.value } }))}
+                        className="flex-1 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-xs text-zinc-100 font-mono" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Colors</AmberBtn>
+            </SectionCard>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            DEPLOY TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'deploy' && (
+          <div className="space-y-6">
+            <SectionCard title="🚀 Deploy & Release">
+              <p className="text-zinc-400 text-sm">Track deployments, write release notes, and verify the live endpoints.</p>
+            </SectionCard>
+
+            {/* Quick Links */}
+            <SectionCard title="🔗 Quick Links">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {[
+                  { label: '🎮 Game (web)', href: '/diejungle', color: 'cyan' },
+                  { label: '⚙️ Admin Panel', href: '/diejungle/admin', color: 'amber' },
+                  { label: '📱 Mini App (local)', href: 'http://localhost:5180', color: 'violet' },
+                  { label: '🌐 Vercel Dashboard', href: 'https://vercel.com/dashboard', color: 'zinc', external: true },
+                  { label: '📦 GitHub Repo', href: 'https://github.com/chris-blvck/JungleKabal2026', color: 'zinc', external: true },
+                  { label: '🤖 Telegram BotFather', href: 'https://t.me/botfather', color: 'zinc', external: true },
+                ].map(({ label, href, color, external }) => (
+                  <a key={href} href={href} target={external ? '_blank' : undefined} rel="noreferrer"
+                    className={`flex items-center gap-2 p-3 rounded-lg border transition-colors text-sm font-medium ${color === 'cyan' ? 'border-cyan-700/40 bg-cyan-700/10 text-cyan-300 hover:bg-cyan-700/20' : color === 'amber' ? 'border-amber-700/40 bg-amber-700/10 text-amber-300 hover:bg-amber-700/20' : color === 'violet' ? 'border-violet-700/40 bg-violet-700/10 text-violet-300 hover:bg-violet-700/20' : 'border-zinc-700 bg-zinc-800/40 text-zinc-300 hover:bg-zinc-700/60'}`}>
+                    {label}
+                    {external && <span className="text-[10px] text-zinc-600 ml-auto">↗</span>}
+                  </a>
+                ))}
+              </div>
+            </SectionCard>
+
+            {/* Release Notes Editor */}
+            <SectionCard title="📝 Release Notes">
+              <p className="text-zinc-400 text-sm mb-3">Write the changelog for the current release. Saved to config and can be shown in-game on the "What's New" screen.</p>
+              <textarea
+                value={config.releaseNotes || ''}
+                onChange={(e) => setConfig(p => ({ ...p, releaseNotes: e.target.value }))}
+                rows={10}
+                placeholder={`v1.3 — 2025-03-15\n• Added companion select screen\n• Fixed KKM unlock gating\n• New event: Mysterious Merchant\n• Biome backgrounds now cycle per zone\n• Balance: Zone 2 boss HP reduced 10%`}
+                className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100 font-mono"
+              />
+              <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Release Notes</AmberBtn>
+            </SectionCard>
+
+            {/* Deployment Checklist */}
+            <SectionCard title="✅ Deploy Checklist">
+              <p className="text-zinc-400 text-sm mb-4">Run through this before pushing to production.</p>
+              {(() => {
+                const checks = [
+                  { id: 'build', label: 'npm run build passes with 0 errors' },
+                  { id: 'game_loads', label: '/diejungle loads without console errors' },
+                  { id: 'admin_loads', label: '/diejungle/admin loads and tabs work' },
+                  { id: 'api_config', label: 'GET /api/miniapp/config returns 200' },
+                  { id: 'api_save', label: 'PUT /api/miniapp/config saves correctly' },
+                  { id: 'run_test', label: 'Played at least 1 full run in test mode' },
+                  { id: 'meta_xp', label: 'XP and gems awarded at run end' },
+                  { id: 'kkm_gate', label: 'KKM locked for fresh account (no character_kkm unlock)' },
+                  { id: 'mobile', label: 'Tested on mobile viewport (360px)' },
+                  { id: 'telegram', label: 'Telegram Mini App opens correctly' },
+                  { id: 'release_notes', label: 'Release notes written above' },
+                  { id: 'config_saved', label: 'Config saved to backend (not just local state)' },
+                ];
+                const [checked, setChecked] = React.useState({});
+                const doneCount = Object.values(checked).filter(Boolean).length;
+                return (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500 transition-all" style={{ width: `${(doneCount / checks.length) * 100}%` }} />
+                      </div>
+                      <span className="text-sm font-bold text-emerald-400">{doneCount}/{checks.length}</span>
+                    </div>
+                    {checks.map((c) => (
+                      <label key={c.id} className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${checked[c.id] ? 'border-emerald-600/40 bg-emerald-600/5' : 'border-zinc-700 bg-zinc-800/30 hover:bg-zinc-800/60'}`}>
+                        <input type="checkbox" checked={!!checked[c.id]} onChange={(e) => setChecked(p => ({ ...p, [c.id]: e.target.checked }))} className="accent-emerald-500" />
+                        <span className={`text-sm ${checked[c.id] ? 'text-emerald-300 line-through' : 'text-zinc-300'}`}>{c.label}</span>
+                      </label>
+                    ))}
+                    {doneCount === checks.length && (
+                      <div className="mt-3 p-3 rounded-lg bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 text-sm font-bold text-center">
+                        ✅ All checks passed — ready to deploy!
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </SectionCard>
+
+            {/* API Health (same as Onboarding) */}
+            <SectionCard title="🩺 API Health">
+              {(() => {
+                const [health, setHealth] = React.useState(null);
+                const [checking, setChecking] = React.useState(false);
+                async function runCheck() {
+                  setChecking(true);
+                  const r = {};
+                  const check = async (key, url, method = 'GET') => {
+                    try { const res = await fetch(url, { method, signal: AbortSignal.timeout(3000) }); r[key] = (res.ok || res.status === 405) ? 'ok' : 'error'; }
+                    catch { r[key] = 'down'; }
+                  };
+                  await Promise.all([
+                    check('config_get', '/api/miniapp/config'),
+                    check('leaderboard', '/api/miniapp/leaderboard'),
+                    check('uploads', '/api/miniapp/assets/upload-batch', 'OPTIONS'),
+                    check('game_route', '/diejungle'),
+                  ]);
+                  setHealth(r);
+                  setChecking(false);
+                }
+                return (
+                  <div>
+                    <button onClick={runCheck} disabled={checking}
+                      className="px-4 py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-sm font-medium mb-3 disabled:opacity-50">
+                      {checking ? '⏳ Checking...' : '🔍 Run Check'}
+                    </button>
+                    {health && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {[
+                          { key: 'config_get', label: 'Config API' },
+                          { key: 'leaderboard', label: 'Leaderboard' },
+                          { key: 'uploads', label: 'Uploads' },
+                          { key: 'game_route', label: 'Game Route' },
+                        ].map(({ key, label }) => (
+                          <div key={key} className={`rounded-lg border p-3 text-center ${health[key] === 'ok' ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-rose-500/40 bg-rose-500/5'}`}>
+                            <div className="text-xl mb-1">{health[key] === 'ok' ? '✅' : '❌'}</div>
+                            <div className={`text-xs font-bold ${health[key] === 'ok' ? 'text-emerald-400' : 'text-rose-400'}`}>{health[key] === 'ok' ? 'OK' : 'DOWN'}</div>
+                            <div className="text-[10px] text-zinc-500 mt-0.5">{label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </SectionCard>
           </div>
         )}
