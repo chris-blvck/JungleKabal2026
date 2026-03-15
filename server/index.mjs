@@ -8,6 +8,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = Number(process.env.ACADEMY_API_PORT || 8787);
+const CORS_ALLOW_ORIGIN = process.env.CORS_ALLOW_ORIGIN || '*';
+const WRITE_RATE_LIMIT_WINDOW_MS = Number(process.env.ANGEL_OPS_RATE_LIMIT_WINDOW_MS || 60_000);
+const WRITE_RATE_LIMIT_MAX = Number(process.env.ANGEL_OPS_RATE_LIMIT_MAX || 60);
 const dataFile = path.join(__dirname, 'data', 'academy-content.json');
 const compactFile = path.join(__dirname, '..', 'src', 'docs', 'memecoin-trading-guide-compact.md');
 const paymentsFile = path.join(__dirname, 'data', 'payments.json');
@@ -108,6 +111,93 @@ function parseCompactCourse(raw) {
 async function getSeedContent() {
   const raw = await readFile(compactFile, 'utf8');
   return parseCompactCourse(raw);
+}
+
+
+
+function defaultAngelOpsState() {
+  return {
+    updatedAt: new Date().toISOString(),
+    wallets: {
+      trading: '',
+      reserve: '',
+      moonbag: '',
+    },
+    snapshots: [],
+  };
+}
+
+async function getAngelOpsState() {
+  try {
+    await access(angelOpsFile);
+    const raw = await readFile(angelOpsFile, 'utf8');
+    const parsed = JSON.parse(raw);
+    return {
+      ...defaultAngelOpsState(),
+      ...(parsed || {}),
+      wallets: { ...defaultAngelOpsState().wallets, ...(parsed?.wallets || {}) },
+      snapshots: Array.isArray(parsed?.snapshots) ? parsed.snapshots : [],
+    };
+  } catch {
+    return defaultAngelOpsState();
+  }
+}
+
+async function saveAngelOpsState(nextState) {
+  const normalized = {
+    ...defaultAngelOpsState(),
+    ...(nextState || {}),
+    wallets: { ...defaultAngelOpsState().wallets, ...(nextState?.wallets || {}) },
+    snapshots: Array.isArray(nextState?.snapshots) ? nextState.snapshots.slice(0, 500) : [],
+    updatedAt: new Date().toISOString(),
+  };
+  await mkdir(path.dirname(angelOpsFile), { recursive: true });
+  await writeFile(angelOpsFile, JSON.stringify(normalized, null, 2));
+  return normalized;
+}
+
+
+
+function isValidSolAddress(address) {
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test((address || '').trim());
+}
+
+function normalizeWalletPayload(input) {
+  const allowedKeys = ['trading', 'reserve', 'moonbag'];
+  const next = {};
+  for (const key of allowedKeys) {
+    if (typeof input?.[key] !== 'string') continue;
+    const trimmed = input[key].trim();
+    if (trimmed && !isValidSolAddress(trimmed)) {
+      throw new Error(`Invalid SOL address for ${key}`);
+    }
+    next[key] = trimmed;
+  }
+  return next;
+}
+
+function normalizeSnapshotPayload(input) {
+  const at = input?.at ? new Date(input.at).toISOString() : new Date().toISOString();
+  const totalValueUsd = Number(input?.totalValueUsd || 0);
+  if (!Number.isFinite(totalValueUsd)) throw new Error('Invalid totalValueUsd');
+  const wallets = input?.wallets && typeof input.wallets === 'object' ? input.wallets : {};
+  const walletKeys = Object.keys(wallets).slice(0, 3);
+  const normalizedWallets = {};
+  for (const key of walletKeys) {
+    const item = wallets[key] || {};
+    normalizedWallets[key] = {
+      solBalance: Number.isFinite(Number(item.solBalance)) ? Number(item.solBalance) : 0,
+      value: Number.isFinite(Number(item.value)) ? Number(item.value) : 0,
+      source: typeof item.source === 'string' ? item.source.slice(0, 180) : '',
+    };
+  }
+  return { at, totalValueUsd, wallets: normalizedWallets };
+}
+
+function canWriteAngelOps(req) {
+  const requiredToken = process.env.ANGEL_OPS_ADMIN_TOKEN;
+  if (!requiredToken) return true;
+  return req.headers['x-admin-token'] === requiredToken;
 }
 
 async function getContent() {
