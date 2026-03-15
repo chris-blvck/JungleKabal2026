@@ -1467,19 +1467,28 @@ function ActionBtn({ imgSrc, label, onClick, disabled = false, pulse = false, cl
 function DiceFace({ value, selected = false, rolling = false, onClick, disabled = false }) {
   const meta = getDieMeta(value);
   const palette = dieStyleByKind(meta.kind);
+  const isGolden = value?.isKabalDie === true;
   return (
     <motion.button
       whileHover={onClick && !disabled ? { y: -2 } : {}}
       whileTap={onClick && !disabled ? { scale: 0.97 } : {}}
-      animate={rolling ? { rotate: [0, -12, 12, -8, 8, 0], scale: [1, 1.06, 0.98, 1.04, 1] } : { rotate: 0, scale: selected ? 1.05 : 1 }}
-      transition={{ duration: rolling ? 0.7 : 0.18 }}
+      animate={rolling ? { rotate: [0, -12, 12, -8, 8, 0], scale: [1, 1.06, 0.98, 1.04, 1] } : isGolden ? { scale: [1, 1.04, 1], opacity: [1, 0.9, 1] } : { rotate: 0, scale: selected ? 1.05 : 1 }}
+      transition={{ duration: rolling ? 0.7 : isGolden ? 1.4 : 0.18, repeat: isGolden && !rolling ? Infinity : 0 }}
       onClick={disabled ? undefined : onClick}
-      className={`relative h-16 w-16 overflow-hidden rounded-[18px] border bg-gradient-to-br ${palette.shell} md:h-[74px] md:w-[74px] ${selected ? "border-amber-300 shadow-[0_0_0_3px_rgba(252,211,77,0.25)]" : ""} ${disabled ? "opacity-60" : ""}`}
+      className={`relative h-16 w-16 overflow-hidden rounded-[18px] border bg-gradient-to-br md:h-[74px] md:w-[74px]
+        ${isGolden
+          ? "border-amber-300 bg-gradient-to-br from-amber-900/80 to-yellow-800/90 shadow-[0_0_12px_3px_rgba(252,211,77,0.45)]"
+          : palette.shell}
+        ${selected ? "border-amber-300 shadow-[0_0_0_3px_rgba(252,211,77,0.25)]" : ""}
+        ${disabled ? "opacity-60" : ""}`}
     >
-      <img src={getDieImage(value)} alt={`${meta.label} die ${value.value}`} className="absolute inset-0 h-full w-full object-contain p-1" />
-      <div className={`absolute bottom-0.5 left-0.5 right-0.5 flex items-center justify-center gap-1 rounded-lg px-1 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] ${palette.tag}`}>
-        <span>{meta.emoji}</span>
-        <span>{meta.kind}</span>
+      {isGolden && (
+        <div className="absolute inset-0 rounded-[17px] pointer-events-none border-2 border-amber-300/60 z-10" />
+      )}
+      <img src={getDieImage(value)} alt={`${meta.label} die ${value.value}`} className={`absolute inset-0 h-full w-full object-contain p-1 ${isGolden ? "drop-shadow-[0_0_6px_rgba(252,211,77,0.8)]" : ""}`} />
+      <div className={`absolute bottom-0.5 left-0.5 right-0.5 flex items-center justify-center gap-1 rounded-lg px-1 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] ${isGolden ? "bg-amber-500/60 text-amber-100" : palette.tag}`}>
+        {isGolden ? <span>✨</span> : <span>{meta.emoji}</span>}
+        <span>{isGolden ? "GOLD" : meta.kind}</span>
       </div>
       {selected ? <div className="absolute -right-1 -top-1 rounded-full bg-amber-300 px-1.5 py-0.5 text-[9px] font-black text-black">NEXT</div> : null}
     </motion.button>
@@ -1700,6 +1709,11 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         lines.push(`☠️ Cursed turn: reroll disabled`);
         player.curseNextTurn = 0;
       }
+      // K-REX: reset TREMOR bonus from previous turn
+      if (player.characterId === 'krex' && (player._krexTremorBonus || 0) > 0) {
+        player.attackBonus = Math.max((player._krexBaseAttack || 3), player.attackBonus - player._krexTremorBonus);
+        player._krexTremorBonus = 0;
+      }
       return {
         ...g,
         player,
@@ -1722,16 +1736,29 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         const specialFaces = hasDiceSpecials(meta);
         const geckoBonus = g.player.companion?.passive?.attackDieBonus ?? 0;
         const dice = rollDice(g.player.dicePerTurn, specialFaces, geckoBonus);
+
+        // 🌟 Golden Kabal Dice: 10% chance per combat (all characters) — player chooses type
+        let kabalDieAvailableThisCombat = g.kabalDieAvailableThisCombat;
+        let goldenDicePending = false;
+        let kabalDieLog = '';
+        if (kabalDieAvailableThisCombat && Math.random() < 0.10) {
+          kabalDieAvailableThisCombat = false;
+          goldenDicePending = true;
+          kabalDieLog = ` · ✨ Golden Kabal Dice — choose your type!`;
+        }
+
         return {
           ...g,
           dice,
+          kabalDieAvailableThisCombat,
+          goldenDicePending,
           grid: emptyGrid(),
           phase: g.player.hp <= 0 ? "gameover" : "place",
           rolling: false,
           selectedDieIndex: 0,
           avatarMood: "focus",
-          actionFlash: { id: Date.now(), text: `🎲 ${dice.map((d) => `${getDieMeta(d).emoji}${d.value}${d.special ? '✦' : ''}`).join(" · ")}`, tone: "amber" },
-          log: [`🎲 Rolled: ${dice.map((d) => `${getDieMeta(d).label} ${d.value}${d.special ? ` (${d.special})` : ''}`).join(" - ")}`, ...g.log].slice(0, 40),
+          actionFlash: { id: Date.now(), text: `🎲 ${dice.map((d) => `${getDieMeta(d).emoji}${d.value}${d.special ? '✦' : ''}`).join(" · ")}${kabalDieLog}`, tone: goldenDicePending ? "amber" : "amber" },
+          log: [`🎲 Rolled: ${dice.map((d) => `${getDieMeta(d).label} ${d.value}${d.special ? ` (${d.special})` : ''}`).join(" - ")}${kabalDieLog}`, ...g.log].slice(0, 40),
         };
       });
     }, 700);
@@ -1771,6 +1798,54 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         player: { ...g.player, rerollsLeft: g.player.rerollsLeft - 1 },
         actionFlash: { id: Date.now(), text: `🔓 Slot (${bestY},${bestX}) freed!`, tone: "sky" },
         log: [`🔓 Free CD: slot row${bestY + 1} col${bestX + 1} freed (-1 reroll)`, ...g.log].slice(0, 40),
+      };
+    });
+  }
+
+  // ✨ Golden Kabal Dice — player picks type (attack / heal / shield)
+  function chooseGoldenDice(kind: 'attack' | 'heal' | 'shield') {
+    const specialMap = { attack: 'pierce', shield: 'fortress', heal: 'nurture' } as const;
+    const goldenDie = {
+      id: `golden-${Date.now()}`,
+      kind,
+      value: 6,
+      special: specialMap[kind],
+      isKabalDie: true,
+    };
+    setGame((g) => {
+      const newDice = [...g.dice, goldenDie];
+      const emoji = kind === 'attack' ? '⚔️' : kind === 'shield' ? '🛡️' : '❤️';
+      return {
+        ...g,
+        dice: newDice,
+        goldenDicePending: false,
+        selectedDieIndex: newDice.length - 1,
+        actionFlash: { id: Date.now(), text: `✨ Golden ${emoji} Dice added — value 6, ${specialMap[kind]}!`, tone: "amber" },
+        log: [`✨ Golden Kabal Dice: ${emoji} ${kind} 6 (${specialMap[kind]}) chosen`, ...g.log].slice(0, 40),
+      };
+    });
+  }
+
+  // K-REX: TREMOR — destroy selected die for +5 ATK this turn
+  function krexTremor() {
+    if (game.player.characterId !== 'krex') return;
+    if (game.phase !== "place") return;
+    if (activeDieIndex === null || game.dice[activeDieIndex] === null) return;
+    const sacrificed = getDieMeta(game.dice[activeDieIndex]);
+    setGame((g) => {
+      const newDice = [...g.dice];
+      newDice[activeDieIndex] = null;
+      return {
+        ...g,
+        dice: newDice,
+        player: {
+          ...g.player,
+          attackBonus: g.player.attackBonus + 5,
+          _krexTremorBonus: (g.player._krexTremorBonus || 0) + 5,
+        },
+        selectedDieIndex: nextAvailableDieIndex(newDice),
+        actionFlash: { id: Date.now(), text: `💥 TREMOR — ${sacrificed.emoji} sacrificed · +5 ATK`, tone: 'rose' },
+        log: [`💥 TREMOR — ${sacrificed.label} die sacrificed for +5 ATK this turn`, ...g.log].slice(0, 40),
       };
     });
   }
@@ -1906,6 +1981,21 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
       let player = playerResult.player;
       const totals = playerResult.totals;
       let log = [...playerResult.log];
+
+      // K-REX STOMP: if 2+ attack dice placed this turn → +2 ATK (max +8 stacked per combat)
+      if (player.characterId === 'krex') {
+        const attackDicePlaced = gridRef.flat().filter((d) => d && getDieMeta(d).kind === 'attack').length;
+        if (attackDicePlaced >= 2) {
+          const stompGain = 2;
+          const newStompBonus = Math.min(8, (player._krexStompBonus || 0) + stompGain);
+          const actualGain = newStompBonus - (player._krexStompBonus || 0);
+          if (actualGain > 0) {
+            player._krexStompBonus = newStompBonus;
+            player.attackBonus = (player._krexBaseAttack || 3) + newStompBonus;
+            log.unshift(`🦖 STOMP — ${attackDicePlaced} ATK dice · +${actualGain} ATK (total stomp: +${newStompBonus})`);
+          }
+        }
+      }
 
       // Weapon DoT tick
       const dotResult = tickEnemyDot(enemy);
@@ -2317,11 +2407,18 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           player: (() => {
             const base = { ...g.player, shield: g.player.combatStartShield, rerollsLeft: g.player.rerollsPerTurn };
             // Re-apply weapon passives (non-cumulative) at combat start
-            // (they are already baked in from equip; only shield persists here)
             const wpSlots: (Weapon | null)[] = base.weaponSlots || [null, null];
             const shieldBonus = wpSlots.reduce((acc, w) => acc + (w?.passive?.combatStartShield || 0), 0);
+            // K-REX: reset stomp/tremor bonuses each combat
+            if (base.characterId === 'krex') {
+              base._krexStompBonus = 0;
+              base._krexTremorBonus = 0;
+              base.attackBonus = base._krexBaseAttack || 3;
+            }
             return { ...base, shield: base.shield + shieldBonus };
           })(),
+          kabalDieAvailableThisCombat: true,
+          goldenDicePending: false,
           cooldowns: emptyCooldowns(),
           grid: emptyGrid(),
           dice: [],
@@ -2722,188 +2819,324 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           </div>
         </div>
 
-        <div className="grid shrink-0 gap-1.5 md:gap-2 md:grid-cols-[1.15fr_1fr_1.15fr]">
-          <SectionCard title="Enemy panel" className="order-3 md:order-3">
-            <div className="rounded-[18px] border border-rose-300/30 bg-gradient-to-b from-rose-950/45 to-black/85 p-1.5">
-              <div className="flex h-full flex-col items-center justify-center gap-1.5 rounded-[14px] border border-rose-300/40 bg-black/35 p-1.5 text-center">
+        {/* ✨ GOLDEN KABAL DICE — choice overlay */}
+        {game.phase === "place" && game.goldenDicePending && (
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-[18px] border-2 border-amber-300/70 bg-gradient-to-r from-amber-900/80 via-yellow-900/70 to-amber-900/80 px-4 py-3 shadow-[0_0_24px_4px_rgba(252,211,77,0.25)] backdrop-blur-sm"
+          >
+            <div className="flex flex-col items-center gap-2 text-center">
+              <div className="flex items-center gap-2">
+                <motion.span
+                  animate={{ scale: [1, 1.15, 1], rotate: [0, 8, -8, 0] }}
+                  transition={{ duration: 1.2, repeat: Infinity }}
+                  className="text-2xl"
+                >✨</motion.span>
+                <span className="font-black text-amber-200 text-sm md:text-base">Golden Kabal Dice appeared!</span>
+                <motion.span
+                  animate={{ scale: [1, 1.15, 1], rotate: [0, -8, 8, 0] }}
+                  transition={{ duration: 1.2, repeat: Infinity }}
+                  className="text-2xl"
+                >✨</motion.span>
+              </div>
+              <p className="text-xs text-amber-300/80">Value 6 · Auto special · Choose your die type:</p>
+              <div className="flex gap-2">
+                {([
+                  { kind: 'attack', emoji: '⚔️', label: 'Attack', special: 'Pierce', cls: 'border-rose-400/60 bg-rose-800/60 hover:bg-rose-700/80 text-rose-100' },
+                  { kind: 'shield', emoji: '🛡️', label: 'Shield', special: 'Fortress', cls: 'border-sky-400/60 bg-sky-800/60 hover:bg-sky-700/80 text-sky-100' },
+                  { kind: 'heal',   emoji: '❤️', label: 'Heal',   special: 'Nurture', cls: 'border-pink-400/60 bg-pink-800/60 hover:bg-pink-700/80 text-pink-100' },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.kind}
+                    onClick={() => chooseGoldenDice(opt.kind as any)}
+                    className={`flex flex-col items-center gap-1 rounded-[14px] border px-4 py-2.5 text-sm font-black transition active:scale-95 ${opt.cls}`}
+                  >
+                    <span className="text-xl">{opt.emoji}</span>
+                    <span>{opt.label}</span>
+                    <span className="text-[9px] font-normal opacity-70">{opt.special}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── COMBAT 6-BAND LAYOUT (mobile-first, no-scroll) ─────────────────── */}
+        <div className="flex flex-1 flex-col gap-1 overflow-hidden">
+
+          {/* ── Band 2: ARENA ─────────────────────────────────────── */}
+          <div className="shrink-0 rounded-[16px] border border-white/10 bg-gradient-to-r from-rose-950/40 via-black/50 to-cyan-950/40 px-2 py-1.5" style={{ minHeight: 90, maxHeight: 104 }}>
+            <div className="flex items-center justify-between gap-1 h-full">
+              {/* Enemy half */}
+              <div className="flex flex-1 flex-col items-center gap-0.5 min-w-0">
                 <motion.img
                   ref={enemyAnchorRef}
                   src={game.enemy.image}
                   alt={game.enemy.name}
                   animate={game.enemyHitPulse ? { scale: [1, 1.12, 0.96, 1], filter: ["brightness(1)", "brightness(1.55)", "brightness(1)"] } : game.enemyAttackPulse ? { x: [0, -10, 10, -8, 8, 0], scale: [1, 1.06, 1] } : intent.type === "attack" ? { scale: [1, 1.03, 1], x: [0, -2, 2, 0] } : { scale: 1, x: 0 }}
                   transition={{ duration: 0.45 }}
-                  className="h-[90px] w-full object-contain contrast-110 saturate-110 drop-shadow-[0_14px_24px_rgba(0,0,0,0.6)] md:h-[128px]"
+                  className="h-16 w-full object-contain contrast-110 saturate-110 drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)]"
                 />
-                <div className="text-[11px] font-black md:text-sm">{game.enemy.emoji} {game.enemy.name}{game.enemy.elite ? ` ${"⭐".repeat(game.enemy.eliteStars || 1)}` : ""}</div>
-                <div className="text-[9px] text-zinc-300">{game.enemy.mood}</div>
-                <div className="flex items-center gap-1">
-                  <div className="rounded-full border border-white/10 bg-black/45 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-zinc-200">
-                    {getTierLabel(game.enemy)}
+                <div className="truncate text-[9px] font-black text-rose-100 leading-none">{game.enemy.emoji} {game.enemy.name}{game.enemy.elite ? ` ${"⭐".repeat(game.enemy.eliteStars || 1)}` : ""}</div>
+                <div className="flex w-full items-center gap-0.5">
+                  <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                    <div className="h-full rounded-full bg-rose-500 transition-all duration-300" style={{ width: `${Math.max(0, Math.min(100, (game.enemy.hp / game.enemy.maxHp) * 100))}%` }} />
                   </div>
+                  <span className="text-[8px] font-black text-rose-300 shrink-0">{game.enemy.hp}/{game.enemy.maxHp}</span>
+                </div>
+                <div className="flex items-center gap-0.5 flex-wrap justify-center">
+                  <span className={`rounded-full border px-1.5 py-0.5 text-[8px] font-black leading-none ${intentMeta(intent.type).color} border-current/30 bg-black/40`}>
+                    {intentMeta(intent.type).emoji} {intent.type} {intent.value}
+                  </span>
+                  {(game.enemy.shield || 0) > 0 && (
+                    <span className="rounded-full border border-rose-400/30 bg-rose-900/40 px-1 py-0.5 text-[8px] text-rose-200">&#x1F6E1;{game.enemy.shield}</span>
+                  )}
                   {(game.enemy.charge || 0) > 0 && (
-                    <motion.div
+                    <motion.span
                       animate={{ scale: [1, 1.1, 1], opacity: [0.85, 1, 0.85] }}
                       transition={{ duration: 0.9, repeat: Infinity }}
-                      className="rounded-full border border-rose-400/70 bg-rose-600/50 px-2 py-1 text-[9px] font-black text-rose-100"
+                      className="rounded-full border border-amber-400/50 bg-amber-600/30 px-1 py-0.5 text-[8px] font-black text-amber-100"
                     >
-                      ⚡ +{game.enemy.charge} READY
-                    </motion.div>
+                      &#x26A1;+{game.enemy.charge}
+                    </motion.span>
                   )}
                 </div>
-                <LifeBar label="Enemy HP" current={game.enemy.hp} max={game.enemy.maxHp} tone="enemy" size={game.enemy.maxHp >= 55 ? "lg" : "md"} />
+              </div>
+
+              {/* VS center */}
+              <div className="flex shrink-0 flex-col items-center gap-0.5 px-1">
+                <span className="text-[10px] font-black text-zinc-400">VS</span>
+              </div>
+
+              {/* Player half */}
+              <div className="flex flex-1 flex-col items-center gap-0.5 min-w-0">
+                <button
+                  onClick={() => setShowPlayerDrawer(v => !v)}
+                  className="relative h-16 w-full"
+                  aria-label="Player info"
+                >
+                  <motion.img
+                    ref={playerAnchorRef}
+                    src={avatarUrl}
+                    alt="Kabalian"
+                    animate={game.avatarMood === "hurt" ? { x: [0, -2, 2, -2, 0] } : game.avatarMood === "victory" ? { y: [0, -3, 0] } : { x: 0, y: 0 }}
+                    transition={{ duration: 0.45 }}
+                    className={`h-full w-full rounded-xl border border-white/10 bg-black/30 object-contain ${avatarRing}`}
+                  />
+                  <span className="absolute bottom-0.5 right-0.5 rounded bg-black/60 px-1 text-[7px] text-zinc-300">tap &#x25BE;</span>
+                </button>
+                <div className="truncate text-[9px] font-black text-cyan-100 leading-none">
+                  {game.player.PLAYER_CHARACTERS?.[game.player.characterId]?.name ?? game.player.characterId}
+                </div>
+                <div className="flex w-full items-center gap-0.5">
+                  <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                    <div className="h-full rounded-full bg-cyan-500 transition-all duration-300" style={{ width: `${Math.max(0, Math.min(100, (game.player.hp / game.player.maxHp) * 100))}%` }} />
+                  </div>
+                  <span className="text-[8px] font-black text-cyan-300 shrink-0">{game.player.hp}/{game.player.maxHp}</span>
+                </div>
+                <div className="flex items-center gap-0.5 flex-wrap justify-center">
+                  {(game.player.shield || 0) > 0 && (
+                    <span className="rounded-full border border-cyan-400/30 bg-cyan-900/40 px-1.5 py-0.5 text-[8px] font-black text-cyan-200">&#x1F6E1;&#xFE0F;{game.player.shield}</span>
+                  )}
+                  <span className="rounded-full border border-amber-400/20 bg-amber-900/20 px-1.5 py-0.5 text-[8px] text-amber-300">&#x1F501;{game.player.rerollsLeft}</span>
+                </div>
               </div>
             </div>
-          </SectionCard>
+          </div>
 
-          <SectionCard title="Combat center" className="order-2 md:order-2">
-            <div className="grid grid-cols-2 gap-1 rounded-[16px] border border-white/10 bg-black/35 p-1.5">
-              <CompactStat label="Intent" value={`${intentMeta(intent.type).emoji} ${intent.type}`} accent={intentMeta(intent.type).color} />
-              <CompactStat label="Value" value={`${intent.value}`} accent="text-rose-300" />
-              <CompactStat label="Modifier" value={intent.mod.badge} accent={modifierClass(game.enemy.modifier)} />
-              <CompactStat label="No-hit" value={`${game.noHitTurns}T · x${streakMultiplier.toFixed(1)}`} accent="text-lime-300" />
-              <CompactStat label="Enemy Shield" value={`${game.enemy.shield || 0}`} accent="text-rose-200" />
-              <div className="rounded-[12px] border border-white/10 bg-black/35 p-1.5 text-center">
-                <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-300">Outcome</div>
-                <div className="mt-0.5 text-[11px] font-black text-cyan-100">{game.lastOutcome || "—"}</div>
-              </div>
-              <div className="col-span-2 rounded-[12px] border border-white/10 bg-black/40 p-1.5">
-                <div className="mb-1 text-[9px] uppercase tracking-[0.14em] text-zinc-300">Intent timeline</div>
-                <div className="space-y-0.5 text-[10px]">
-                  {intentTimeline.slice(0, 2).map((entry, idx) => (
-                    <div key={`${entry.type}-${idx}-${entry.value}`} className={`rounded-lg border border-white/10 px-2 py-0.5 ${idx === 0 ? "bg-white/10" : "bg-black/35"}`}>
-                      <span className={intentMeta(entry.type).color}>{intentMeta(entry.type).emoji} {entry.label}</span>
-                      <span className="ml-1 text-zinc-200">{entry.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Player panel" className="order-1 md:order-1">
-            <div className="rounded-[18px] border border-cyan-300/30 bg-gradient-to-b from-cyan-950/40 to-black/85 p-1.5">
-              <div className="grid grid-cols-2 gap-1 rounded-[14px] border border-cyan-300/30 bg-black/35 p-1.5">
-                <div className="col-span-2 flex flex-col items-center gap-1.5 rounded-[16px] border border-white/10 bg-black/35 p-1.5 text-center">
-                <motion.img
-                  ref={playerAnchorRef}
-                  src={avatarUrl}
-                  alt="Kabalian"
-                  animate={game.avatarMood === "hurt" ? { x: [0, -2, 2, -2, 0] } : game.avatarMood === "victory" ? { y: [0, -3, 0] } : { x: 0, y: 0 }}
-                  transition={{ duration: 0.45 }}
-                  className={`h-[90px] w-full rounded-2xl border border-white/10 bg-black/40 object-contain md:h-[128px] ${avatarRing}`}
-                />
-                <div className="min-w-0">
-                  <div className="text-sm font-black">{game.player.PLAYER_CHARACTERS[game.player.characterId]?.name ?? game.player.characterId}</div>
-                  <div className="text-[9px] text-zinc-300">CD {game.player.cooldownBase} · Tick {game.player.cooldownTick} · Arts {totalArtifacts}</div>
-                </div>
-                <img src={LOGO_URL} alt="Kabal logo" className="h-6 w-6 object-contain opacity-90" />
-              </div>
-                <div className="col-span-2">
-                  <LifeBar label="Player HP" current={game.player.hp} max={game.player.maxHp} tone="player" />
-                </div>
-                <CompactStat label="🛡️ Shield" value={`${game.player.shield}`} accent="text-cyan-200" />
-                <CompactStat label="Reroll" value={`${game.player.rerollsLeft}`} accent="text-amber-300" />
-                {game.player.companion ? (
-                  <div className="col-span-2 rounded-[12px] border border-emerald-400/25 bg-emerald-900/20 p-2">
-                    <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300">Companion</div>
-                    <div className="flex items-center justify-between gap-1 text-[10px]">
+          {/* ── Player Drawer (slide-up sheet) ───────────────────── */}
+          <AnimatePresence>
+            {showPlayerDrawer && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="shrink-0 overflow-hidden rounded-[14px] border border-cyan-400/20 bg-cyan-950/40"
+              >
+                <div className="px-2 py-1.5">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-cyan-300">Player Info</span>
+                    <button onClick={() => setShowPlayerDrawer(false)} className="text-[10px] text-zinc-400 hover:text-white">&#x2715;</button>
+                  </div>
+                  <div className="flex flex-wrap gap-1 text-[9px]">
+                    <span className="rounded-full border border-white/10 bg-black/40 px-2 py-0.5 text-zinc-200">CD {game.player.cooldownBase} &middot; Tick {game.player.cooldownTick}</span>
+                    <span className="rounded-full border border-white/10 bg-black/40 px-2 py-0.5 text-zinc-200">Arts {totalArtifacts}</span>
+                    {(game.player.attackBonus || 0) !== 0 && <span className="rounded-full border border-rose-400/20 bg-rose-900/20 px-2 py-0.5 text-rose-300">+{game.player.attackBonus} ATK</span>}
+                    {(game.player.healBonus || 0) !== 0 && <span className="rounded-full border border-emerald-400/20 bg-emerald-900/20 px-2 py-0.5 text-emerald-300">+{game.player.healBonus} HEAL</span>}
+                  </div>
+                  {game.player.companion && (
+                    <div className="mt-1 flex items-center gap-1 rounded-[10px] border border-emerald-400/20 bg-emerald-900/15 px-2 py-1 text-[9px]">
                       <span>{game.player.companion.emoji} {game.player.companion.name}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-black border ${game.player.companion.cooldownRemaining === 0 ? 'bg-emerald-600/40 border-emerald-400/50 text-emerald-200' : 'bg-zinc-800 border-zinc-600 text-zinc-400'}`}>
+                      <span className={`ml-auto rounded-full px-2 py-0.5 text-[8px] font-black border ${game.player.companion.cooldownRemaining === 0 ? 'bg-emerald-600/40 border-emerald-400/50 text-emerald-200' : 'bg-zinc-800 border-zinc-600 text-zinc-400'}`}>
                         {game.player.companion.cooldownRemaining === 0 ? 'READY' : `CD ${game.player.companion.cooldownRemaining}`}
                       </span>
                     </div>
-                  </div>
-                ) : null}
-                <div className="col-span-2 rounded-[12px] border border-white/10 bg-black/45 p-2">
-                  <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">Owned artifacts</div>
-                  {game.player.artifacts.length ? (
-                    <div className="flex max-h-20 flex-wrap gap-1 overflow-auto pr-1">
+                  )}
+                  {game.player.artifacts.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1 max-h-14 overflow-auto">
                       {game.player.artifacts.map((artifact) => (
-                        <div key={`owned-${artifact.id}`} className="flex items-center gap-1 rounded-full border border-white/20 bg-black/40 px-2 py-1 text-[9px]">
-                          {artifact.image ? <img src={artifact.image} alt={artifact.name} className="h-4 w-4 rounded-full object-cover" /> : <span>✨</span>}
+                        <div key={`drawer-${artifact.id}`} className="flex items-center gap-1 rounded-full border border-white/15 bg-black/40 px-2 py-0.5 text-[8px]">
+                          {artifact.image ? <img src={artifact.image} alt={artifact.name} className="h-3 w-3 rounded-full object-cover" /> : <span>&#x2728;</span>}
                           <span>{artifact.name}</span>
                         </div>
                       ))}
                     </div>
-                  ) : <div className="text-[10px] text-zinc-300">No artifacts yet.</div>}
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ── Band 3: DICE ROW ──────────────────────────────────── */}
+          <div className="shrink-0 flex items-center justify-center gap-1.5 py-0.5" style={{ minHeight: 48 }}>
+            {game.phase === "place" ? (
+              <button onClick={() => shiftSelectedDie(-1)} className="h-10 rounded-xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-3 text-white hover:from-zinc-700">&#x2B05;&#xFE0F;</button>
+            ) : null}
+            {game.dice.some((d) => d !== null) ? (
+              game.dice.map((die, i) => die !== null ? (
+                <DiceFace
+                  key={`${die.id}-${i}-${game.rolling}`}
+                  value={die}
+                  selected={i === activeDieIndex && game.phase === "place"}
+                  rolling={game.rolling}
+                  onClick={game.phase === "place" ? () => setGame((g) => ({ ...g, selectedDieIndex: i })) : undefined}
+                />
+              ) : null)
+            ) : (
+              <div className="text-[11px] text-zinc-100">&#x1F3B2; No dice yet. Press <span className="font-black text-amber-300">ROLL</span>.</div>
+            )}
+            {game.phase === "place" ? (
+              <button onClick={() => shiftSelectedDie(1)} className="h-10 rounded-xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-3 text-white hover:from-zinc-700">&#x27A1;&#xFE0F;</button>
+            ) : null}
+          </div>
+
+          {/* ── Band 4: GRID 3x3 with lane labels ────────────────── */}
+          <div className="shrink-0">
+            {activeDieMeta && game.phase === "place" ? (
+              <div className="mb-1 flex items-center gap-1.5 rounded-[10px] border border-amber-300/20 bg-amber-300/10 px-2 py-1 text-[10px] text-white">
+                <span className="text-base">{activeDieMeta.emoji}</span>
+                <span className="font-black text-amber-300">{activeDieMeta.label}</span>
+                <span className="text-[9px] text-zinc-200 truncate">{activeDieMeta.desc}</span>
+              </div>
+            ) : null}
+            <div className="flex items-center gap-1 justify-center">
+              {/* Grid */}
+              <div
+                className="grid gap-0.5"
+                style={{
+                  width: 'min(240px, calc(100vw - 80px))',
+                  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                  gridTemplateRows: 'repeat(3, minmax(0, 1fr))',
+                }}
+              >
+                {game.grid.map((row, y) =>
+                  row.map((cell, x) => {
+                    const cooldown = game.cooldowns[y][x];
+                    const blocked = cooldown > 0;
+                    const canPlace = game.phase === "place" && !blocked && cell === null && activeDieIndex !== null;
+                    const cellMeta = cell !== null ? getDieMeta(cell) : null;
+                    return (
+                      <button
+                        key={`${x}-${y}`}
+                        onClick={() => activeDieIndex !== null && placeDie(activeDieIndex, x, y)}
+                        onMouseEnter={() => setHoveredSlot({ x, y })}
+                        onMouseLeave={() => setHoveredSlot(null)}
+                        className={`relative aspect-square overflow-hidden rounded-[8px] border text-white transition ${canPlace ? "border-amber-300/60 ring-2 ring-amber-300/20" : "border-white/20"}`}
+                      >
+                        <img src={LANE_IMAGES[y]} className="absolute inset-0 h-full w-full object-contain" />
+                        {cell !== null ? (
+                          <>
+                            <div className="absolute inset-0 bg-black/10" />
+                            <img src={getDieImage(cell)} className="absolute inset-0 h-full w-full object-contain" />
+                            <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 rounded bg-black/60 px-1 text-[8px] font-black">
+                              {cellMeta?.emoji} {cell.value}
+                            </div>
+                          </>
+                        ) : blocked ? (
+                          <>
+                            <div className="absolute inset-0 bg-red-950/60" />
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-[9px] font-bold">
+                              &#x23F3; {cooldown}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="absolute inset-0 bg-black/25" />
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-[11px] font-bold tracking-[0.06em]">
+                              PLACE
+                              {canPlace ? <span className="text-[9px] text-amber-200">{activeDieMeta?.emoji}</span> : null}
+                            </div>
+                          </>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              {/* Lane bonus labels on the right */}
+              <div
+                className="flex flex-col justify-between gap-0.5 shrink-0"
+                style={{ height: 'min(240px, calc(100vw - 80px))' }}
+              >
+                <div className="flex flex-col items-start justify-center flex-1 px-1">
+                  <span className="text-[8px] font-black text-amber-400 leading-none">+{ROW_INFO[0].laneBonus.attack} ATK</span>
+                  <span className="text-[7px] text-zinc-400">x{rowMultiplier(game.player, 0)}</span>
+                </div>
+                <div className="flex flex-col items-start justify-center flex-1 px-1">
+                  <span className="text-[8px] font-black text-emerald-400 leading-none">+{ROW_INFO[1].laneBonus.heal} HEAL</span>
+                  <span className="text-[7px] text-zinc-400">x{rowMultiplier(game.player, 1)}</span>
+                </div>
+                <div className="flex flex-col items-start justify-center flex-1 px-1">
+                  <span className="text-[8px] font-black text-yellow-400 leading-none">+&#x1F6E1; {ROW_INFO[2].laneBonus.shield}</span>
+                  <span className="text-[7px] text-zinc-400">x{rowMultiplier(game.player, 2)}</span>
                 </div>
               </div>
             </div>
-          </SectionCard>
-        </div>
+          </div>
 
-        <SectionCard
-          title="Last action"
-          className="order-1"
-          right={(
-            <button
-              onClick={() => setGame((g) => ({ ...g, showAllLogs: !g.showAllLogs }))}
-              className="rounded-lg bg-white/10 px-2 py-1 text-[10px] font-bold text-white hover:bg-white/20"
-            >
-              {game.showAllLogs ? "▲" : "▼"}
-            </button>
-          )}
-        >
-          <div className="rounded-[12px] border border-white/10 bg-zinc-900/80 px-2.5 py-1.5 text-[11px] md:text-xs">{latestAction}</div>
-          <AnimatePresence>
-            {game.showAllLogs ? (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                <div className="mt-2 max-h-32 space-y-1 overflow-auto pr-1">
-                  {game.log.slice(1, 12).map((line, i) => (
-                    <div key={`${line}-${i}`} className="rounded-[10px] border border-white/10 bg-black/35 px-2 py-1 text-[10px] text-zinc-100">{line}</div>
-                  ))}
-                </div>
-              </motion.div>
+          {/* ── Band 5: ACTION BUTTONS ────────────────────────────── */}
+          <div className="shrink-0 flex gap-1.5 px-0.5" style={{ minHeight: 44 }}>
+            {game.phase === "roll" ? (
+              <div className="flex-1 text-center text-[10px] font-bold uppercase tracking-[0.14em] text-amber-200 self-center">
+                Press ROLL to start turn
+              </div>
             ) : null}
-          </AnimatePresence>
-        </SectionCard>
-
-        <SectionCard title="Dice + Action" className="order-2" right={<div className="text-[9px] text-zinc-300">Tap die, then slot</div>}>
-          <div className="mb-1 flex flex-wrap justify-center gap-1 text-[9px] md:text-[10px]">
-            <div className="rounded-xl border border-zinc-300/30 bg-zinc-900/70 px-2 py-1">⚔️ Attack die 1-6 (black)</div>
-            <div className="rounded-xl border border-pink-200/35 bg-pink-500/20 px-2 py-1">❤️ Dé Health 1-6</div>
-            <div className="rounded-xl border border-white/50 bg-white/15 px-2 py-1">🛡️ Shield die 1-6 (white)</div>
-            <div className="rounded-xl border border-white/10 bg-black/35 px-2 py-1">🔥 Combo = 3 attack dice</div>
-          </div>
-          <div className="mb-1 grid gap-1 rounded-[12px] border border-white/10 bg-black/35 p-2 text-[11px] md:grid-cols-2">
-            <div>
-              <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-300">Damage forecast</div>
-              <div className="font-black text-zinc-100">⚔️ {expectedOutcome.attack} · 🛡️ +{expectedOutcome.shield} · ❤️ +{expectedOutcome.heal}</div>
-            </div>
-            <div>
-              <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-300">Slot preview</div>
-              <div className="font-black text-amber-200">{hoveredPreview || "Hover a slot to preview final value"}</div>
-            </div>
-          </div>
-          <div className="mb-2 flex flex-wrap items-center justify-center gap-2">
-            {game.phase === "roll" ? <div className="w-full text-center text-xs font-bold uppercase tracking-[0.18em] text-amber-200">Start turn: press roll, then place dice on board</div> : null}
             {(game.phase === "roll" || game.phase === "rolling") ? (
               BTN_IMAGES.roll ? (
                 <ActionBtn
                   imgSrc={BTN_IMAGES.roll}
-                  label={game.rolling ? "🎲 Rolling..." : "🎲 ROLL"}
+                  label={game.rolling ? "Rolling..." : "ROLL"}
                   onClick={startRoll}
                   disabled={game.rolling}
                   pulse={game.phase === "roll" && !game.rolling}
                 />
               ) : (
-                <Button onClick={startRoll} disabled={game.rolling} className={`rounded-2xl bg-amber-400 px-4 py-2.5 text-sm font-black text-black hover:bg-amber-300 disabled:opacity-60 ${game.phase === "roll" && !game.rolling ? "animate-pulse shadow-[0_0_0_6px_rgba(252,211,77,0.20)]" : ""}`}>
-                  {game.rolling ? "🎲 Rolling..." : "🎲 ROLL"}
+                <Button
+                  onClick={startRoll}
+                  disabled={game.rolling}
+                  className={`flex-1 rounded-2xl bg-amber-400 py-2.5 text-sm font-black text-black hover:bg-amber-300 disabled:opacity-60 ${game.phase === "roll" && !game.rolling ? "animate-pulse shadow-[0_0_0_6px_rgba(252,211,77,0.20)]" : ""}`}
+                >
+                  {game.rolling ? "&#x1F3B2; Rolling..." : "&#x1F3B2; ROLL"}
                 </Button>
               )
             ) : null}
             {game.phase === "place" ? (
-              <div className="flex w-full gap-2">
+              <>
                 {BTN_IMAGES.reroll ? (
                   <ActionBtn
                     imgSrc={BTN_IMAGES.reroll}
-                    label="🔁 REROLL"
+                    label="REROLL"
                     onClick={rerollActiveDie}
                     disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null}
                   />
                 ) : (
-                  <Button onClick={rerollActiveDie} disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null} className="flex-1 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-700/90 to-zinc-900 px-3 py-2.5 text-sm font-black text-white hover:from-zinc-600 hover:to-zinc-800 disabled:opacity-40">
-                    🔁 REROLL
+                  <Button
+                    onClick={rerollActiveDie}
+                    disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null}
+                    className="flex-1 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-700/90 to-zinc-900 py-2.5 text-sm font-black text-white hover:from-zinc-600 hover:to-zinc-800 disabled:opacity-40"
+                  >
+                    &#x1F501; REROLL
                   </Button>
                 )}
                 {game.cooldowns.some(row => row.some(v => v > 0)) && (
@@ -2911,71 +3144,24 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                     onClick={freeCooldownSlot}
                     disabled={game.player.rerollsLeft <= 0}
                     title="Spend 1 reroll to free the most blocked cooldown slot"
-                    className="flex-1 rounded-2xl border border-sky-400/30 bg-gradient-to-b from-sky-800/50 to-sky-900/70 px-3 py-2.5 text-sm font-black text-sky-200 hover:from-sky-700/60 hover:to-sky-800/80 disabled:opacity-40"
+                    className="flex-1 rounded-2xl border border-sky-400/30 bg-gradient-to-b from-sky-800/50 to-sky-900/70 py-2.5 text-sm font-black text-sky-200 hover:from-sky-700/60 hover:to-sky-800/80 disabled:opacity-40"
                   >
-                    🔓 FREE CD
+                    &#x1F513; FREE CD
                   </Button>
                 )}
-              </div>
-            ) : null}
-            {resolvePreview ? (
-              <div className="w-full rounded-2xl border border-white/10 bg-zinc-900/80 px-3 py-2 text-[11px]">
-                <div className="mb-1.5 text-center text-[10px] font-black uppercase tracking-widest text-zinc-400">If you resolve now</div>
-                <div className="flex items-center justify-center gap-4">
-                  {/* Enemy */}
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="text-[10px] text-zinc-500">Enemy HP</span>
-                    <div className="flex items-center gap-1 font-black">
-                      <span className="text-red-400">{game.enemy.hp}</span>
-                      <span className="text-zinc-500">→</span>
-                      <span className={resolvePreview.enemyHpAfter <= 0 ? "text-emerald-400" : "text-orange-300"}>{Math.max(0, resolvePreview.enemyHpAfter)}</span>
-                    </div>
-                    {resolvePreview.totals.attack > 0 && <span className="text-[10px] text-red-400">⚔️ -{resolvePreview.totals.attack}</span>}
-                  </div>
-                  <div className="h-8 w-px bg-white/10" />
-                  {/* Player HP */}
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="text-[10px] text-zinc-500">Your HP</span>
-                    <div className="flex items-center gap-1 font-black">
-                      <span className="text-zinc-300">{game.player.hp}</span>
-                      <span className="text-zinc-500">→</span>
-                      <span className={resolvePreview.playerHpAfter > game.player.hp ? "text-emerald-400" : "text-zinc-300"}>{resolvePreview.playerHpAfter}</span>
-                    </div>
-                    {resolvePreview.totals.heal > 0 && <span className="text-[10px] text-emerald-400">❤️ +{resolvePreview.totals.heal}</span>}
-                  </div>
-                  {resolvePreview.totals.shield > 0 && (
-                    <>
-                      <div className="h-8 w-px bg-white/10" />
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className="text-[10px] text-zinc-500">Shield</span>
-                        <span className="font-black text-sky-300">+{resolvePreview.totals.shield}</span>
-                        <span className="text-[9px] text-sky-400/70">blocks first</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            ) : null}
-            {game.phase === "place" && game.grid.some(row => row.some(cell => cell !== null)) ? (
-              BTN_IMAGES.resolve ? (
-                <ActionBtn
-                  imgSrc={BTN_IMAGES.resolve}
-                  label="✅ RESOLVE"
-                  onClick={manualResolve}
-                />
-              ) : (
-                <Button onClick={manualResolve} className="rounded-2xl border border-emerald-400/40 bg-gradient-to-b from-emerald-700/70 to-emerald-900/80 px-5 py-2.5 text-sm font-black text-white hover:from-emerald-600/80 hover:to-emerald-800 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]">
-                  ✅ RESOLVE
-                </Button>
-              )
+              </>
             ) : null}
             {game.player.companion && (game.phase === "roll" || game.phase === "place") ? (
               <Button
                 onClick={activateCompanionActive}
                 disabled={game.player.companion.cooldownRemaining > 0}
-                className={`rounded-2xl border px-3 py-2.5 text-sm font-black transition ${game.player.companion.cooldownRemaining === 0 ? 'border-emerald-400/50 bg-emerald-600/25 text-emerald-100 hover:bg-emerald-600/40' : 'border-zinc-600/40 bg-zinc-800/50 text-zinc-500 cursor-not-allowed opacity-60'}`}
+                className={`rounded-2xl border py-2.5 text-sm font-black transition ${
+                  game.player.companion.cooldownRemaining === 0
+                    ? 'border-emerald-400/50 bg-emerald-600/25 text-emerald-100 hover:bg-emerald-600/40'
+                    : 'border-zinc-600/40 bg-zinc-800/50 text-zinc-500 cursor-not-allowed opacity-60'
+                }`}
               >
-                {game.player.companion.emoji} {game.player.companion.active.name}
+                {game.player.companion.emoji}
                 {game.player.companion.cooldownRemaining > 0 ? ` (${game.player.companion.cooldownRemaining})` : ' ✓'}
               </Button>
             ) : null}
@@ -2990,59 +3176,84 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                     key={`weapon-slot-${slotIndex}`}
                     onClick={() => useWeaponSpecial(slotIndex)}
                     disabled={!ready}
-                    className={`rounded-2xl border px-3 py-2.5 text-sm font-black transition ${ready ? 'border-amber-400/50 bg-amber-600/20 text-amber-100 hover:bg-amber-600/35' : 'border-zinc-600/40 bg-zinc-800/50 text-zinc-500 cursor-not-allowed opacity-60'}`}
+                    className={`rounded-2xl border py-2.5 text-sm font-black transition ${
+                      ready
+                        ? 'border-amber-400/50 bg-amber-600/20 text-amber-100 hover:bg-amber-600/35'
+                        : 'border-zinc-600/40 bg-zinc-800/50 text-zinc-500 cursor-not-allowed opacity-60'
+                    }`}
                   >
-                    <span style={{ color: RARITY_COLORS[weapon.rarity] }}>⚔️</span>{' '}
-                    <span>{weapon.name}</span>{' '}
+                    <span style={{ color: RARITY_COLORS[weapon.rarity] }}>&#x2694;&#xFE0F;</span>{' '}
                     <span className="text-[10px]">{ready ? 'READY' : `${weapon.cooldownRemaining}/${weapon.cooldown}`}</span>
                   </Button>
                 );
               })
             ) : null}
+            {game.phase === "place" && game.grid.some(row => row.some(cell => cell !== null)) ? (
+              BTN_IMAGES.resolve ? (
+                <ActionBtn
+                  imgSrc={BTN_IMAGES.resolve}
+                  label="RESOLVE"
+                  onClick={manualResolve}
+                />
+              ) : (
+                <Button
+                  onClick={manualResolve}
+                  className="flex-1 rounded-2xl border border-emerald-400/40 bg-gradient-to-b from-emerald-700/70 to-emerald-900/80 py-2.5 text-sm font-black text-white hover:from-emerald-600/80 hover:to-emerald-800 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]"
+                >
+                  &#x2705; RESOLVE
+                </Button>
+              )
+            ) : null}
             {(game.phase === "roll" || game.phase === "place") && game.mapLayers && (
               <Button
                 onClick={() => setGame(g => ({ ...g, phase: 'map' }))}
-                className="rounded-xl border border-amber-400/25 bg-amber-900/30 px-3 py-1.5 text-xs font-black text-amber-200 hover:bg-amber-900/50"
+                className="rounded-xl border border-amber-400/25 bg-amber-900/30 px-2 py-2 text-xs font-black text-amber-200 hover:bg-amber-900/50"
               >
-                🗺️ MAP
+                &#x1F5FA;&#xFE0F;
               </Button>
             )}
             {(game.phase === "gameover" || game.phase === "victory") ? (
               <>
-                <Button onClick={shareRun} className="rounded-2xl bg-sky-500/35 px-4 py-2.5 text-sm font-black text-white hover:bg-sky-500/50">Share run</Button>
+                <Button onClick={shareRun} className="flex-1 rounded-2xl bg-sky-500/35 py-2.5 text-sm font-black text-white hover:bg-sky-500/50">Share</Button>
                 {BTN_IMAGES.restart ? (
-                  <ActionBtn imgSrc={BTN_IMAGES.restart} label="↺ RESTART" onClick={restart} />
+                  <ActionBtn imgSrc={BTN_IMAGES.restart} label="RESTART" onClick={restart} />
                 ) : (
-                  <Button onClick={restart} className="rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-black hover:bg-zinc-200">↺ Play again</Button>
+                  <Button onClick={restart} className="flex-1 rounded-2xl bg-white py-2.5 text-sm font-black text-black hover:bg-zinc-200">&#x21BA; Play again</Button>
                 )}
               </>
             ) : null}
           </div>
 
-          <div className="flex min-h-[56px] items-center justify-center gap-2">
-            {game.phase === "place" ? (
-              <Button onClick={() => shiftSelectedDie(-1)} className="h-10 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-4 text-white hover:from-zinc-700 hover:to-zinc-800">⬅️</Button>
-            ) : null}
-            <div className="flex min-h-[56px] flex-wrap items-start justify-center gap-1.5">
-            {game.dice.some((d) => d !== null) ? (
-              game.dice.map((die, i) => die !== null ? (
-                <DiceFace
-                  key={`${die.id}-${i}-${game.rolling}`}
-                  value={die}
-                  selected={i === activeDieIndex && game.phase === "place"}
-                  rolling={game.rolling}
-                  onClick={game.phase === "place" ? () => setGame((g) => ({ ...g, selectedDieIndex: i })) : undefined}
-                />
-              ) : null)
-            ) : (
-              <div className="text-[11px] text-zinc-100">🎲 No dice yet. Press <span className="font-black text-amber-300">ROLL</span>.</div>
-            )}
+          {/* Resolve preview (compact) */}
+          {resolvePreview ? (
+            <div className="shrink-0 rounded-[10px] border border-white/10 bg-zinc-900/80 px-2 py-1 text-[10px]">
+              <div className="flex items-center justify-center gap-3">
+                <span className="text-zinc-500 text-[9px] font-black uppercase">If resolve:</span>
+                <span>
+                  Enemy{' '}
+                  <span className="text-red-400">{game.enemy.hp}</span>
+                  {' '}&#x2192;{' '}
+                  <span className={resolvePreview.enemyHpAfter <= 0 ? "text-emerald-400" : "text-orange-300"}>
+                    {Math.max(0, resolvePreview.enemyHpAfter)}
+                  </span>
+                </span>
+                <span>
+                  You{' '}
+                  <span className="text-zinc-300">{game.player.hp}</span>
+                  {' '}&#x2192;{' '}
+                  <span className={resolvePreview.playerHpAfter > game.player.hp ? "text-emerald-400" : "text-zinc-300"}>
+                    {resolvePreview.playerHpAfter}
+                  </span>
+                </span>
+                {resolvePreview.totals.shield > 0 && (
+                  <span className="text-sky-300">&#x1F6E1;&#xFE0F;+{resolvePreview.totals.shield}</span>
+                )}
+              </div>
             </div>
-            {game.phase === "place" ? (
-              <Button onClick={() => shiftSelectedDie(1)} className="h-10 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-4 text-white hover:from-zinc-700 hover:to-zinc-800">➡️</Button>
-            ) : null}
-          </div>
-          <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 text-[11px] text-zinc-400 select-none">
+          ) : null}
+
+          {/* Auto-resolve toggle */}
+          <label className="shrink-0 flex cursor-pointer items-center justify-center gap-1.5 text-[10px] text-zinc-400 select-none">
             <input
               type="checkbox"
               checked={autoResolve}
@@ -3050,100 +3261,58 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 setAutoResolve(e.target.checked);
                 try { localStorage.setItem('jk_auto_resolve', String(e.target.checked)); } catch {}
               }}
-              className="h-3.5 w-3.5 accent-emerald-400"
+              className="h-3 w-3 accent-emerald-400"
             />
-            <span>Auto-resolve <span className="text-zinc-500">(place all dice = instant resolve)</span></span>
+            <span>Auto-resolve</span>
           </label>
-        </SectionCard>
 
-
-
-
-
-        <SectionCard title="Board" className="order-3 md:order-3" right={<div className="text-[9px] text-zinc-300">Place dice on available slots</div>}>
-          {activeDieMeta && game.phase === "place" ? (
-            <div className="mb-2 flex items-center gap-2 rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-2 py-1.5 text-[11px] text-white">
-              <span className="text-lg">{activeDieMeta.emoji}</span>
-              <div>
-                <div className="text-[12px] font-black text-amber-300">Next die: {activeDieMeta.label}</div>
-                <div className="text-[10px] text-zinc-100">{activeDieMeta.desc}</div>
-              </div>
+          {/* ── Band 6: BOTTOM STATUS BAR ─────────────────────────── */}
+          <div className="shrink-0 flex items-center justify-between rounded-[12px] border border-white/10 bg-black/40 px-3 py-1" style={{ minHeight: 28 }}>
+            <span className="text-[11px] font-black text-yellow-300">&#x1FA99; {game.player.coins || 0}</span>
+            <span className="flex-1 mx-2 truncate text-center text-[9px] text-zinc-300">{latestAction.slice(0, 40)}</span>
+            <div className="flex items-center gap-1.5">
+              {game.noHitTurns > 0 ? (
+                <span className="text-[10px] font-black text-lime-300">&#x1F525; {game.noHitTurns}</span>
+              ) : (
+                <span className="text-[9px] uppercase tracking-[0.12em] text-zinc-500">{game.phase}</span>
+              )}
+              <button
+                onClick={() => setGame((g) => ({ ...g, showAllLogs: !g.showAllLogs }))}
+                className="rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-white hover:bg-white/20"
+              >
+                {game.showAllLogs ? "&#x25B2;" : "&#x25BC;"}
+              </button>
             </div>
-          ) : null}
+          </div>
 
-          <div className="grid justify-center gap-1 [grid-template-columns:32px_repeat(3,72px)] md:[grid-template-columns:40px_repeat(3,84px)]">
-            {ROW_INFO.map((row, y) => (
-              <React.Fragment key={row.name}>
-                <div className="h-[72px] rounded-[10px] border border-white/15 bg-black flex flex-col items-center justify-center text-[9px] font-black text-white md:h-[84px] md:text-[10px]">
-                  <span>{row.emoji}</span>
-                  <span>x{rowMultiplier(game.player, y)}</span>
-                  <span className="text-[8px] text-zinc-300">{row.role}</span>
+          {/* Expandable log */}
+          <AnimatePresence>
+            {game.showAllLogs ? (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="shrink-0 overflow-hidden"
+              >
+                <div className="max-h-28 space-y-0.5 overflow-auto pr-1">
+                  {game.log.slice(0, 12).map((line, i) => (
+                    <div key={`${line}-${i}`} className="rounded-[8px] border border-white/10 bg-black/35 px-2 py-0.5 text-[9px] text-zinc-100">{line}</div>
+                  ))}
                 </div>
-                {game.grid[y].map((cell, x) => {
-                  const cooldown = game.cooldowns[y][x];
-                  const blocked = cooldown > 0;
-                  const canPlace = game.phase === "place" && !blocked && cell === null && activeDieIndex !== null;
-                  const meta = cell !== null ? getDieMeta(cell) : null;
-                  return (
-                    <button
-                      key={`${x}-${y}`}
-                      onClick={() => activeDieIndex !== null && placeDie(activeDieIndex, x, y)}
-                      onMouseEnter={() => setHoveredSlot({ x, y })}
-                      onMouseLeave={() => setHoveredSlot(null)}
-                      className={`relative h-[72px] w-[72px] overflow-hidden rounded-[10px] border text-white transition md:h-[84px] md:w-[84px] ${canPlace ? "border-amber-300/60 ring-2 ring-amber-300/20" : "border-white/20"}`}
-                    >
-                      <img src={LANE_IMAGES[y]} className="absolute inset-0 h-full w-full object-contain" />
-                      {cell !== null ? (
-                        <>
-                          <div className="absolute inset-0 bg-black/10" />
-                          <img src={getDieImage(cell)} className="absolute inset-0 h-full w-full object-contain" />
-                          <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 rounded bg-black/60 px-1 text-[9px] font-black">
-                            {meta?.emoji} {cell.value}
-                          </div>
-                        </>
-                      ) : blocked ? (
-                        <>
-                          <div className="absolute inset-0 bg-red-950/60" />
-                          <div className="absolute inset-0 flex flex-col items-center justify-center text-[10px] font-bold">
-                            ⏳ {cooldown}
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="absolute inset-0 bg-black/25" />
-                          <div className="absolute inset-0 flex flex-col items-center justify-center text-[13px] font-bold tracking-[0.08em]">
-                            PLACE
-                            {canPlace ? <span className="text-[10px] text-amber-200">{activeDieMeta?.emoji}</span> : null}
-                          </div>
-                        </>
-                      )}
-                    </button>
-                  );
-                })}
-              </React.Fragment>
-            ))}
-          </div>
-        </SectionCard>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
 
+        </div>
+        {/* ── END COMBAT 6-BAND LAYOUT ──────────────────────────── */}
 
-        <SectionCard title="Combat log" className="order-4 md:order-4">
-          <div className="space-y-1">
-            {latestLogs.map((line, i) => (
-              <div key={`${line}-${i}`} className="rounded-[12px] border border-white/10 bg-zinc-900/80 px-2.5 py-1.5 text-[11px] md:text-xs">{line}</div>
-            ))}
-          </div>
-          <div className="my-2 grid max-w-[360px] grid-cols-5 gap-1">
-            {game.route.map((enemy, index) => {
-              const state = index < game.room ? "done" : index === game.room ? "current" : "hidden";
-              return <RouteCard key={`${enemy.name}-${index}`} enemy={enemy} state={state} />;
-            })}
-          </div>
-          <div className="max-h-32 space-y-1 overflow-auto pt-1.5 md:max-h-28">
-            {game.log.slice(3, 20).map((line, i) => (
-              <div key={`${line}-${i}`} className="rounded-[12px] border border-white/10 bg-black/35 px-2.5 py-1.5 text-[10px] text-zinc-100">{line}</div>
-            ))}
-          </div>
-        </SectionCard>
+        {/* Route card row (always visible below combat bands) */}
+        <div className="shrink-0 my-1 grid max-w-[360px] grid-cols-5 gap-1 mx-auto">
+          {game.route.map((enemy, index) => {
+            const state = index < game.room ? "done" : index === game.room ? "current" : "hidden";
+            return <RouteCard key={`${enemy.name}-${index}`} enemy={enemy} state={state} />;
+          })}
+        </div>
 
 
 
