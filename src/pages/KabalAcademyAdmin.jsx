@@ -96,6 +96,8 @@ export default function KabalAcademyAdmin() {
   const [expandedModules, setExpandedModules] = useState(new Set());
   const [translateLang, setTranslateLang] = useState("en");
   const [translating, setTranslating] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [translateError, setTranslateError] = useState(null);
 
   useEffect(() => {
     try {
@@ -119,6 +121,8 @@ export default function KabalAcademyAdmin() {
       setSelectedModuleId(hydrated.modules[0]?.id || "");
       setSelectedLessonId(hydrated.modules[0]?.lessons?.[0]?.id || "");
       setSelectedPackId(hydrated.packs[0]?.id || "pack-beta-season");
+    }).catch(() => {
+      // fallback silencieux : le contenu seed est déjà en place
     });
   }, [seed]);
 
@@ -147,8 +151,14 @@ export default function KabalAcademyAdmin() {
 
   const saveAll = async () => {
     setSaving(true);
-    await saveAcademyContent({ ...content, updatedAt: new Date().toISOString() });
-    setSaving(false);
+    setSaveError(null);
+    try {
+      await saveAcademyContent({ ...content, updatedAt: new Date().toISOString() });
+    } catch {
+      setSaveError("Échec de la sauvegarde. Vérifie ta connexion et réessaye.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleModule = (targetModuleId) => {
@@ -220,6 +230,7 @@ export default function KabalAcademyAdmin() {
     const trimmed = String(text || "").trim();
     if (!trimmed) return "";
     const resp = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(trimmed)}&langpair=fr|${encodeURIComponent(targetLang)}`);
+    if (!resp.ok) throw new Error(`Traduction échouée (${resp.status})`);
     const data = await resp.json();
     return data?.responseData?.translatedText || trimmed;
   };
@@ -235,8 +246,9 @@ export default function KabalAcademyAdmin() {
         if (lesson) lesson.content = translated;
         return draft;
       });
-    } catch (error) {
-      console.error("translation_failed", error);
+      setTranslateError(null);
+    } catch {
+      setTranslateError("Traduction échouée. Vérifie ta connexion.");
     } finally {
       setTranslating(false);
     }
@@ -253,8 +265,9 @@ export default function KabalAcademyAdmin() {
         if (block) block.content = translated;
         return draft;
       });
-    } catch (error) {
-      console.error("translation_failed", error);
+      setTranslateError(null);
+    } catch {
+      setTranslateError("Traduction du bloc échouée. Vérifie ta connexion.");
     } finally {
       setTranslating(false);
     }
@@ -306,8 +319,9 @@ export default function KabalAcademyAdmin() {
         });
         return draft;
       });
-    } catch (error) {
-      console.error("translation_whole_lesson_failed", error);
+      setTranslateError(null);
+    } catch {
+      setTranslateError("Traduction complète de la leçon échouée. Vérifie ta connexion.");
     } finally {
       setTranslating(false);
     }
@@ -331,6 +345,7 @@ export default function KabalAcademyAdmin() {
             })}>Packs placeholder (x3)</Button>
             <img src={JK_LOGO_FULL} alt="Jungle Kabal" className="h-5 w-auto opacity-70" /><a href="/academy" className="rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-300">Voir la version publique</a>
             <span className="text-xs text-zinc-400">Une sauvegarde met à jour les versions public/admin. API: /api/academy/content (fallback localStorage).</span>
+            {saveError && <span className="w-full text-xs text-red-400">{saveError}</span>}
           </CardContent>
         </Card>
 
@@ -505,6 +520,7 @@ export default function KabalAcademyAdmin() {
                       </select>
                       <button onClick={translateLessonContent} disabled={translating} className="rounded-lg border border-amber-300/30 bg-amber-400/10 px-2 py-1 text-xs text-amber-200 disabled:opacity-40">{translating ? "Traduction..." : "Traduire le contenu"}</button>
                       <button onClick={translateWholeLesson} disabled={translating} className="rounded-lg border border-fuchsia-300/30 bg-fuchsia-400/10 px-2 py-1 text-xs text-fuchsia-200 disabled:opacity-40">{translating ? "Traduction..." : "Traduire toute la lesson"}</button>
+                      {translateError && <span className="text-xs text-red-400">{translateError}</span>}
                     </div>
                     <Textarea value={selectedLesson.content || ""} onChange={(e) => patchContent((draft) => { const module = draft.modules.find((item) => item.id === selectedModule.id); module.lessons.find((lesson) => lesson.id === selectedLesson.id).content = e.target.value; return draft; })} className="min-h-[140px]" placeholder="Contenu principal" />
                   </div>
