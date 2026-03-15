@@ -264,7 +264,7 @@ export function hasWeaponSlot(meta: MetaProgressionState): boolean {
 }
 
 export function hasDualWeaponSlot(meta: MetaProgressionState): boolean {
-  return isUnlocked(meta, 'weapon_slot_2');
+  return computeLevel(meta.xp) >= 7 && isUnlocked(meta, 'weapon_slot_2');
 }
 
 export function hasCompanionSlot(meta: MetaProgressionState): boolean {

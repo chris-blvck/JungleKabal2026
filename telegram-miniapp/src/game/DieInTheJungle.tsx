@@ -38,11 +38,21 @@ import {
   xpToNextLevel,
   canPlayKKM,
   hasWeaponSlot,
+  hasDualWeaponSlot,
   hasCompanionSlot,
   hasDiceSpecials,
   hasLaneBonuses,
   getUnlockedCompanions,
 } from "../lib/metaProgression";
+import {
+  type Weapon,
+  buildWeapon,
+  buildAllWeapons,
+  applyWeaponPassives,
+  getWeaponArchetypeEmoji,
+  getWeaponRarityColor,
+  getWeaponRarityBorder,
+} from "./weaponSystem";
 
 const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
 
@@ -78,17 +88,50 @@ const PLAYER_CHARACTERS = {
     id: "kabalian",
     name: "Kabalian",
     avatar: PLAYER_AVATAR_URL,
-    subtitle: "Aggro · 24 HP · +1 ATK · 2 rerolls",
-    stats: { maxHp: 24, attackBonus: 1, rerollsPerTurn: 2, combatStartShield: 0 },
+    subtitle: "Aggro · 20 HP · +1 ATK · 2 rerolls",
+    stats: { maxHp: 20, attackBonus: 1, rerollsPerTurn: 2, combatStartShield: 0 },
   },
   kkm: {
     id: "kkm",
     name: "KKM",
     avatar: KKM_AVATAR_URL,
-    subtitle: "Tank · 34 HP · +4 start shield",
-    stats: { maxHp: 34, attackBonus: 0, rerollsPerTurn: 1, combatStartShield: 4 },
+    subtitle: "Tank · 28 HP · +4 start shield",
+    stats: { maxHp: 28, attackBonus: 0, rerollsPerTurn: 1, combatStartShield: 4 },
   },
 };
+
+// ── Character powers (unique per character, not shared) ──────────────────────
+const CHARACTER_POWERS: Record<string, { id: string; name: string; desc: string }> = {
+  kabalian: {
+    id: 'ka_rage',
+    name: 'Ka Rage ⚡',
+    desc: 'When HP drops below 50%, permanently gain +3 ATK for the rest of the run.',
+  },
+  kkm: {
+    id: 'ka_fortress',
+    name: 'Ka Fortress 🛡️',
+    desc: 'Shield carries over between rooms (persists up to 8). Never start a fight at 0.',
+  },
+};
+
+// ── Build persistence ────────────────────────────────────────────────────────
+const BUILD_KEY = 'jk_last_build_v1';
+function loadBuild(): { characterId: string; weaponIds: string[] } | null {
+  try { return JSON.parse(localStorage.getItem(BUILD_KEY) || 'null'); } catch { return null; }
+}
+function saveBuild(characterId: string, weaponIds: string[]): void {
+  localStorage.setItem(BUILD_KEY, JSON.stringify({ characterId, weaponIds }));
+}
+
+// ── Pre-run weapon offer (1 common per archetype) ────────────────────────────
+const STARTER_WEAPON_OFFER: Weapon[] = [
+  buildWeapon('blade-short', 'common'),
+  buildWeapon('staff-bone', 'common'),
+  buildWeapon('shield-bark', 'common'),
+  buildWeapon('totem-bone', 'common'),
+  buildWeapon('cannon-small', 'common'),
+  buildWeapon('fang-snake', 'common'),
+];
 
 const DICE_IMAGES = {
   1: "https://i.postimg.cc/mk4Rdw2K/Dice-1.png",
@@ -659,8 +702,13 @@ function buildRoute(floor = 1) {
     const source = enemyBuckets[type][used[type]++];
     const base = cloneEnemy(source);
     const scale = floor - 1;
-    const hpScale = type === "boss" ? 8 : type === "elite" ? 5 : 3;
-    const dmgScale = type === "boss" ? 2 : 1;
+    const hpScale = type === "boss" ? 12 : type === "elite" ? 7 : 5;
+    const dmgScale = type === "boss" ? 3 : 2;
+    // Base difficulty boost (+35% HP, +25% damage on all intents)
+    base.hp = Math.round(base.hp * 1.35);
+    base.intents = base.intents.map((i) => ({
+      ...i, value: i.type === 'attack' ? Math.round(i.value * 1.25) : i.value,
+    }));
     base.hp += scale * hpScale;
     base.maxHp = base.hp;
     base.damage += scale * dmgScale;
@@ -1216,24 +1264,34 @@ function applyArtifactToPlayer(player, artifact) {
   };
 }
 
-function makeInitialPlayer(characterId = "kabalian") {
+function makeInitialPlayer(characterId = "kabalian", equippedWeapons: Weapon[] = []) {
   const selected = PLAYER_CHARACTERS[characterId] || PLAYER_CHARACTERS.kabalian;
-  return {
-    hp: selected.stats.maxHp,
+  const base = {
+    attackBonus: selected.stats.attackBonus,
+    healBonus: 0,
+    shieldMultiplier: 1,
+    rerollsPerTurn: selected.stats.rerollsPerTurn,
+    cooldownTick: 1,
     maxHp: selected.stats.maxHp,
+    topRowBonus: 0,
+  };
+  const boosted = applyWeaponPassives(base, equippedWeapons);
+  return {
+    hp: boosted.maxHp,
+    maxHp: boosted.maxHp,
     shield: 0,
     avatar: selected.avatar,
     characterId: selected.id,
     cooldownBase: 3,
-    cooldownTick: 1,
+    cooldownTick: boosted.cooldownTick,
     dicePerTurn: 3,
-    rerollsPerTurn: selected.stats.rerollsPerTurn,
-    rerollsLeft: selected.stats.rerollsPerTurn,
-    attackBonus: selected.stats.attackBonus,
+    rerollsPerTurn: boosted.rerollsPerTurn,
+    rerollsLeft: boosted.rerollsPerTurn,
+    attackBonus: boosted.attackBonus,
     attackDieValueBonus: 0,
-    healBonus: 0,
-    shieldMultiplier: 1,
-    topRowBonus: 0,
+    healBonus: boosted.healBonus,
+    shieldMultiplier: boosted.shieldMultiplier,
+    topRowBonus: boosted.topRowBonus,
     timedResetEvery: 0,
     combatStartShield: selected.stats.combatStartShield || 0,
     selfBleed: 0,
@@ -1244,13 +1302,18 @@ function makeInitialPlayer(characterId = "kabalian") {
     companion: null as Companion | null,
     _fortressShield: 0,
     companionHypnosisActive: false,
+    weapons: equippedWeapons,
+    kaRageActive: false,
+    speed: 5,
   };
 }
 
-function makeInitialState() {
+function makeInitialState(preBuild?: { characterId: string; weapons: Weapon[] }) {
   const floor = 1;
   const route = buildRoute(floor);
-  const player = makeInitialPlayer();
+  const player = preBuild
+    ? makeInitialPlayer(preBuild.characterId, preBuild.weapons)
+    : makeInitialPlayer();
   player.shield = player.combatStartShield;
   const runSeed = generateRunSeed();
   return {
@@ -1274,7 +1337,8 @@ function makeInitialState() {
     artifactsOffered: [],
     combatRewardPending: false,
     startRewardPending: true,
-    characterSelectPending: true,
+    characterSelectPending: !preBuild,
+    weaponSelectPending: false,
     score: 0,
     noHitTurns: 0,
     runSeed,
@@ -1283,6 +1347,7 @@ function makeInitialState() {
     actionFlash: null,
     enemyAttackPulse: 0,
     enemyHitPulse: 0,
+    playerDamageFlash: 0,
     damagePopups: [],
     scorePopups: [],
     comboPopup: null,
@@ -1303,6 +1368,7 @@ function serializeGameState(game) {
     player: {
       ...game.player,
       artifacts: game.player.artifacts.map((artifact) => artifact.id),
+      weapons: (game.player.weapons || []).map((w: Weapon) => w.id),
     },
     artifactsOffered: game.artifactsOffered.map((artifact) => artifact.id),
   };
@@ -1312,15 +1378,21 @@ function hydrateGameState(rawState) {
   if (!rawState || typeof rawState !== "object") return null;
   const safe = { ...rawState };
   const byId = new Map(ARTIFACT_POOL.map((artifact) => [artifact.id, artifact]));
+  const allWeapons = buildAllWeapons();
+  const weaponById = new Map(allWeapons.map((w) => [w.id, w]));
   safe.player = {
     ...safe.player,
     characterId: safe.player?.characterId || "kabalian",
     avatar: safe.player?.avatar || PLAYER_CHARACTERS.kabalian.avatar,
     artifacts: (safe.player?.artifacts || []).map((id) => byId.get(id)).filter(Boolean),
+    weapons: (safe.player?.weapons || []).map((id) => weaponById.get(id)).filter(Boolean),
+    kaRageActive: safe.player?.kaRageActive ?? false,
+    speed: safe.player?.speed ?? 5,
   };
   safe.artifactsOffered = (safe.artifactsOffered || []).map((id) => byId.get(id)).filter(Boolean);
   safe.enemyAttackPulse = 0;
   safe.enemyHitPulse = 0;
+  safe.playerDamageFlash = 0;
   safe.damagePopups = [];
   safe.scorePopups = [];
   safe.comboPopup = null;
@@ -1330,6 +1402,7 @@ function hydrateGameState(rawState) {
   safe.noHitTurns = Number.isFinite(safe.noHitTurns) ? safe.noHitTurns : 0;
   safe.runSeed = safe.runSeed || generateRunSeed();
   safe.characterSelectPending = Boolean(safe.characterSelectPending);
+  safe.weaponSelectPending = Boolean(safe.weaponSelectPending);
   safe.mapLayers = safe.mapLayers ?? null;
   safe.currentMapNodeId = safe.currentMapNodeId ?? null;
   safe.pendingEvent = safe.pendingEvent ?? null;
@@ -1485,6 +1558,10 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     try { return localStorage.getItem('jk_auto_resolve') === 'true'; } catch { return false; }
   });
   const [showAdvancedGuide, setShowAdvancedGuide] = useState(false);
+  // Build selection state (2-step modal: character → weapons)
+  const [buildStep, setBuildStep] = useState<'character' | 'weapons'>('character');
+  const [pendingCharId, setPendingCharId] = useState('kabalian');
+  const [pendingWeaponIds, setPendingWeaponIds] = useState<string[]>([]);
 
   const activeDieIndex = useMemo(() => {
     if (game.selectedDieIndex !== null && game.dice[game.selectedDieIndex] !== null) return game.selectedDieIndex;
@@ -1574,35 +1651,56 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     setGame((g) => ({ ...g, log: [...lines, ...g.log].slice(0, 40) }));
   }
 
-  function pickCharacter(characterId) {
+  function pickCharacter(characterId: string) {
+    // Step 1: store chosen character, move to weapon select step
+    setPendingCharId(characterId);
+    setPendingWeaponIds([]);
+    setBuildStep('weapons');
+  }
+
+  function confirmBuild(characterId: string, weaponIds: string[]) {
+    // Reconstruct weapon objects from IDs
+    const allW = buildAllWeapons();
+    const wById = new Map(allW.map((w) => [w.id, w]));
+    const weapons = weaponIds.map((id) => wById.get(id)).filter(Boolean) as Weapon[];
+    // Persist build
+    saveBuild(characterId, weaponIds);
+    // Build player with weapons applied
     const selected = PLAYER_CHARACTERS[characterId] || PLAYER_CHARACTERS.kabalian;
     setGame((g) => {
-      const nextPlayer = {
-        ...g.player,
-        characterId: selected.id,
-        avatar: selected.avatar,
-        maxHp: selected.stats.maxHp,
-        hp: selected.stats.maxHp,
-        attackBonus: selected.stats.attackBonus,
-        combatStartShield: selected.stats.combatStartShield || 0,
-        shield: selected.stats.combatStartShield || 0,
-        rerollsPerTurn: selected.stats.rerollsPerTurn,
-        rerollsLeft: selected.stats.rerollsPerTurn,
-        coins: 0,
-      };
+      const nextPlayer = makeInitialPlayer(characterId, weapons);
+      nextPlayer.shield = nextPlayer.combatStartShield;
       const mapLayers = generateZoneMap(g.floor, g.runSeed);
       return {
         ...g,
         player: nextPlayer,
         characterSelectPending: false,
+        weaponSelectPending: false,
         phase: "map",
         mapLayers,
         currentMapNodeId: null,
         avatarMood: "focus",
         actionFlash: { id: Date.now(), text: `🧭 ${selected.name} — choose your path`, tone: "sky" },
-        log: [`🧭 Character selected: ${selected.name}`, `🗺️ Zone ${g.floor} map generated`, ...g.log].slice(0, 40),
+        log: [`🧭 ${selected.name} + ${weapons.length} weapon${weapons.length !== 1 ? 's' : ''} equipped`, `🗺️ Zone ${g.floor} map generated`, ...g.log].slice(0, 40),
       };
     });
+    setBuildStep('character');
+  }
+
+  function quickRestart() {
+    if (onBeforeRestart && !onBeforeRestart()) {
+      setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "🚫 No run tickets left", tone: "rose" } }));
+      return;
+    }
+    const saved = loadBuild();
+    if (saved) {
+      const allW = buildAllWeapons();
+      const wById = new Map(allW.map((w) => [w.id, w]));
+      const weapons = saved.weaponIds.map((id) => wById.get(id)).filter(Boolean) as Weapon[];
+      setGame(makeInitialState({ characterId: saved.characterId, weapons }));
+    } else {
+      setGame(makeInitialState());
+    }
   }
 
   function startRoll() {
@@ -1781,6 +1879,13 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
             if (shieldBlocked > 0) {
               damagePopups.push({ id: `${Date.now()}-player-block`, target: "player", tone: "shield", text: `🛡️ ${shieldBlocked}`, ...getPopupPosition("player") });
             }
+          }
+          // Ka Rage: Kabalian gains +3 ATK when HP first drops below 50%
+          if (player.characterId === 'kabalian' && !player.kaRageActive && player.hp > 0 && player.hp < player.maxHp / 2) {
+            player.kaRageActive = true;
+            player.attackBonus = (player.attackBonus || 0) + 3;
+            log.unshift(`⚡ Ka Rage activated! +3 ATK for the rest of the run.`);
+            damagePopups.push({ id: `${Date.now()}-ka-rage`, target: "player", tone: "heal", text: `⚡ Ka Rage!`, ...getPopupPosition("player") });
           }
         }
       }
@@ -1966,6 +2071,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         actionFlash,
         enemyAttackPulse,
         enemyHitPulse,
+        playerDamageFlash: hpDamageTaken > 0 ? Date.now() : g.playerDamageFlash,
         damagePopups,
         scorePopups,
         comboPopup,
@@ -2112,7 +2218,14 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           currentMapNodeId: nodeId,
           enemy: base,
           phase: "roll",
-          player: { ...g.player, shield: g.player.combatStartShield, rerollsLeft: g.player.rerollsPerTurn },
+          player: {
+            ...g.player,
+            // Ka Fortress: KKM keeps shield between rooms (capped at 8), others reset to combatStartShield
+            shield: g.player.characterId === 'kkm'
+              ? Math.min(g.player.shield, 8)
+              : g.player.combatStartShield,
+            rerollsLeft: g.player.rerollsPerTurn,
+          },
           cooldowns: emptyCooldowns(),
           grid: emptyGrid(),
           dice: [],
@@ -2293,6 +2406,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
       setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "🚫 No run tickets left", tone: "rose" } }));
       return;
     }
+    setBuildStep('character');
+    setPendingWeaponIds([]);
     setGame(makeInitialState());
   }
 
@@ -2419,8 +2534,14 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     })()
     : null;
 
+  // Damage flash: show red overlay for 500ms after taking damage
+  const isDamageFlashActive = game.playerDamageFlash > 0 && Date.now() - game.playerDamageFlash < 500;
+
   return (
     <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.84), rgba(0,0,0,.94)), url(${BG_URL})` }}>
+      {isDamageFlashActive && (
+        <div className="pointer-events-none fixed inset-0 z-[60] bg-red-600/30 animate-pulse" style={{ animationDuration: '0.25s' }} />
+      )}
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-1.5 pb-3 md:gap-2 bg-black/30 rounded-[28px]">
         <div className="rounded-[22px] border border-amber-300/20 bg-black/35 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md md:p-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2832,32 +2953,119 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
         <AnimatePresence>
           {game.characterSelectPending ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm">
               <div className="w-full max-w-3xl rounded-[28px] border border-cyan-300/25 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
-                <div className="mb-4 text-center">
-                  <div className="font-serif text-2xl italic text-amber-300">Choose your character</div>
-                  <div className="text-sm text-zinc-300">Choose your character before first fight. First artifact arrives after the first win.</div>
+                {/* Step indicator */}
+                <div className="mb-4 flex items-center justify-center gap-3">
+                  <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-black ${buildStep === 'character' ? 'bg-amber-400 text-black' : 'bg-emerald-500 text-white'}`}>
+                    {buildStep === 'character' ? '1' : '✓'}
+                  </div>
+                  <div className="h-px w-8 bg-white/20" />
+                  <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-black ${buildStep === 'weapons' ? 'bg-amber-400 text-black' : 'bg-white/15 text-zinc-400'}`}>2</div>
+                  <div className="ml-2 text-xs text-zinc-400">{buildStep === 'character' ? 'Choose character' : 'Equip weapons'}</div>
                 </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {Object.values(PLAYER_CHARACTERS).map((character) => {
-                    const isLocked = character.id === 'kkm' && !canPlayKKM(loadMeta());
-                    return (
-                      <button
-                        key={character.id}
-                        onClick={() => !isLocked && pickCharacter(character.id)}
-                        disabled={isLocked}
-                        className={`rounded-2xl border p-3 text-left transition ${isLocked ? 'border-zinc-700/50 bg-black/30 opacity-60 cursor-not-allowed' : 'border-white/15 bg-black/45 hover:border-amber-300/60 hover:bg-black/70'}`}
-                      >
-                        <div className="relative">
-                          <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
-                          {isLocked && <div className="absolute inset-0 flex items-center justify-center text-4xl">🔒</div>}
+
+                {buildStep === 'character' ? (
+                  <>
+                    <div className="mb-4 text-center">
+                      <div className="font-serif text-2xl italic text-amber-300">Choose Your Character</div>
+                      <div className="text-sm text-zinc-400">Each character has a unique power · weapons next</div>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {Object.values(PLAYER_CHARACTERS).map((character) => {
+                        const isLocked = character.id === 'kkm' && !canPlayKKM(loadMeta());
+                        const power = CHARACTER_POWERS[character.id];
+                        return (
+                          <button
+                            key={character.id}
+                            onClick={() => !isLocked && pickCharacter(character.id)}
+                            disabled={isLocked}
+                            className={`rounded-2xl border p-3 text-left transition ${isLocked ? 'border-zinc-700/50 bg-black/30 opacity-60 cursor-not-allowed' : 'border-white/15 bg-black/45 hover:border-amber-300/60 hover:bg-black/70'}`}
+                          >
+                            <div className="relative">
+                              <img src={character.avatar} alt={character.name} className="mb-2 h-32 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
+                              {isLocked && <div className="absolute inset-0 flex items-center justify-center text-4xl">🔒</div>}
+                            </div>
+                            <div className="font-black text-lg text-amber-200">{character.name} {isLocked ? '(Locked)' : ''}</div>
+                            <div className="text-xs text-zinc-300 mb-1">{isLocked ? 'Reach Level 3 · Defeat Zone 1 boss or spend 100 gems' : character.subtitle}</div>
+                            {power && !isLocked && (
+                              <div className="mt-1 rounded-lg border border-violet-400/30 bg-violet-500/10 px-2 py-1 text-[10px]">
+                                <span className="font-black text-violet-300">{power.name}</span>
+                                <span className="ml-1 text-zinc-300">{power.desc}</span>
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="mb-4 flex items-center justify-between">
+                      <div>
+                        <div className="font-serif text-2xl italic text-amber-300">Equip Weapons</div>
+                        <div className="text-sm text-zinc-400">
+                          {(() => {
+                            const meta = loadMeta();
+                            const slots = hasDualWeaponSlot(meta) ? 2 : hasWeaponSlot(meta) ? 1 : 0;
+                            return slots === 0 ? 'No weapon slot yet — select a build or unlock at Zone 2' : `Choose up to ${slots} weapon${slots > 1 ? 's' : ''}`;
+                          })()}
                         </div>
-                        <div className="font-black text-lg text-amber-200">{character.name} {isLocked ? '(Locked)' : ''}</div>
-                        <div className="text-xs text-zinc-300">{isLocked ? 'Reach Level 3 · Defeat Zone 1 boss or spend 100 gems' : character.subtitle}</div>
-                      </button>
-                    );
-                  })}
-                </div>
+                      </div>
+                      <button onClick={() => setBuildStep('character')} className="text-xs text-zinc-400 hover:text-white">← Back</button>
+                    </div>
+                    {(() => {
+                      const meta = loadMeta();
+                      const maxSlots = hasDualWeaponSlot(meta) ? 2 : hasWeaponSlot(meta) ? 1 : 0;
+                      return (
+                        <>
+                          <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                            {STARTER_WEAPON_OFFER.map((weapon) => {
+                              const selected = pendingWeaponIds.includes(weapon.id);
+                              const disabled = !selected && pendingWeaponIds.length >= maxSlots;
+                              return (
+                                <button
+                                  key={weapon.id}
+                                  onClick={() => {
+                                    if (disabled) return;
+                                    setPendingWeaponIds((ids) =>
+                                      ids.includes(weapon.id)
+                                        ? ids.filter((id) => id !== weapon.id)
+                                        : [...ids, weapon.id]
+                                    );
+                                  }}
+                                  className={`rounded-xl border p-2.5 text-left transition ${selected ? 'border-amber-300/70 bg-amber-400/15' : disabled ? 'border-zinc-700/40 bg-black/20 opacity-40 cursor-not-allowed' : 'border-white/15 bg-black/35 hover:border-white/40'}`}
+                                >
+                                  <div className="mb-1 flex items-center gap-1.5">
+                                    <span className="text-lg">{getWeaponArchetypeEmoji(weapon.archetype)}</span>
+                                    <span className={`text-sm font-black ${getWeaponRarityColor(weapon.rarity)}`}>{weapon.name}</span>
+                                    {selected && <span className="ml-auto text-amber-300">✓</span>}
+                                  </div>
+                                  <div className="text-[10px] text-zinc-300">{weapon.passive.description}</div>
+                                  <div className="mt-1 text-[10px] text-cyan-300">⚡ {weapon.special.description} (CD {weapon.special.cooldown}t)</div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {maxSlots === 0 && (
+                            <div className="mt-2 rounded-xl border border-zinc-600/40 bg-zinc-900/60 p-3 text-center text-xs text-zinc-400">
+                              No weapon slot unlocked. Defeat Zone 2 boss or spend 150 gems to unlock.
+                            </div>
+                          )}
+                          <div className="mt-4 flex items-center justify-between gap-3">
+                            <div className="text-xs text-zinc-400">{pendingWeaponIds.length}/{maxSlots} selected</div>
+                            <Button
+                              onClick={() => confirmBuild(pendingCharId, pendingWeaponIds)}
+                              className="rounded-2xl bg-amber-400 px-8 py-3 font-black text-black hover:bg-amber-300"
+                            >
+                              ⚔️ Start Run
+                            </Button>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </>
+                )}
               </div>
             </motion.div>
           ) : null}
@@ -3057,12 +3265,18 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">Zone: <span className="font-black">{game.floor}</span></div>
                   <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">Score: <span className="font-black">{game.score}</span></div>
                   <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">No-hit: <span className="font-black">{game.noHitTurns}T</span></div>
+                  {game.player.weapons?.length > 0 && (
+                    <div className="col-span-2 rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-xs">
+                      Weapons: <span className="font-black text-amber-200">{game.player.weapons.map((w: Weapon) => `${getWeaponArchetypeEmoji(w.archetype)} ${w.name}`).join(' · ')}</span>
+                    </div>
+                  )}
                   <div className="col-span-2 rounded-xl border border-white/10 bg-black/35 px-3 py-2">Seed: <span className="font-black text-cyan-200">#{game.runSeed}</span></div>
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                   <Button onClick={submitScoreToLeaderboard} className="rounded-xl bg-violet-500/30 px-4 py-2 text-white hover:bg-violet-500/45">Submit score</Button>
                   <Button onClick={shareRun} className="rounded-xl bg-sky-500/35 px-4 py-2 text-white hover:bg-sky-500/50">Share run</Button>
-                  <Button onClick={restart} className="rounded-xl bg-white px-4 py-2 text-black hover:bg-zinc-200">Play again</Button>
+                  <Button onClick={quickRestart} className="rounded-xl bg-amber-400 px-4 py-2 font-black text-black hover:bg-amber-300">🔁 Quick Restart</Button>
+                  <Button onClick={restart} className="rounded-xl bg-white/15 border border-white/25 px-4 py-2 text-white hover:bg-white/25">🔧 Change Build</Button>
                 </div>
               </div>
             </motion.div>
