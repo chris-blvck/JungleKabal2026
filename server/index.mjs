@@ -8,7 +8,16 @@ const __dirname = path.dirname(__filename);
 
 const PORT = Number(process.env.ACADEMY_API_PORT || 8787);
 const dataFile = path.join(__dirname, 'data', 'academy-content.json');
+const leaderboardFile = path.join(__dirname, 'data', 'academy-leaderboard.json');
+const notificationsFile = path.join(__dirname, 'data', 'academy-notifications.json');
 const compactFile = path.join(__dirname, '..', 'src', 'docs', 'memecoin-trading-guide-compact.md');
+
+const defaultLeaderboard = [
+  { rank: 1, name: 'Rex', points: 1420, streak: 12 },
+  { rank: 2, name: 'Mina', points: 1360, streak: 10 },
+  { rank: 3, name: 'Kuro', points: 1210, streak: 8 },
+  { rank: 4, name: 'Nova', points: 980, streak: 6 },
+];
 
 function parseCompactCourse(raw) {
   const lines = raw.split('\n');
@@ -34,7 +43,7 @@ function parseCompactCourse(raw) {
       bullets: bullets.length ? bullets : [
         "Lire la leçon complète.",
         "Appliquer l'exercice recommandé.",
-        "Valider la progression.",
+        'Valider la progression.',
       ],
       blocks: [],
     });
@@ -106,11 +115,46 @@ async function getContent() {
   }
 }
 
+async function getLeaderboard() {
+  try {
+    await access(leaderboardFile);
+    const raw = await readFile(leaderboardFile, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    return defaultLeaderboard;
+  }
+}
+
+async function getNotifications() {
+  try {
+    await access(notificationsFile);
+    const raw = await readFile(notificationsFile, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+function computeOpsSnapshot(content) {
+  const modules = content.modules || [];
+  const lessons = modules.flatMap((module) => module.lessons || []);
+  const packs = content.packs || [];
+  const replays = content.liveReplays || [];
+  return {
+    modulesWithoutLessons: modules.filter((module) => !(module.lessons || []).length).length,
+    lessonsWithoutContent: lessons.filter((lesson) => !(lesson.content || '').trim()).length,
+    packsWithoutCover: packs.filter((pack) => !(pack.coverImage || '').trim()).length,
+    packsWithoutModules: packs.filter((pack) => !(pack.moduleIds || []).length).length,
+    replaysWithoutUrl: replays.filter((replay) => !(replay.url || '').trim()).length,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 function send(res, status, payload) {
   res.writeHead(status, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,PUT,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,PUT,POST,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   });
   res.end(JSON.stringify(payload));
@@ -137,6 +181,43 @@ const server = createServer(async (req, res) => {
         send(res, 200, { ok: true });
       } catch {
         send(res, 400, { ok: false, error: 'Invalid JSON body' });
+      }
+    });
+    return;
+  }
+
+  if (req.url === '/api/academy/leaderboard' && req.method === 'GET') {
+    const leaderboard = await getLeaderboard();
+    return send(res, 200, leaderboard);
+  }
+
+  if (req.url === '/api/academy/ops' && req.method === 'GET') {
+    const content = await getContent();
+    return send(res, 200, computeOpsSnapshot(content));
+  }
+
+  if (req.url === '/api/academy/notifications' && req.method === 'GET') {
+    const subscriptions = await getNotifications();
+    return send(res, 200, subscriptions);
+  }
+
+  if (req.url === '/api/academy/notifications' && req.method === 'POST') {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+    });
+    req.on('end', async () => {
+      try {
+        const parsed = JSON.parse(body || '{}');
+        const channel = String(parsed.channel || '').trim();
+        const contact = String(parsed.contact || '').trim();
+        if (!channel || !contact) return send(res, 400, { ok: false, error: 'channel/contact required' });
+        const existing = await getNotifications();
+        const next = [{ id: `sub-${Date.now()}`, channel, contact, createdAt: new Date().toISOString() }, ...existing].slice(0, 200);
+        await writeFile(notificationsFile, JSON.stringify(next, null, 2));
+        return send(res, 200, { ok: true });
+      } catch {
+        return send(res, 400, { ok: false, error: 'Invalid JSON body' });
       }
     });
     return;
