@@ -71,6 +71,7 @@ import {
 } from "@/game/weapons";
 
 const BG_URL = "https://i.postimg.cc/hGqqmWDN/Chat-GPT-Image-15-mars-2026-00-24-52.png";
+const SHOP_GUY_URL = "https://i.postimg.cc/t4Wkm7Pr/Chat-GPT-Image-15-mars-2026-19-30-40.png";
 
 // Button image URLs — replace with real assets when available
 // Can be overridden via config.visuals.buttonImages from admin panel
@@ -93,7 +94,7 @@ type DieInTheJungleProps = {
   onBeforeRestart?: () => boolean;
 };
 
-const LOGO_URL = "https://i.postimg.cc/rwdjP9rb/logo-jaune.png";
+const LOGO_URL = "https://i.postimg.cc/pTXBTZ79/Chat-GPT-Image-15-mars-2026-00-13-27.png";
 const PLAYER_AVATAR_URL = "https://i.postimg.cc/B6rBLmBt/Kabalian-Face.png";
 const KKM_AVATAR_URL = "https://i.postimg.cc/Kv8zygVk/KKM-Mascot-2.png";
 const STORY_FRAGMENT_IMAGE_URL = "https://i.postimg.cc/DwMdGXHm/Kabalian-or-KKM.png";
@@ -3061,7 +3062,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           {/* ── Band 3: DICE ROW ──────────────────────────────────── */}
           <div className="shrink-0 flex items-center justify-center gap-1.5 py-0.5" style={{ minHeight: 48 }}>
             {game.phase === "place" ? (
-              <button onClick={() => shiftSelectedDie(-1)} className="h-10 rounded-xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-3 text-white hover:from-zinc-700">&#x2B05;&#xFE0F;</button>
+              <button onClick={() => shiftSelectedDie(-1)} className="h-10 rounded-xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-3 text-white font-black hover:from-zinc-700">&lt;</button>
             ) : null}
             {game.dice.some((d) => d !== null) ? (
               game.dice.map((die, i) => die !== null ? (
@@ -3077,7 +3078,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
               <div className="text-[11px] text-zinc-100">&#x1F3B2; No dice yet. Press <span className="font-black text-amber-300">ROLL</span>.</div>
             )}
             {game.phase === "place" ? (
-              <button onClick={() => shiftSelectedDie(1)} className="h-10 rounded-xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-3 text-white hover:from-zinc-700">&#x27A1;&#xFE0F;</button>
+              <button onClick={() => shiftSelectedDie(1)} className="h-10 rounded-xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-3 text-white font-black hover:from-zinc-700">&gt;</button>
             ) : null}
           </div>
 
@@ -3279,7 +3280,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 onClick={() => setGame(g => ({ ...g, prevCombatPhase: g.phase, phase: 'map', combatMapView: true }))}
                 className="rounded-xl border border-amber-400/25 bg-amber-900/30 px-2 py-2 text-xs font-black text-amber-200 hover:bg-amber-900/50"
               >
-                &#x1F5FA;&#xFE0F;
+                🗺️
               </Button>
             )}
             {(game.phase === "gameover" || game.phase === "victory") ? (
@@ -3350,7 +3351,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 onClick={() => setGame((g) => ({ ...g, showAllLogs: !g.showAllLogs }))}
                 className="rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-white hover:bg-white/20"
               >
-                {game.showAllLogs ? "&#x25B2;" : "&#x25BC;"}
+                {game.showAllLogs ? "▲" : "▼"}
               </button>
             </div>
           </div>
@@ -3376,13 +3377,6 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         </div>
         {/* ── END COMBAT 6-BAND LAYOUT ──────────────────────────── */}
 
-        {/* Route card row (always visible below combat bands) */}
-        <div className="shrink-0 my-1 grid max-w-[360px] grid-cols-5 gap-1 mx-auto">
-          {game.route.map((enemy, index) => {
-            const state = index < game.room ? "done" : index === game.room ? "current" : "hidden";
-            return <RouteCard key={`${enemy.name}-${index}`} enemy={enemy} state={state} />;
-          })}
-        </div>
 
 
 
@@ -3665,13 +3659,13 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   {/* Combat view-only banner */}
                   {game.combatMapView && (
                     <div className="mb-3 rounded-xl border border-rose-400/40 bg-rose-950/60 px-3 py-2 flex items-center justify-between gap-2">
-                      <span className="text-xs text-rose-300 font-bold">⚔️ Combat in progress — map is view only</span>
                       <button
                         onClick={() => setGame(g => ({ ...g, phase: g.prevCombatPhase || 'place', combatMapView: false, prevCombatPhase: null }))}
-                        className="rounded-lg border border-rose-400/50 bg-rose-700/60 px-3 py-1 text-xs font-black text-rose-100 hover:bg-rose-600/70"
+                        className="flex items-center gap-2 rounded-lg border border-rose-400/50 bg-rose-700/60 px-3 py-1.5 text-sm font-black text-rose-100 hover:bg-rose-600/70 active:scale-95 transition"
                       >
-                        ← Back to Combat
+                        ← Retour au combat
                       </button>
+                      <span className="text-[10px] text-rose-400">⚔️ Map — vue seule</span>
                     </div>
                   )}
 
@@ -3763,14 +3757,42 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           {game.phase === "shop" && game.shopInventory ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
               <div className="w-full max-w-sm rounded-[28px] border border-amber-300/20 bg-zinc-950/98 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
-                <div className="mb-1 flex items-center justify-between">
-                  <div>
-                    <div className="font-serif text-xl italic text-amber-300">🛒 Jungle Shop</div>
-                    <div className="text-[11px] text-zinc-400">Zone {game.floor} · Your coins: <span className="text-amber-300 font-black">{game.player.coins || 0}</span></div>
+
+                {/* Shop header with characters */}
+                <div className="mb-3 flex items-end gap-3">
+                  {/* Shop guy */}
+                  <img
+                    src={SHOP_GUY_URL}
+                    alt="Shopkeeper"
+                    className="h-20 w-20 shrink-0 rounded-2xl border border-amber-300/20 object-cover shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
+                  />
+                  {/* Dialogue + player */}
+                  <div className="flex-1 min-w-0">
+                    {/* Shopkeeper dialogue */}
+                    <div className="mb-2 rounded-2xl rounded-bl-sm border border-amber-300/25 bg-amber-900/20 px-3 py-2 text-xs text-amber-200 italic relative">
+                      "Bienvenue, guerrier… Mes reliques valent chaque pièce — <span className="font-black not-italic">🪙 {game.player.coins || 0}</span> en poche."
+                      <div className="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 border-b border-l border-amber-300/25 bg-amber-900/20" />
+                    </div>
+                    {/* Player character small + zone */}
+                    <div className="flex items-center gap-2">
+                      <img
+                        src={avatarUrl}
+                        alt="player"
+                        className="h-8 w-8 rounded-xl border border-white/15 object-contain bg-black/30"
+                      />
+                      <div>
+                        <div className="text-[10px] font-black text-cyan-200">
+                          {game.player.PLAYER_CHARACTERS?.[game.player.characterId]?.name ?? game.player.characterId}
+                        </div>
+                        <div className="text-[9px] text-zinc-400">Zone {game.floor} · ❤️ {game.player.hp}/{game.player.maxHp}</div>
+                      </div>
+                      <button onClick={handleShopLeave} className="ml-auto rounded-xl border border-white/15 bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20">Partir</button>
+                    </div>
                   </div>
-                  <button onClick={handleShopLeave} className="rounded-xl border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20">Leave</button>
                 </div>
-                <div className="mt-3 space-y-2">
+
+                {/* Items */}
+                <div className="space-y-2">
                   {game.shopInventory.map((item, idx) => (
                     <div key={item.id} className="flex items-center justify-between gap-2 rounded-xl border border-white/15 bg-black/40 p-3">
                       <div className="flex-1">
@@ -4080,7 +4102,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   <div className="mb-3 space-y-1">
                     <div className="text-[10px] font-black uppercase tracking-[0.16em] text-violet-300">Unlocked</div>
                     {lastRunReward.newUnlocks.map((id) => {
-                      const def = UNLOCKS.find(u => u.id === id);
+                      const def = UNLOCKS[id];
                       return def ? (
                         <div key={id} className="flex items-center gap-2 rounded-xl border border-violet-400/25 bg-violet-950/25 px-3 py-2 text-xs">
                           <span>✨</span>
@@ -4184,8 +4206,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   </div>
                 </div>
                 <div className="space-y-2">
-                  {UNLOCKS.map((unlock) => {
-                    const isUnlocked = meta.unlocks.includes(unlock.id);
+                  {Object.values(UNLOCKS).map((unlock) => {
+                    const isUnlocked = (meta.unlocks ?? []).includes(unlock.id);
                     const canAfford = meta.gems >= unlock.gemCost;
                     return (
                       <div

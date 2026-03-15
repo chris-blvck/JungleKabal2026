@@ -78,21 +78,47 @@ const ASSET_SCHEMA = {
   events: ['general'],
 };
 
-const TABS = [
-  { id: 'testgame', label: '🎮 Test & Presets' },
-  { id: 'metaeditor', label: '🧬 Meta Editor' },
-  { id: 'cheatmode', label: '🔧 Cheat Mode' },
-  { id: 'gamelogic', label: '⚙️ Game Logic' },
-  { id: 'dicecosmetics', label: '🎲 Dice Cosmetics' },
-  { id: 'enemies', label: '👾 Enemies' },
-  { id: 'artifacts', label: '📦 Artifacts' },
-  { id: 'assets', label: '🖼️ Assets' },
-  { id: 'avatars', label: '🎭 Avatars' },
-  { id: 'narrative', label: '📖 Narrative' },
-  { id: 'advanced', label: '🔬 Advanced' },
-  { id: 'roadmap', label: '🗺️ Roadmap' },
-  { id: 'contentqueue', label: '📅 Content Queue' },
+const TAB_GROUPS = [
+  {
+    label: '⚡ Core',
+    description: 'Tester le jeu, ajuster la difficulté, tricher',
+    tabs: [
+      { id: 'testgame', label: '🎮 Test & Presets', help: 'Lance des presets de test rapides. Applique un preset puis ouvre /diejungle. Chaque preset configure le méta-état (XP, gems, unlocks) au lancement.' },
+      { id: 'cheatmode', label: '🔧 Cheat Mode', help: 'Injecte directement HP, coins, XP, ou force une phase de jeu en cours. Utilise uniquement en dev — aucun effet sur les vrais runs joueurs.' },
+      { id: 'gamelogic', label: '⚙️ Game Logic', help: 'Paramètres numériques du moteur de jeu : multiplicateurs de dégâts, scaling par zone, economy. Chaque param a une plage safe indiquée. Sauvegarde puis recharge le jeu.' },
+    ],
+  },
+  {
+    label: '🎨 Contenu',
+    description: 'Enemis, artefacts, dés, méta-progression',
+    tabs: [
+      { id: 'metaeditor', label: '🧬 Meta Editor', help: 'Modifie directement le méta-JSON du joueur stocké en localStorage : XP, gems, unlocks débloqués. Utile pour simuler des états avancés sans jouer.' },
+      { id: 'enemies', label: '👾 Enemies', help: 'Catalogue des ennemis existants (lecture seule). Voir leurs stats, tiers, modificateurs. Ajouter des ennemis custom via le JSON en bas.' },
+      { id: 'artifacts', label: '📦 Artifacts', help: 'Liste des artefacts/reliques du pool. Ajouter des artefacts custom avec image, effets, rareté. Ils entrent dans le pool de shop et de récompenses boss.' },
+      { id: 'dicecosmetics', label: '🎲 Dice Cosmetics', help: 'Coller des URLs d\'images pour chaque face de dé (1-6) par type (attack/shield/heal) et par personnage. Les dés custom remplacent les carrés de couleur par défaut.' },
+    ],
+  },
+  {
+    label: '🖼️ Visuels',
+    description: 'Assets, images, avatars, backgrounds',
+    tabs: [
+      { id: 'assets', label: '🖼️ Bibliothèque Assets', help: 'Upload des images par catégorie (monsters, backgrounds, events…). Les assets uploadés sont stockés sur le serveur et accessibles par URL. Ajoute des tags pour retrouver facilement.' },
+      { id: 'avatars', label: '🎭 Avatars & Visuals', help: 'URLs des avatars par personnage, images de boutons (roll/resolve/restart), backgrounds par biome. Coller une URL et Sauvegarder. Prend effet immédiatement en jeu.' },
+    ],
+  },
+  {
+    label: '🔬 Ops',
+    description: 'Narrative, roadmap, backlog, config avancée',
+    tabs: [
+      { id: 'narrative', label: '📖 Narrative', help: 'Dialogues et textes de lore par personnage. Utilisés dans les écrans d\'intro de run et les bulles de dialogue en jeu.' },
+      { id: 'advanced', label: '🔬 Advanced', help: 'Config JSON brute. Réservé aux devs. Modifier directement le payload envoyé au serveur. Attention : une erreur JSON peut casser la config.' },
+      { id: 'roadmap', label: '🗺️ Roadmap', help: 'Vue d\'ensemble des features done, en cours, et backlog. Mise à jour à chaque sprint. Référence pour l\'équipe.' },
+      { id: 'contentqueue', label: '📅 Content Queue', help: 'File de contenu planifié : nouvelles features, assets à livrer, events à créer. Priorisable et assignable.' },
+    ],
+  },
 ];
+// Flat list for backward compat
+const TABS = TAB_GROUPS.flatMap(g => g.tabs);
 
 const GAME_LOGIC_GROUPS = {
   difficulty: {
@@ -591,15 +617,31 @@ export default function DieInTheJungleAdmin() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-        {/* Tab Bar */}
-        <div className="flex flex-wrap gap-1.5">
-          {TABS.map((tab) => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${activeTab === tab.id ? 'bg-amber-500/25 border-amber-400/50 text-amber-200' : 'bg-zinc-800/60 border-zinc-700 text-zinc-300 hover:bg-zinc-700/60'}`}>
-              {tab.label}
-            </button>
+        {/* Tab Bar — grouped */}
+        <div className="space-y-2">
+          {TAB_GROUPS.map((group) => (
+            <div key={group.label} className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500 min-w-[64px]">{group.label}</span>
+              {group.tabs.map((tab) => (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${activeTab === tab.id ? 'bg-amber-500/25 border-amber-400/50 text-amber-200' : 'bg-zinc-800/60 border-zinc-700 text-zinc-300 hover:bg-zinc-700/60'}`}>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           ))}
         </div>
+
+        {/* Active tab tutorial banner */}
+        {(() => {
+          const activeDef = TABS.find(t => t.id === activeTab);
+          return activeDef?.help ? (
+            <div className="rounded-xl border border-sky-400/20 bg-sky-900/15 px-4 py-2.5 flex items-start gap-2 text-[12px] text-sky-200">
+              <span className="shrink-0 text-sky-400 font-black">?</span>
+              <span>{activeDef.help}</span>
+            </div>
+          ) : null;
+        })()}
 
         {/* ── TEST GAME ───────────────────────────────────────────────────────────── */}
         {activeTab === 'testgame' && (
@@ -1197,46 +1239,146 @@ export default function DieInTheJungleAdmin() {
 
         {/* ── ASSETS ──────────────────────────────────────────────────────────────── */}
         {activeTab === 'assets' && (
-          <section className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-4">
-            <h2 className="text-xl font-semibold">🖼️ Asset Manager</h2>
-            <div className="flex flex-wrap items-end gap-3">
+          <section className="space-y-5">
+
+            {/* ── Configured URLs (always visible) ── */}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-4">
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Category</label>
-                <select value={category} onChange={(e) => setCategory(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm">
-                  {Object.keys(ASSET_SCHEMA).map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
+                <h2 className="text-xl font-semibold">📌 Assets configurés (URLs actives)</h2>
+                <p className="text-zinc-400 text-sm mt-1">Toutes les images actuellement utilisées en jeu. Pour modifier, va dans <strong>Avatars & Visuals</strong>.</p>
               </div>
+
+              {/* Biome backgrounds */}
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Subcategory</label>
-                <select value={subcategory} onChange={(e) => setSubcategory(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm">
-                  {availableSubcategories.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
+                <div className="text-xs font-black uppercase tracking-[0.14em] text-emerald-400 mb-2">🌿 Backgrounds Biomes</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { id: 'jungle', label: '🌿 Jungle' },
+                    { id: 'ruins',  label: '🏛️ Ruins' },
+                    { id: 'temple', label: '⛩️ Temple' },
+                    { id: 'abyss',  label: '🌑 Abyss' },
+                    { id: 'void',   label: '⚡ Void' },
+                  ].map(b => {
+                    const url = config.visuals?.biomeBackgrounds?.[b.id] || {
+                      jungle: 'https://i.postimg.cc/hGqqmWDN/Chat-GPT-Image-15-mars-2026-00-24-52.png',
+                      ruins:  'https://i.postimg.cc/QCz2xvnC/Chat-GPT-Image-15-mars-2026-01-27-54.png',
+                      temple: 'https://i.postimg.cc/7PQ8VTPg/Chat-GPT-Image-15-mars-2026-01-36-50.png',
+                      abyss:  'https://i.postimg.cc/sf0dcZf7/Chat-GPT-Image-15-mars-2026-10-55-43.png',
+                      void:   'https://i.postimg.cc/hGqqmWDN/Chat-GPT-Image-15-mars-2026-00-24-52.png',
+                    }[b.id] || '';
+                    return (
+                      <figure key={b.id} className="rounded-xl overflow-hidden border border-zinc-700 bg-zinc-800">
+                        {url ? (
+                          <img src={url} alt={b.label} className="w-full h-20 object-cover" />
+                        ) : (
+                          <div className="w-full h-20 flex items-center justify-center bg-zinc-800 text-zinc-600 text-xs">Pas d'image</div>
+                        )}
+                        <figcaption className="px-2 py-1 text-[10px] font-bold text-zinc-300">{b.label}</figcaption>
+                        {url ? <div className="px-2 pb-1 text-[8px] text-zinc-600 truncate">{url.split('/').pop()}</div> : null}
+                      </figure>
+                    );
+                  })}
+                </div>
               </div>
+
+              {/* Button images */}
               <div>
-                <label className="block text-sm text-zinc-400 mb-1">Upload (max 30)</label>
-                <input type="file" accept="image/*" multiple onChange={onUpload} disabled={loading} className="text-sm" />
+                <div className="text-xs font-black uppercase tracking-[0.14em] text-amber-400 mb-2">🎮 Boutons d'Action</div>
+                <div className="flex flex-wrap gap-3">
+                  {['roll', 'reroll', 'resolve', 'restart'].map(key => {
+                    const url = config.visuals?.buttonImages?.[key] || (key === 'roll' ? 'https://i.postimg.cc/9Q7ZFSQt/Chat-GPT-Image-14-mars-2026-23-43-10.png' : '');
+                    return (
+                      <figure key={key} className="rounded-xl border border-zinc-700 bg-zinc-800 p-2 text-center min-w-[80px]">
+                        {url ? (
+                          <img src={url} alt={key} className="h-12 w-auto mx-auto object-contain" />
+                        ) : (
+                          <div className="h-12 flex items-center justify-center text-zinc-600 text-xs">vide</div>
+                        )}
+                        <figcaption className="mt-1 text-[10px] font-bold text-zinc-400 uppercase">{key}</figcaption>
+                      </figure>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Logo + Shop */}
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.14em] text-violet-400 mb-2">🎭 Personnages & Logo</div>
+                <div className="flex flex-wrap gap-3">
+                  {[
+                    { label: 'Logo DIE JUNGLE', url: 'https://i.postimg.cc/pTXBTZ79/Chat-GPT-Image-15-mars-2026-00-13-27.png' },
+                    { label: 'Shop Guy',        url: 'https://i.postimg.cc/t4Wkm7Pr/Chat-GPT-Image-15-mars-2026-19-30-40.png' },
+                    { label: 'Kabalian',        url: config.characters?.playable?.kabalian?.avatar || 'https://i.postimg.cc/B6rBLmBt/Kabalian-Face.png' },
+                    { label: 'KKM',             url: config.characters?.playable?.kkm?.avatar || 'https://i.postimg.cc/Kv8zygVk/KKM-Mascot-2.png' },
+                  ].map(item => (
+                    <figure key={item.label} className="rounded-xl border border-zinc-700 bg-zinc-800 p-2 text-center w-[90px]">
+                      {item.url ? (
+                        <img src={item.url} alt={item.label} className="h-16 w-full object-contain rounded" />
+                      ) : (
+                        <div className="h-16 flex items-center justify-center text-zinc-600 text-xs">manquant</div>
+                      )}
+                      <figcaption className="mt-1 text-[9px] font-bold text-zinc-300 leading-tight">{item.label}</figcaption>
+                    </figure>
+                  ))}
+                </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {assetBucket.slice(0, 120).map((asset) => {
-                const key = asset.id || asset.url;
-                const meta = config.assetsMeta?.[key] || {};
-                return (
-                  <figure key={key} className="rounded border border-zinc-700 bg-zinc-800 p-2 space-y-2">
-                    <img src={asset.url} alt={asset.originalName || asset.fileName || 'asset'} className="w-full h-24 object-cover rounded" />
-                    <figcaption className="text-[10px] text-zinc-300 truncate">{asset.originalName || asset.fileName}</figcaption>
-                    <input placeholder="tags: poison,boss" value={meta.tags || ''} onChange={(e) => updateAssetMeta(asset, { tags: e.target.value })} className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-2 py-1" />
-                    <select value={meta.status || 'active'} onChange={(e) => updateAssetMeta(asset, { status: e.target.value })} className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-2 py-1">
-                      <option value="active">active</option>
-                      <option value="draft">draft</option>
-                      <option value="deprecated">deprecated</option>
-                    </select>
-                  </figure>
-                );
-              })}
-              {assetBucket.length === 0 && <div className="col-span-full text-zinc-500 text-sm">No assets in this bucket yet. Upload some above.</div>}
+
+            {/* ── Upload Manager ── */}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-4">
+              <div>
+                <h2 className="text-xl font-semibold">⬆️ Upload d'Assets</h2>
+                <p className="text-zinc-400 text-sm mt-1">Upload des images vers le serveur par catégorie. Max 30 fichiers à la fois. Formats: PNG, JPG, WebP.</p>
+              </div>
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Catégorie</label>
+                  <select value={category} onChange={(e) => setCategory(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm">
+                    {Object.keys(ASSET_SCHEMA).map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Sous-catégorie</label>
+                  <select value={subcategory} onChange={(e) => setSubcategory(e.target.value)} className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm">
+                    {availableSubcategories.map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Fichiers (max 30)</label>
+                  <input type="file" accept="image/*" multiple onChange={onUpload} disabled={loading} className="text-sm text-zinc-300" />
+                </div>
+              </div>
+
+              {/* Uploaded assets grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {assetBucket.slice(0, 120).map((asset) => {
+                  const key = asset.id || asset.url;
+                  const meta = config.assetsMeta?.[key] || {};
+                  return (
+                    <figure key={key} className="rounded-xl border border-zinc-700 bg-zinc-800 overflow-hidden">
+                      <img src={asset.url} alt={asset.originalName || asset.fileName || 'asset'} className="w-full h-20 object-cover" />
+                      <div className="p-2 space-y-1.5">
+                        <figcaption className="text-[10px] text-zinc-300 truncate font-medium">{asset.originalName || asset.fileName}</figcaption>
+                        <input placeholder="tags: poison,boss" value={meta.tags || ''} onChange={(e) => updateAssetMeta(asset, { tags: e.target.value })} className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-2 py-1" />
+                        <select value={meta.status || 'active'} onChange={(e) => updateAssetMeta(asset, { status: e.target.value })} className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-2 py-1">
+                          <option value="active">active</option>
+                          <option value="draft">draft</option>
+                          <option value="deprecated">deprecated</option>
+                        </select>
+                      </div>
+                    </figure>
+                  );
+                })}
+                {assetBucket.length === 0 && (
+                  <div className="col-span-full rounded-xl border border-dashed border-zinc-700 p-8 text-center space-y-1">
+                    <div className="text-2xl">📂</div>
+                    <div className="text-zinc-400 text-sm">Aucun asset uploadé dans ce bucket.</div>
+                    <div className="text-zinc-600 text-xs">Choisis une catégorie, sélectionne des fichiers et upload.</div>
+                  </div>
+                )}
+              </div>
+              <button onClick={() => saveConfig(config)} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Sauvegarder les métadonnées</button>
             </div>
-            <button onClick={() => saveConfig(config)} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Save asset metadata</button>
           </section>
         )}
 
