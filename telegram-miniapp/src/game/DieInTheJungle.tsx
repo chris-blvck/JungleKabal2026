@@ -687,6 +687,9 @@ function getTierLabel(enemy) {
   return "Mob";
 }
 
+// Module-level difficulty multiplier — updated from server config on startup
+let _difficultyMult = 1.0;
+
 function buildRoute(floor = 1) {
   const mobA = pickUnique(ENEMY_POOLS.mob, 2);
   const eliteA = pickUnique(ENEMY_POOLS.medium, 2);
@@ -704,10 +707,12 @@ function buildRoute(floor = 1) {
     const scale = floor - 1;
     const hpScale = type === "boss" ? 12 : type === "elite" ? 7 : 5;
     const dmgScale = type === "boss" ? 3 : 2;
-    // Base difficulty boost (+35% HP, +25% damage on all intents)
-    base.hp = Math.round(base.hp * 1.35);
+    // Base difficulty boost: 1.35× HP + difficultyMult, 1.25× intent damage
+    const hpMult = 1.35 * _difficultyMult;
+    const dmgMult = 1.25 * _difficultyMult;
+    base.hp = Math.round(base.hp * hpMult);
     base.intents = base.intents.map((i) => ({
-      ...i, value: i.type === 'attack' ? Math.round(i.value * 1.25) : i.value,
+      ...i, value: i.type === 'attack' ? Math.round(i.value * dmgMult) : i.value,
     }));
     base.hp += scale * hpScale;
     base.maxHp = base.hp;
@@ -1558,10 +1563,13 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     try { return localStorage.getItem('jk_auto_resolve') === 'true'; } catch { return false; }
   });
   const [showAdvancedGuide, setShowAdvancedGuide] = useState(false);
+  const [showScoringGuide, setShowScoringGuide] = useState(false);
+  const [showHudGuide, setShowHudGuide] = useState(false);
   // Build selection state (2-step modal: character → weapons)
   const [buildStep, setBuildStep] = useState<'character' | 'weapons'>('character');
   const [pendingCharId, setPendingCharId] = useState('kabalian');
   const [pendingWeaponIds, setPendingWeaponIds] = useState<string[]>([]);
+  const [pendingSlotPicking, setPendingSlotPicking] = useState<number | null>(null);
 
   const activeDieIndex = useMemo(() => {
     if (game.selectedDieIndex !== null && game.dice[game.selectedDieIndex] !== null) return game.selectedDieIndex;
@@ -2440,6 +2448,19 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     }
   }, [game.runEnded, game.runSeed, game.score, game.floor, game.player.characterId, game.winStreak, game.phase, onRunEnded]);
 
+  // Fetch server config for difficulty multiplier (fire-and-forget on mount)
+  useEffect(() => {
+    fetch('/api/miniapp/config')
+      .then((r) => r.ok ? r.json() : null)
+      .then((payload) => {
+        const mult = payload?.config?.gameLogic?.difficultyMultiplier;
+        if (typeof mult === 'number' && mult > 0) {
+          _difficultyMult = mult;
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Escape") {
@@ -2730,15 +2751,22 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 </Button>
               </div>
             ) : null}
-            {game.phase === "place" ? (
-              <Button onClick={rerollActiveDie} disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null} className="rounded-xl border border-white/20 bg-gradient-to-b from-zinc-700/90 to-zinc-900 px-3 py-1.5 text-xs font-black text-white hover:from-zinc-600 hover:to-zinc-800 disabled:opacity-40">
-                🔁 {game.player.rerollsLeft}
-              </Button>
-            ) : null}
             {game.phase === "place" && game.grid.some(row => row.some(cell => cell !== null)) ? (
-              <Button onClick={manualResolve} className="rounded-2xl border border-emerald-400/40 bg-gradient-to-b from-emerald-700/70 to-emerald-900/80 px-5 py-2.5 text-sm font-black text-white hover:from-emerald-600/80 hover:to-emerald-800 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]">
-                ✅ RESOLVE
-              </Button>
+              <div className="relative w-full flex justify-center my-1">
+                <button
+                  onClick={manualResolve}
+                  className="relative focus:outline-none"
+                  style={{ background: 'none', border: 'none', padding: 0 }}
+                >
+                  <img
+                    src="https://i.postimg.cc/6pJ0GSpm/Chat-GPT-Image-15-mars-2026-23-07-03.png"
+                    alt="RESOLVE"
+                    className="h-16 w-auto object-contain drop-shadow-[0_0_18px_rgba(52,211,153,0.5)] hover:scale-105 active:scale-95 transition-transform"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display='none'; (e.target as HTMLImageElement).nextElementSibling?.removeAttribute('hidden'); }}
+                  />
+                  <span hidden className="rounded-2xl border border-emerald-400/40 bg-gradient-to-b from-emerald-700/70 to-emerald-900/80 px-5 py-2.5 text-sm font-black text-white">✅ RESOLVE</span>
+                </button>
+              </div>
             ) : null}
             {game.player.companion && (game.phase === "roll" || game.phase === "place") ? (
               <Button
@@ -2762,15 +2790,28 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           <div className="flex min-h-[56px] items-center justify-center gap-2">
             <div className="flex min-h-[56px] flex-wrap items-start justify-center gap-1.5">
             {game.dice.some((d) => d !== null) ? (
-              game.dice.map((die, i) => die !== null ? (
-                <DiceFace
-                  key={`${die.id}-${i}-${game.rolling}`}
-                  value={die}
-                  selected={i === activeDieIndex && game.phase === "place"}
-                  rolling={game.rolling}
-                  onClick={game.phase === "place" ? () => setGame((g) => ({ ...g, selectedDieIndex: i })) : undefined}
-                />
-              ) : null)
+              <>
+                {game.dice.map((die, i) => die !== null ? (
+                  <DiceFace
+                    key={`${die.id}-${i}-${game.rolling}`}
+                    value={die}
+                    selected={i === activeDieIndex && game.phase === "place"}
+                    rolling={game.rolling}
+                    onClick={game.phase === "place" ? () => setGame((g) => ({ ...g, selectedDieIndex: i })) : undefined}
+                  />
+                ) : null)}
+                {game.phase === "place" && (
+                  <button
+                    onClick={rerollActiveDie}
+                    disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null}
+                    title={`Reroll selected die (${game.player.rerollsLeft} left)`}
+                    className="flex h-[56px] w-[42px] flex-col items-center justify-center rounded-xl border border-white/20 bg-black/40 text-lg transition hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <span>🔁</span>
+                    <span className="text-[9px] font-black text-amber-300">{game.player.rerollsLeft}</span>
+                  </button>
+                )}
+              </>
             ) : (
               <div className="text-[11px] text-zinc-100">🎲 No dice yet. Press <span className="font-black text-amber-300">ROLL</span>.</div>
             )}
@@ -3001,69 +3042,148 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   </>
                 ) : (
                   <>
-                    <div className="mb-4 flex items-center justify-between">
-                      <div>
-                        <div className="font-serif text-2xl italic text-amber-300">Equip Weapons</div>
-                        <div className="text-sm text-zinc-400">
-                          {(() => {
-                            const meta = loadMeta();
-                            const slots = hasDualWeaponSlot(meta) ? 2 : hasWeaponSlot(meta) ? 1 : 0;
-                            return slots === 0 ? 'No weapon slot yet — select a build or unlock at Zone 2' : `Choose up to ${slots} weapon${slots > 1 ? 's' : ''}`;
-                          })()}
-                        </div>
-                      </div>
-                      <button onClick={() => setBuildStep('character')} className="text-xs text-zinc-400 hover:text-white">← Back</button>
+                    {/* Header */}
+                    <div className="mb-3 flex items-center justify-between">
+                      <div className="font-serif text-xl italic text-amber-300">Your Loadout</div>
+                      <button onClick={() => { setBuildStep('character'); setPendingSlotPicking(null); }} className="text-xs text-zinc-400 hover:text-white">← Back</button>
                     </div>
-                    {(() => {
-                      const meta = loadMeta();
-                      const maxSlots = hasDualWeaponSlot(meta) ? 2 : hasWeaponSlot(meta) ? 1 : 0;
-                      return (
-                        <>
-                          <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
-                            {STARTER_WEAPON_OFFER.map((weapon) => {
-                              const selected = pendingWeaponIds.includes(weapon.id);
-                              const disabled = !selected && pendingWeaponIds.length >= maxSlots;
-                              return (
-                                <button
-                                  key={weapon.id}
-                                  onClick={() => {
-                                    if (disabled) return;
-                                    setPendingWeaponIds((ids) =>
-                                      ids.includes(weapon.id)
-                                        ? ids.filter((id) => id !== weapon.id)
-                                        : [...ids, weapon.id]
-                                    );
-                                  }}
-                                  className={`rounded-xl border p-2.5 text-left transition ${selected ? 'border-amber-300/70 bg-amber-400/15' : disabled ? 'border-zinc-700/40 bg-black/20 opacity-40 cursor-not-allowed' : 'border-white/15 bg-black/35 hover:border-white/40'}`}
-                                >
-                                  <div className="mb-1 flex items-center gap-1.5">
-                                    <span className="text-lg">{getWeaponArchetypeEmoji(weapon.archetype)}</span>
-                                    <span className={`text-sm font-black ${getWeaponRarityColor(weapon.rarity)}`}>{weapon.name}</span>
-                                    {selected && <span className="ml-auto text-amber-300">✓</span>}
-                                  </div>
-                                  <div className="text-[10px] text-zinc-300">{weapon.passive.description}</div>
-                                  <div className="mt-1 text-[10px] text-cyan-300">⚡ {weapon.special.description} (CD {weapon.special.cooldown}t)</div>
-                                </button>
-                              );
-                            })}
-                          </div>
-                          {maxSlots === 0 && (
-                            <div className="mt-2 rounded-xl border border-zinc-600/40 bg-zinc-900/60 p-3 text-center text-xs text-zinc-400">
-                              No weapon slot unlocked. Defeat Zone 2 boss or spend 150 gems to unlock.
+
+                    {pendingSlotPicking !== null ? (
+                      /* Weapon picker for a specific slot */
+                      <>
+                        <div className="mb-3 flex items-center justify-between">
+                          <div className="text-sm font-black text-amber-200">Choose weapon for Slot {pendingSlotPicking + 1}</div>
+                          <button onClick={() => setPendingSlotPicking(null)} className="text-xs text-zinc-400 hover:text-white">✕ Cancel</button>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                          {/* Empty slot option */}
+                          <button
+                            onClick={() => {
+                              setPendingWeaponIds((ids) => {
+                                const next = [...ids];
+                                next[pendingSlotPicking] = undefined;
+                                return next.filter(Boolean);
+                              });
+                              setPendingSlotPicking(null);
+                            }}
+                            className="rounded-xl border border-zinc-600/40 bg-black/25 p-2.5 text-left text-xs text-zinc-400 hover:border-white/30"
+                          >
+                            ✕ No weapon in this slot
+                          </button>
+                          {STARTER_WEAPON_OFFER.map((weapon) => {
+                            const isInOtherSlot = pendingWeaponIds.some((id, idx) => id === weapon.id && idx !== pendingSlotPicking);
+                            return (
+                              <button
+                                key={weapon.id}
+                                disabled={isInOtherSlot}
+                                onClick={() => {
+                                  if (isInOtherSlot) return;
+                                  setPendingWeaponIds((ids) => {
+                                    const next = [...ids];
+                                    next[pendingSlotPicking] = weapon.id;
+                                    return next;
+                                  });
+                                  setPendingSlotPicking(null);
+                                }}
+                                className={`rounded-xl border p-2.5 text-left transition ${isInOtherSlot ? 'border-zinc-700/30 bg-black/20 opacity-40 cursor-not-allowed' : 'border-white/15 bg-black/35 hover:border-amber-300/50 hover:bg-amber-400/10'}`}
+                              >
+                                <div className="mb-1 flex items-center gap-1.5">
+                                  <span className="text-lg">{getWeaponArchetypeEmoji(weapon.archetype)}</span>
+                                  <span className={`text-sm font-black ${getWeaponRarityColor(weapon.rarity)}`}>{weapon.name}</span>
+                                </div>
+                                <div className="text-[10px] text-zinc-300">{weapon.passive.description}</div>
+                                <div className="mt-1 text-[10px] text-cyan-300">⚡ {weapon.special.description} (CD {weapon.special.cooldown}t)</div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      /* Loadout overview: map + slots + power + ready */
+                      (() => {
+                        const meta = loadMeta();
+                        const maxSlots = hasDualWeaponSlot(meta) ? 2 : hasWeaponSlot(meta) ? 1 : 0;
+                        const allW = buildAllWeapons();
+                        const wById = new Map(allW.map((w) => [w.id, w]));
+                        const charPower = CHARACTER_POWERS[pendingCharId];
+                        const pendingChar = Object.values(PLAYER_CHARACTERS).find((c) => c.id === pendingCharId);
+                        return (
+                          <>
+                            {/* Map preview strip */}
+                            <div className="mb-3 flex items-center gap-2 rounded-2xl border border-amber-300/20 bg-black/40 px-3 py-2">
+                              <span className="text-2xl">🗺️</span>
+                              <div className="flex-1">
+                                <div className="text-xs font-black text-amber-300">Zone 1 — Jungle</div>
+                                <div className="text-[10px] text-zinc-400">Your path: Combat · Event · Boss · …</div>
+                              </div>
+                              <div className="flex gap-1.5 text-lg">
+                                <span title="Combat">⚔️</span>
+                                <span title="Event">❓</span>
+                                <span title="Boss">💀</span>
+                              </div>
                             </div>
-                          )}
-                          <div className="mt-4 flex items-center justify-between gap-3">
-                            <div className="text-xs text-zinc-400">{pendingWeaponIds.length}/{maxSlots} selected</div>
+
+                            {/* Weapon slots */}
+                            <div className="mb-2 space-y-2">
+                              {[0, 1].map((slotIdx) => {
+                                const equippedId = pendingWeaponIds[slotIdx];
+                                const equipped = equippedId ? wById.get(equippedId) : null;
+                                const isLocked = slotIdx >= maxSlots;
+                                return (
+                                  <button
+                                    key={slotIdx}
+                                    disabled={isLocked}
+                                    onClick={() => !isLocked && setPendingSlotPicking(slotIdx)}
+                                    className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${isLocked ? 'border-zinc-700/40 bg-black/20 opacity-50 cursor-not-allowed' : equipped ? 'border-amber-300/50 bg-amber-400/10 hover:bg-amber-400/15' : 'border-white/20 bg-black/35 hover:border-amber-300/40 hover:bg-black/50'}`}
+                                  >
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-black/40 text-2xl">
+                                      {isLocked ? '🔒' : equipped ? getWeaponArchetypeEmoji(equipped.archetype) : '⚔️'}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">Slot {slotIdx + 1}</span>
+                                        {isLocked && <span className="text-[9px] text-zinc-500">Unlock at Level 7</span>}
+                                      </div>
+                                      {equipped ? (
+                                        <>
+                                          <div className={`text-sm font-black ${getWeaponRarityColor(equipped.rarity)}`}>{equipped.name}</div>
+                                          <div className="text-[10px] text-zinc-300 truncate">{equipped.passive.description}</div>
+                                        </>
+                                      ) : isLocked ? (
+                                        <div className="text-xs text-zinc-500">Reach Level 7 to unlock</div>
+                                      ) : (
+                                        <div className="text-xs text-zinc-400">Tap to pick a weapon →</div>
+                                      )}
+                                    </div>
+                                    {!isLocked && <span className="text-zinc-500 text-lg">{equipped ? '✏️' : '+'}</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Power button */}
+                            {charPower && (
+                              <div className="mb-3 flex items-center gap-3 rounded-2xl border border-violet-400/30 bg-violet-500/10 p-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-violet-400/30 bg-violet-900/40 text-2xl">💥</div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-300">Character Power</div>
+                                  <div className="text-sm font-black text-violet-200">{charPower.name}</div>
+                                  <div className="text-[10px] text-zinc-300">{charPower.desc}</div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Start Run */}
                             <Button
-                              onClick={() => confirmBuild(pendingCharId, pendingWeaponIds)}
-                              className="rounded-2xl bg-amber-400 px-8 py-3 font-black text-black hover:bg-amber-300"
+                              onClick={() => confirmBuild(pendingCharId, pendingWeaponIds.filter(Boolean))}
+                              className="w-full rounded-2xl bg-amber-400 py-4 text-lg font-black text-black hover:bg-amber-300 shadow-[0_0_24px_rgba(252,211,77,0.35)]"
                             >
-                              ⚔️ Start Run
+                              ⚔️ READY — Start Run
                             </Button>
-                          </div>
-                        </>
-                      );
-                    })()}
+                          </>
+                        );
+                      })()
+                    )}
                   </>
                 )}
               </div>
@@ -3340,7 +3460,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   </div>
                   <Button onClick={() => setGame((g) => ({ ...g, showHowToPlay: false }))} className="rounded-xl bg-white/10 px-4 py-2 text-white hover:bg-white/20">✕</Button>
                 </div>
-                {/* Quick tutorial */}
+                {/* Quick tutorial — always visible */}
                 <div className="mb-3 space-y-1.5 text-sm text-white">
                   <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-300">Quick start</div>
                   <div>1️⃣ Press <span className="font-black text-amber-300">ROLL</span> to get your dice for the turn</div>
@@ -3350,17 +3470,51 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   <div>5️⃣ Kill all enemies in a zone to advance to the next one</div>
                 </div>
 
-                {/* HUD guide */}
-                <div className="mb-3 rounded-xl border border-cyan-300/20 bg-cyan-950/30 p-3 space-y-1.5 text-[12px] text-zinc-100">
-                  <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">HUD — what's on screen</div>
-                  <div>⚔️ <span className="font-black">Attack die</span> — black dice, deals damage (row multiplier applies)</div>
-                  <div>🛡️ <span className="font-black">Shield die</span> — white dice, adds shield this turn</div>
-                  <div>❤️ <span className="font-black">Heal die</span> — pink dice, restores HP</div>
-                  <div>🔥 <span className="font-black">Top row ×3</span> · ✨ <span className="font-black">Mid ×2</span> · 🪨 <span className="font-black">Bot ×1</span> — multipliers per row</div>
-                  <div>⏳ <span className="font-black">Cooldown</span> — used slots are locked for N turns; board saturates if all slots locked</div>
-                  <div>💀 <span className="font-black">Enemy intent</span> — shown above enemy; predicts next action</div>
-                  <div>⚡ <span className="font-black">Enemy charge</span> — bar fills each turn; at max = SURGE (heavy attack)</div>
-                </div>
+                {/* How to Score — collapsible */}
+                <button
+                  onClick={() => setShowScoringGuide((v) => !v)}
+                  className="flex w-full items-center justify-between rounded-xl border border-amber-300/20 bg-amber-950/20 px-3 py-2 text-[12px] font-black text-amber-300 hover:bg-amber-950/35 mb-2"
+                >
+                  <span>📊 How to score more</span>
+                  <span>{showScoringGuide ? '▲' : '▼'}</span>
+                </button>
+                {showScoringGuide && (
+                  <div className="mb-2 rounded-xl border border-amber-300/15 bg-black/40 p-3 text-[12px] space-y-1.5 text-zinc-100">
+                    <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-amber-300">Score sources</div>
+                    <div>⚔️ <span className="font-black text-amber-200">Kill +120</span> — base score per enemy killed</div>
+                    <div>💥 <span className="font-black text-rose-300">Overkill</span> — excess damage × 5 bonus points</div>
+                    <div>⚡ <span className="font-black text-violet-300">One Shot +100</span> — kill enemy on their first intent</div>
+                    <div>🎯 <span className="font-black text-lime-300">No-hit streak</span> — multiplier grows every turn you don't take HP damage</div>
+                    <div>🌿 <span className="font-black text-emerald-300">Zone mult</span> — deeper zones multiply all score (Zone 2 = ×1.2, Zone 3 = ×1.4…)</div>
+                    <div>✨ <span className="font-black text-cyan-300">Perfect +150</span> — kill enemy without taking any HP damage this fight</div>
+                    <div>👑 <span className="font-black text-amber-300">Boss +500</span> — flat bonus on boss kill</div>
+                    <div className="mt-2 border-t border-white/10 pt-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-400">Top tips</div>
+                    <div>🎯 <span className="font-black">Don't get hit.</span> The no-hit streak multiplier is your biggest score lever.</div>
+                    <div>🔱 <span className="font-black">Pierce + Top row.</span> Top row ×3 + pierce ignores shield = massive overkill combos.</div>
+                    <div>⚡ <span className="font-black">One Shot on first intent.</span> Plan your board so enemy dies before they even act.</div>
+                    <div>🌿 <span className="font-black">Survive deep.</span> Zone 5 = ×1.8 multiplier on every kill.</div>
+                  </div>
+                )}
+
+                {/* HUD guide — collapsible */}
+                <button
+                  onClick={() => setShowHudGuide((v) => !v)}
+                  className="flex w-full items-center justify-between rounded-xl border border-cyan-300/20 bg-cyan-950/20 px-3 py-2 text-[12px] font-black text-cyan-300 hover:bg-cyan-950/35 mb-2"
+                >
+                  <span>🖥️ HUD guide</span>
+                  <span>{showHudGuide ? '▲' : '▼'}</span>
+                </button>
+                {showHudGuide && (
+                  <div className="mb-2 rounded-xl border border-cyan-300/15 bg-black/40 p-3 space-y-1.5 text-[12px] text-zinc-100">
+                    <div>⚔️ <span className="font-black">Attack die</span> — black dice, deals damage (row multiplier applies)</div>
+                    <div>🛡️ <span className="font-black">Shield die</span> — white dice, adds shield this turn</div>
+                    <div>❤️ <span className="font-black">Heal die</span> — pink dice, restores HP</div>
+                    <div>🔥 <span className="font-black">Top row ×3</span> · ✨ <span className="font-black">Mid ×2</span> · 🪨 <span className="font-black">Bot ×1</span> — multipliers per row</div>
+                    <div>⏳ <span className="font-black">Cooldown</span> — used slots are locked for N turns; board saturates if all slots locked</div>
+                    <div>💀 <span className="font-black">Enemy intent</span> — shown above enemy; predicts next action</div>
+                    <div>⚡ <span className="font-black">Enemy charge</span> — bar fills each turn; at max = SURGE (heavy attack)</div>
+                  </div>
+                )}
 
                 {/* Advanced guide toggle */}
                 <button

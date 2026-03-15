@@ -132,7 +132,7 @@ const GAME_LOGIC_GROUPS = {
 
 const EMPTY_CONFIG = {
   assets: { monsters: { mob: [], champions: [], boss: [] }, backgrounds: { jungle: [], ruins: [], temple: [] }, zones: { general: [] }, events: { general: [] } },
-  gameLogic: { enemyHpScale: 1, enemyDamageScale: 1, scoreScale: 1, randomEventChance: 0.2, waveGrowthPerStage: 0.12, bossHpMultiplier: 2.4, bossDamageMultiplier: 1.8, critChance: 0.12, critMultiplier: 1.75, dodgeChance: 0.08, lifeSteal: 0.05, shieldDecayPerTurn: 0.15, comboWindowTurns: 2, rerollCostScore: 20, reviveHpRatio: 0.35, eventIntensityScale: 1, dropRateMultiplier: 1 },
+  gameLogic: { difficultyMultiplier: 1.0, enemyHpScale: 1, enemyDamageScale: 1, scoreScale: 1, randomEventChance: 0.2, waveGrowthPerStage: 0.12, bossHpMultiplier: 2.4, bossDamageMultiplier: 1.8, critChance: 0.12, critMultiplier: 1.75, dodgeChance: 0.08, lifeSteal: 0.05, shieldDecayPerTurn: 0.15, comboWindowTurns: 2, rerollCostScore: 20, reviveHpRatio: 0.35, eventIntensityScale: 1, dropRateMultiplier: 1 },
   randomEvents: [],
   visuals: {
     backgroundUrl: '',
@@ -792,6 +792,69 @@ export default function DieInTheJungleAdmin() {
               <h2 className="text-xl font-semibold mb-1">⚙️ Game Logic Parameters</h2>
               <p className="text-zinc-400 text-sm">These values are saved to the server config and read by the game at runtime. Changes highlighted in amber until saved.</p>
             </div>
+
+            {/* ── Master Difficulty Slider ─────────────────────────────────────── */}
+            <div className="rounded-xl border-2 border-rose-500/40 bg-gradient-to-r from-rose-950/40 to-amber-950/30 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="text-lg font-bold text-rose-200">🎮 Master Difficulty</h3>
+                  <p className="text-zinc-400 text-xs mt-0.5">Scales enemy HP + damage simultaneously. Applies to all players immediately on save.</p>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-black text-rose-300">{Number(config.gameLogic?.difficultyMultiplier ?? 1.0).toFixed(1)}×</div>
+                  <div className="text-[10px] text-zinc-400 uppercase tracking-wider">
+                    {Number(config.gameLogic?.difficultyMultiplier ?? 1.0) <= 0.8 ? 'Easy' :
+                     Number(config.gameLogic?.difficultyMultiplier ?? 1.0) <= 1.0 ? 'Normal' :
+                     Number(config.gameLogic?.difficultyMultiplier ?? 1.0) <= 1.4 ? 'Hard' :
+                     Number(config.gameLogic?.difficultyMultiplier ?? 1.0) <= 1.8 ? 'Brutal' : 'Nightmare'}
+                  </div>
+                </div>
+              </div>
+              <input
+                type="range"
+                min="0.5"
+                max="2.5"
+                step="0.1"
+                value={Number(config.gameLogic?.difficultyMultiplier ?? 1.0)}
+                onChange={(e) => updateLogic('difficultyMultiplier', e.target.value)}
+                className="w-full accent-rose-500 cursor-pointer"
+                style={{ height: '8px' }}
+              />
+              <div className="flex justify-between text-[10px] text-zinc-500 mt-1">
+                <span>0.5× Easy</span>
+                <span>1.0× Normal</span>
+                <span>1.5× Hard</span>
+                <span>2.0× Brutal</span>
+                <span>2.5× Nightmare</span>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] text-zinc-400">
+                <div className="rounded bg-black/30 p-2 text-center">
+                  <div className="font-black text-zinc-200">HP ×{(Number(config.gameLogic?.difficultyMultiplier ?? 1.0) * (Number(config.gameLogic?.enemyHpScale ?? 1))).toFixed(2)}</div>
+                  <div>enemy HP total</div>
+                </div>
+                <div className="rounded bg-black/30 p-2 text-center">
+                  <div className="font-black text-zinc-200">DMG ×{(Number(config.gameLogic?.difficultyMultiplier ?? 1.0) * (Number(config.gameLogic?.enemyDamageScale ?? 1))).toFixed(2)}</div>
+                  <div>enemy damage total</div>
+                </div>
+                <div className="rounded bg-black/30 p-2 text-center">
+                  <button
+                    onClick={() => { updateLogic('difficultyMultiplier', 1.0); }}
+                    className="w-full rounded bg-zinc-700 hover:bg-zinc-600 px-2 py-1 text-xs font-bold"
+                  >
+                    Reset to 1.0×
+                  </button>
+                </div>
+              </div>
+              {logicDirty && (
+                <button
+                  onClick={() => saveConfig(config)}
+                  className="mt-3 w-full rounded-lg bg-rose-600 hover:bg-rose-500 py-2 text-sm font-bold text-white"
+                >
+                  💾 Save Difficulty — Apply to All Players Now
+                </button>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
               {Object.entries(GAME_LOGIC_GROUPS).map(([group, { label, keys, descriptions }]) => (
                 <div key={group} className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 space-y-3">
