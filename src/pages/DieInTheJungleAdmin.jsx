@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 
 // ─── Storage Keys (must match game) ──────────────────────────────────────────
 const META_KEY = 'jk_meta_progression_v1';
@@ -17,58 +17,59 @@ const ALL_UNLOCK_IDS = [
   'companion_oeil',
 ];
 
-const UNLOCK_LABELS = {
-  character_kkm: 'KKM Character 🤖',
-  weapon_slot_1: 'Weapon Slot 1 ⚔️',
-  dice_specials: 'Special Dice Faces ✦',
-  lane_bonuses: 'Lane Bonuses 🎯',
-  companion_gecko: 'Gecko Companion 🦎',
-  companion_croak: 'Croak Companion 🐊',
-  weapon_slot_2: 'Weapon Slot 2 ⚔️⚔️',
-  companion_oeil: "L'Œil Companion 👁️",
-};
-
 const ALL_ACHIEVEMENTS = ['zone1_boss_first', 'zone2_boss_first', 'zone3_boss_first', 'zone4_boss_first'];
 
 // ─── Test Presets ─────────────────────────────────────────────────────────────
 const PRESETS = {
   level1: {
-    label: 'Fresh Start',
-    description: 'No unlocks, no XP. Exactly what a new player sees.',
+    label: 'Level 1 — Fresh Start',
+    description: 'Completely fresh: no unlocks, no XP, no gems. Exactly what a new player sees.',
     emoji: '🌱',
     color: 'emerald',
-    meta: { xp: 0, gems: 0, unlockedIds: [], achievements: [], totalRuns: 0, totalKills: 0, bestScore: 0 },
+    meta: {
+      xp: 0, gems: 0, unlockedIds: [], achievements: [],
+      totalRuns: 0, totalKills: 0, bestScore: 0,
+    },
   },
   levelXX: {
-    label: 'Everything Unlocked',
-    description: 'All companions, both weapon slots, KKM, dice specials, lane bonuses.',
+    label: 'Level XX — Everything Unlocked',
+    description: 'All companions, both weapon slots, KKM, dice specials, lane bonuses. Max progression.',
     emoji: '🏆',
     color: 'amber',
-    meta: { xp: 5000, gems: 1500, unlockedIds: ALL_UNLOCK_IDS, achievements: ALL_ACHIEVEMENTS, totalRuns: 42, totalKills: 280, bestScore: 18500 },
+    meta: {
+      xp: 5000, gems: 1500, unlockedIds: ALL_UNLOCK_IDS,
+      achievements: ALL_ACHIEVEMENTS, totalRuns: 42, totalKills: 280, bestScore: 18500,
+    },
   },
   midGame: {
-    label: 'Mid Game',
-    description: 'KKM + dice specials + lane bonuses. No companions yet.',
+    label: 'Mid Game — Zone 2 Clear',
+    description: 'KKM unlocked + weapon slot 1 + dice specials + lane bonuses. No companions yet.',
     emoji: '⚔️',
     color: 'blue',
-    meta: { xp: 900, gems: 200, unlockedIds: ['character_kkm', 'weapon_slot_1', 'dice_specials', 'lane_bonuses'], achievements: ['zone1_boss_first', 'zone2_boss_first'], totalRuns: 8, totalKills: 52, bestScore: 4200 },
-  },
-  companions: {
-    label: 'Companion Ready',
-    description: 'All companions unlocked but no weapon slots.',
-    emoji: '🦎',
-    color: 'violet',
-    meta: { xp: 2000, gems: 600, unlockedIds: ['character_kkm', 'dice_specials', 'lane_bonuses', 'companion_gecko', 'companion_croak', 'companion_oeil'], achievements: ALL_ACHIEVEMENTS, totalRuns: 20, totalKills: 140, bestScore: 9000 },
+    meta: {
+      xp: 900, gems: 200,
+      unlockedIds: ['character_kkm', 'weapon_slot_1', 'dice_specials', 'lane_bonuses'],
+      achievements: ['zone1_boss_first', 'zone2_boss_first'],
+      totalRuns: 8, totalKills: 52, bestScore: 4200,
+    },
   },
 };
 
-// ─── Enemy data (mirrored from game for display) ──────────────────────────────
-const ENEMY_TIERS = {
-  mob: { label: 'Mob', color: 'zinc', desc: 'Zone 1 fodder · low HP · basic intents' },
-  medium: { label: 'Medium', color: 'blue', desc: 'Zone 2-3 · more HP · dangerous modifiers' },
-  champions: { label: 'Champion', color: 'amber', desc: 'Zone 3+ · elites · complex intent patterns' },
-  boss: { label: 'Boss', color: 'rose', desc: 'Zone end · high HP · boss mechanics' },
+// ─── Difficulty presets ───────────────────────────────────────────────────────
+const DIFFICULTY_PRESETS = {
+  1: { label: 'Easy', skulls: '💀', scale: 0.7 },
+  2: { label: 'Normal', skulls: '💀💀', scale: 1.0 },
+  3: { label: 'Hard', skulls: '💀💀💀', scale: 1.3 },
+  4: { label: 'Extreme', skulls: '💀💀💀💀', scale: 1.7 },
+  5: { label: 'NIGHTMARE', skulls: '💀💀💀💀💀', scale: 2.2 },
 };
+
+const DIFFICULTY_KEYS = [
+  'enemyHpScale', 'enemyDamageScale', 'waveGrowthPerStage',
+  'bossHpMultiplier', 'bossDamageMultiplier', 'eventIntensityScale',
+  'critChance', 'critMultiplier', 'dodgeChance', 'lifeSteal',
+  'dropRateMultiplier', 'rerollCostScore',
+];
 
 // ─── Asset Schema ─────────────────────────────────────────────────────────────
 const ASSET_SCHEMA = {
@@ -78,107 +79,97 @@ const ASSET_SCHEMA = {
   events: ['general'],
 };
 
-const TABS = [
-  { id: 'testgame', label: '🎮 Test & Presets' },
-  { id: 'metaeditor', label: '🧬 Meta Editor' },
-  { id: 'cheatmode', label: '🔧 Cheat Mode' },
-  { id: 'difficulty', label: '💀 Difficulty' },
-  { id: 'pool', label: '🎲 Pool' },
-  { id: 'gamelogic', label: '⚙️ Game Logic' },
-  { id: 'enemies', label: '👾 Enemies' },
-  { id: 'artifacts', label: '📦 Artifacts' },
-  { id: 'assets', label: '🖼️ Assets' },
-  { id: 'avatars', label: '🎭 Avatars' },
-  { id: 'narrative', label: '📖 Narrative' },
-  { id: 'events', label: '🎲 Events' },
-  { id: 'sound', label: '🎵 Sound' },
-  { id: 'brandkit', label: '🎨 Brand Kit' },
-  { id: 'sprint', label: '🏃 Sprint' },
-  { id: 'docs', label: '📚 Docs' },
-  { id: 'advanced', label: '🔬 Advanced' },
-  { id: 'roadmap', label: '🗺️ Roadmap' },
-];
-
-const GAME_LOGIC_GROUPS = {
-  difficulty: {
-    label: 'Difficulty',
-    keys: ['enemyHpScale', 'enemyDamageScale', 'waveGrowthPerStage', 'bossHpMultiplier', 'bossDamageMultiplier', 'eventIntensityScale'],
-    descriptions: {
-      enemyHpScale: 'Multiplier on all enemy HP (default 1)',
-      enemyDamageScale: 'Multiplier on all enemy damage (default 1)',
-      waveGrowthPerStage: 'Extra HP/DMG per zone floor (default 0.12)',
-      bossHpMultiplier: 'Boss HP multiplier vs base (default 2.4)',
-      bossDamageMultiplier: 'Boss damage multiplier vs base (default 1.8)',
-      eventIntensityScale: 'How intense random events are (default 1)',
-    },
-  },
-  combat: {
-    label: 'Combat Mechanics',
-    keys: ['critChance', 'critMultiplier', 'dodgeChance', 'lifeSteal', 'shieldDecayPerTurn', 'comboWindowTurns', 'reviveHpRatio'],
-    descriptions: {
-      critChance: 'Probability of crit (default 0.12)',
-      critMultiplier: 'Crit damage multiplier (default 1.75)',
-      dodgeChance: 'Probability to dodge hit (default 0.08)',
-      lifeSteal: 'HP gained per attack (default 0.05)',
-      shieldDecayPerTurn: 'Shield lost per turn (default 0.15)',
-      comboWindowTurns: 'Turns for combo detection (default 2)',
-      reviveHpRatio: 'HP ratio on revive (default 0.35)',
-    },
-  },
-  economy: {
-    label: 'Economy',
-    keys: ['scoreScale', 'dropRateMultiplier', 'rerollCostScore', 'randomEventChance'],
-    descriptions: {
-      scoreScale: 'Multiplier on all score gain (default 1)',
-      dropRateMultiplier: 'Artifact/item drop rate (default 1)',
-      rerollCostScore: 'Score cost per reroll (default 20)',
-      randomEventChance: 'Chance of random event on node (default 0.2)',
-    },
-  },
-};
-
-const EMPTY_CONFIG = {
-  assets: { monsters: { mob: [], champions: [], boss: [] }, backgrounds: { jungle: [], ruins: [], temple: [] }, zones: { general: [] }, events: { general: [] } },
-  gameLogic: { difficultyMultiplier: 1.0, enemyHpScale: 1, enemyDamageScale: 1, scoreScale: 1, randomEventChance: 0.2, waveGrowthPerStage: 0.12, bossHpMultiplier: 2.4, bossDamageMultiplier: 1.8, critChance: 0.12, critMultiplier: 1.75, dodgeChance: 0.08, lifeSteal: 0.05, shieldDecayPerTurn: 0.15, comboWindowTurns: 2, rerollCostScore: 20, reviveHpRatio: 0.35, eventIntensityScale: 1, dropRateMultiplier: 1 },
-  pools: {
-    artifactWeights: { gray: 4, gold: 3, chrome: 1 },
-    starterWeights: { gray: 6, gold: 3, chrome: 1 },
-    shopItemEnabled: {},
-    mapNodeWeights: { combat: 3, shop: 1, rest: 1, event: 1 },
-  },
-  sounds: {},
-  brandKit: {
-    tagline: 'Die in the Jungle — or die trying.',
-    elevatorPitch: 'A Telegram-native roguelite where you roll dice, build combos, and fight through Ka\'s cursed jungle. Fast, brutal, addictive.',
-    keyMessages: ['Fast 5-min runs', 'Strategic dice placement', 'Meta progression across runs'],
-    hashtags: '#DieInTheJungle #JungleKabal #TelegramGame #Roguelite',
-  },
-  sprintItems: [],
-  visuals: {
-    backgroundUrl: '',
-    logoUrl: '',
-    storyFragmentImageUrl: '',
-    buttonImages: { roll: '', reroll: '', resolve: '', restart: '' },
-    biomeBackgrounds: { jungle: '', ruins: '', temple: '', abyss: '', void: '' },
-  },
-  characters: { playable: {}, emotionUrls: {} },
-  narrative: { kabalian: [], kkm: [] },
-  adminBacklog: [],
-  monsters: { traitsCatalog: [], customMonsters: [] },
-  artifacts: { customArtifacts: [] },
-  assetsMeta: {},
-  randomEvents: [],
-  narrativeArcs: [
-    { id: 'arc1', title: 'The Descent', imageUrl: '', lines: [] },
-    { id: 'arc2', title: 'The Jungle Speaks', imageUrl: '', lines: [] },
-    { id: 'arc3', title: 'Shadows of the Old Kingdom', imageUrl: '', lines: [] },
-    { id: 'arc4', title: 'The Ritual', imageUrl: '', lines: [] },
-    { id: 'arc5', title: 'Ka\'s Wrath', imageUrl: '', lines: [] },
-    { id: 'arc6', title: 'Ascension or Death', imageUrl: '', lines: [] },
+// ─── Sound Schema ─────────────────────────────────────────────────────────────
+const SOUND_SCHEMA = {
+  DICE: [
+    { id: 'roll_dice', name: 'Roll Dice', desc: 'Main dice roll sound', maxKB: 200, idealKB: 80 },
+    { id: 'reroll_dice', name: 'Reroll Dice', desc: 'Reroll sound', maxKB: 150, idealKB: 60 },
+    { id: 'place_die', name: 'Place Die', desc: 'Die placed on slot', maxKB: 100, idealKB: 40 },
+    { id: 'special_pierce', name: 'Special: Pierce', desc: 'Pierce die special', maxKB: 150, idealKB: 60 },
+    { id: 'special_echo', name: 'Special: Echo', desc: 'Echo die special', maxKB: 150, idealKB: 60 },
+    { id: 'special_nurture', name: 'Special: Nurture', desc: 'Nurture die special', maxKB: 150, idealKB: 60 },
+    { id: 'special_fortress', name: 'Special: Fortress', desc: 'Fortress die special', maxKB: 150, idealKB: 60 },
+  ],
+  COMBAT: [
+    { id: 'hit_normal', name: 'Hit Normal', desc: 'Normal hit', maxKB: 100, idealKB: 40 },
+    { id: 'hit_crit', name: 'Hit Critical', desc: 'Critical hit', maxKB: 150, idealKB: 60 },
+    { id: 'hit_miss', name: 'Hit Miss', desc: 'Miss/dodge', maxKB: 100, idealKB: 40 },
+    { id: 'player_hurt', name: 'Player Hurt', desc: 'Player takes damage', maxKB: 150, idealKB: 60 },
+    { id: 'player_death', name: 'Player Death', desc: 'Player death', maxKB: 300, idealKB: 120 },
+    { id: 'enemy_death', name: 'Enemy Defeated', desc: 'Enemy defeated', maxKB: 200, idealKB: 80 },
+    { id: 'boss_appear', name: 'Boss Entrance', desc: 'Boss entrance', maxKB: 500, idealKB: 200 },
+    { id: 'combo_surge', name: 'SURGE Combo', desc: 'SURGE combo trigger', maxKB: 200, idealKB: 80 },
+  ],
+  WEAPONS: [
+    { id: 'weapon_slash', name: 'Slash Attack', desc: 'Slash weapon attack', maxKB: 150, idealKB: 60 },
+    { id: 'weapon_magic', name: 'Magic Attack', desc: 'Magic staff attack', maxKB: 150, idealKB: 60 },
+    { id: 'weapon_shield', name: 'Shield Block', desc: 'Shield block', maxKB: 150, idealKB: 60 },
+    { id: 'weapon_totem', name: 'Ka Totem', desc: 'Ka Totem activation', maxKB: 200, idealKB: 80 },
+    { id: 'weapon_cannon', name: 'Chrome Cannon', desc: 'Chrome cannon fire', maxKB: 200, idealKB: 80 },
+    { id: 'weapon_venom', name: 'Venom Fang', desc: 'Venom fang strike', maxKB: 150, idealKB: 60 },
+    { id: 'companion_ability', name: 'Companion Ability', desc: 'Companion ability use', maxKB: 200, idealKB: 80 },
+  ],
+  REWARDS: [
+    { id: 'coin_collect', name: 'Coin Collect', desc: 'Coins collected', maxKB: 100, idealKB: 40 },
+    { id: 'gem_collect', name: 'Gem Collect', desc: 'Gem collected', maxKB: 150, idealKB: 60 },
+    { id: 'artifact_pickup', name: 'Artifact Pickup', desc: 'Artifact reward', maxKB: 300, idealKB: 120 },
+    { id: 'level_up', name: 'Level Up', desc: 'Level up / XP milestone', maxKB: 300, idealKB: 120 },
+    { id: 'unlock_new', name: 'New Unlock', desc: 'New unlock earned', maxKB: 400, idealKB: 150 },
+  ],
+  MAP: [
+    { id: 'node_select', name: 'Node Select', desc: 'Node selected on map', maxKB: 100, idealKB: 40 },
+    { id: 'zone_enter', name: 'Zone Enter', desc: 'Entering new zone', maxKB: 200, idealKB: 80 },
+    { id: 'zone_clear', name: 'Zone Clear', desc: 'Zone cleared', maxKB: 300, idealKB: 120 },
+    { id: 'shop_open', name: 'Shop Open', desc: 'Shop node opened', maxKB: 150, idealKB: 60 },
+    { id: 'rest_camp', name: 'Rest Camp', desc: 'Rest camp entered', maxKB: 200, idealKB: 80 },
+    { id: 'event_trigger', name: 'Event Trigger', desc: 'Random event triggered', maxKB: 200, idealKB: 80 },
+  ],
+  MUSIC: [
+    { id: 'bgm_jungle', name: 'Jungle Ambient', desc: 'Jungle ambient loop', maxKB: 3000, idealKB: 1000 },
+    { id: 'bgm_combat', name: 'Combat Music', desc: 'Combat music loop', maxKB: 3000, idealKB: 1200 },
+    { id: 'bgm_boss', name: 'Boss Battle', desc: 'Boss battle music', maxKB: 4000, idealKB: 1500 },
+    { id: 'bgm_victory', name: 'Victory Fanfare', desc: 'Victory fanfare', maxKB: 2000, idealKB: 800 },
+    { id: 'bgm_gameover', name: 'Game Over', desc: 'Game over', maxKB: 2000, idealKB: 800 },
+    { id: 'bgm_menu', name: 'Main Menu', desc: 'Main menu music', maxKB: 3000, idealKB: 1000 },
   ],
 };
 
-// ─── Roadmap ──────────────────────────────────────────────────────────────────
+// ─── Narrative Arcs ────────────────────────────────────────────────────────────
+const NARRATIVE_ARCS = [
+  'The Awakening',
+  'The Jungle Depths',
+  'Ancient Ruins',
+  'The Temple',
+  'Dark Ritual',
+  "Ka's Wrath",
+];
+
+// ─── XP Levels ─────────────────────────────────────────────────────────────────
+const DEFAULT_XP_THRESHOLDS = [
+  100, 250, 450, 700, 1000, 1350, 1750, 2200, 2700, 3250,
+  3850, 4500, 5200, 5950, 6750, 7600, 8500, 9450, 10450, 11500,
+];
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+const TABS = [
+  { id: 'ops', label: '🎮 OPS' },
+  { id: 'difficulty', label: '💀 Difficulty' },
+  { id: 'enemies', label: '👹 Enemies' },
+  { id: 'artifacts', label: '💎 Artifacts' },
+  { id: 'events', label: '🎲 Events' },
+  { id: 'characters', label: '🎭 Characters' },
+  { id: 'narrative', label: '📖 Narrative' },
+  { id: 'assets', label: '🖼️ Assets' },
+  { id: 'metaxp', label: '📈 Meta XP' },
+  { id: 'roadmap', label: '🗺️ Roadmap' },
+  { id: 'sprint', label: '🏃 Sprint' },
+  { id: 'docs', label: '📚 Docs' },
+  { id: 'sound', label: '🎵 Sound' },
+  { id: 'brand', label: '🎨 Brand Kit' },
+  { id: 'advanced', label: '🔬 Advanced' },
+];
+
+// ─── Roadmap Data ─────────────────────────────────────────────────────────────
 const ROADMAP = [
   {
     section: '✅ Done',
@@ -188,103 +179,98 @@ const ROADMAP = [
       { label: 'Zone-based branching map with fog of war', done: true },
       { label: 'Shop, event, rest nodes on map', done: true },
       { label: 'Meta progression system (XP + gems + unlock tree)', done: true },
-      { label: 'Companion system (Gecko 🦎, Croak 🐊, L\'Œil 👁️)', done: true },
-      { label: 'Companion active ability button in combat UI', done: true },
+      { label: 'Companion system (Gecko 🦎, Croak 🐊, L\'Oeil 👁️)', done: true },
       { label: 'Special dice faces: Pierce, Echo, Nurture, Fortress', done: true },
       { label: 'SURGE mechanic (3 same type → bonus)', done: true },
-      { label: 'Lane conditionals (top heal → reset CD, bot → coins)', done: true },
+      { label: 'Lane conditionals (top heal → reset CD, bot → coins, mid 2x → +5)', done: true },
       { label: 'Enemy intents + modifiers (venom, thorns, regen, berserk, stoneSkin, swift)', done: true },
       { label: '2 playable characters (Kabalian + KKM with stats)', done: true },
       { label: 'Score system + leaderboard (local)', done: true },
       { label: 'Telegram SDK integration (init, user, expand)', done: true },
-      { label: 'Admin panel (test presets, meta editor, game logic, enemies viewer, cheat mode)', done: true },
+      { label: 'Run ticket mechanic (invite → tickets)', done: true },
+      { label: 'Web mirror at /diejungle', done: true },
+      { label: 'Admin panel (assets, game logic, narrative)', done: true },
       { label: 'Backend API (config, assets, runs, referrals, leaderboard)', done: true },
-      { label: 'Fortress shield persistence across turns', done: true },
-      { label: 'Boss zone achievement tracking fixed', done: true },
-      { label: 'AngelOpsDashboard routing fixed', done: true },
-      { label: 'Standalone export: diejungle/ sub-project for diejungle.fun', done: true },
     ],
   },
   {
     section: '🔧 In Progress / Next Sprint',
     color: 'amber',
     items: [
-      { label: 'Map doesn\'t refresh visually after combat — map state update bug', done: false },
-      { label: 'Shop node on map (guaranteed every zone) + BOSS node at end of zone', done: false },
-      { label: 'Zone visited history / breadcrumb panel on map', done: false },
-      { label: 'Remove wallet connect button from game UI', done: false },
-      { label: '"How to Score More" guide (replaces How to Play)', done: false },
-      { label: 'Post-combat loot popup (choose: Max HP +2 / Mana / Gold coin) — fast, non-disruptive', done: false },
-      { label: 'Free artifact after each Boss kill', done: false },
-      { label: 'Random events: big image + text + 2-3 choices (or auto-reward) — fully visual', done: false },
-      { label: 'Biome system — ZONES = Biomes with unique backgrounds + biome-specific enemies', done: false },
-      { label: 'Biome changes after each boss (random, changes game background dynamically)', done: false },
+      { label: 'Companion active ability button in combat UI (Hypnose / Leap / Vision)', done: false },
       { label: 'Companion selection screen before run start', done: false },
-      { label: 'KKM properly gated by meta unlock (character_kkm)', done: false },
+      { label: 'Weapon system — equip weapons with passives + specials in combat', done: false },
+      { label: 'KKM character properly gated by meta unlock (character_kkm)', done: false },
+      { label: 'Meta XP/gems awarded at run end (recordRunEnd wired to game)', done: false },
       { label: 'Profile/unlock screen (spend gems, view unlock tree)', done: false },
-      { label: 'Telegram Mini App hosted on diejungle.fun', done: false },
-      { label: 'Namecheap DNS → Vercel domain migration for diejungle.fun', done: false },
-    ],
-  },
-  {
-    section: '🎮 Game Design — Confirmed Direction',
-    color: 'violet',
-    items: [
-      { label: 'BIOMES: each zone = biome (jungle / ruins / temple / void / ...) with own background image', done: false },
-      { label: 'BIOMES: biome-specific enemy pool (certain enemies only appear in certain biomes)', done: false },
-      { label: 'BIOMES: biome is random after each boss, changing the visual atmosphere', done: false },
-      { label: 'LOOT after each mob kill: fast popup — choose Max HP +2 / Mana charge / +1 Gold', done: false },
-      { label: 'LOOT: popup must not break combat rhythm — 2 sec tap then auto-dismiss', done: false },
-      { label: 'BOSS reward: guaranteed free artifact pick (3 choices)', done: false },
-      { label: 'EVENTS: big image + lore text + 1-3 choices — sometimes pure auto-reward (no choice)', done: false },
-      { label: 'EVENTS: visible on map as special node with image thumbnail', done: false },
-      { label: 'MAP: shop guaranteed on every zone, before the boss', done: false },
-      { label: 'MAP: zone history breadcrumbs — show biomes visited and boss kills', done: false },
-      { label: 'WEAPON system: 6 archetypes × 3 variants × 4 rarities = 72 weapons to design', done: false },
-      { label: 'MANA: resource for special abilities (companions + weapons use mana)', done: false },
-      { label: 'Daily seed competitive run + daily score posted in Telegram channel', done: false },
-      { label: 'Referral → +150 gems visible in profile (gems as flex currency)', done: false },
+      { label: 'Fortress shield persistence across turns', done: false },
     ],
   },
   {
     section: '📋 Backlog',
     color: 'zinc',
     items: [
-      { label: 'Weapon system — equip weapons with passives + specials in combat', done: false },
-      { label: 'Share card auto-generated end of run (score + zone + artifacts + "Beat my score" CTA)', done: false },
+      { label: 'Daily seed run (same seed for all players that day)', done: false },
+      { label: 'Run telemetry pipeline (start, turn, death cause, score)', done: false },
+      { label: 'Share card generator (zone + score + build + referral CTA)', done: false },
       { label: 'Friend leaderboard (global + social graph)', done: false },
       { label: 'Seasons with limited relic pool and season badges', done: false },
       { label: 'Visual FX polish — hit flash, impact rings, lane-aware emitters', done: false },
-      { label: 'Special dice faces visual badge on die card', done: false },
+      { label: 'Special dice faces visual badge on die face card', done: false },
+      { label: 'Daily missions v2 (+shards/reroll credits/backend sync)', done: false },
       { label: 'Server-side score verification / anti-cheat', done: false },
       { label: 'Mobile safe-area adjustment for Telegram in-app browser', done: false },
+      { label: 'LiveOps panel (missions, boosts, referral multipliers)', done: false },
       { label: 'Boss zone 4 — full enemy pool', done: false },
-      { label: 'More complex enemy intents per zone (charge+curse same turn, conditional heal < 30% HP)', done: false },
-      { label: 'Custom enemies/artifacts from admin that merge with hardcoded pools', done: false },
     ],
   },
 ];
 
-// ─── Bugs & Features Tracker ──────────────────────────────────────────────────
-const KNOWN_ISSUES = [
-  { status: 'fixed', label: 'AngelOpsDashboard import missing in App.jsx — runtime crash', date: '2026-03-15' },
-  { status: 'fixed', label: 'Boss zone achievement never tracked (phase === "victory" never true)', date: '2026-03-15' },
-  { status: 'fixed', label: 'Fortress shield tracked but never applied on next turn', date: '2026-03-15' },
-  { status: 'open', label: 'Companion Croak missing achievementRequired — gem-only unlock', date: '2026-03-15' },
-  { status: 'open', label: 'KKM character not gated by character_kkm unlock — always available', date: '2026-03-15' },
-  { status: 'open', label: 'Weapon system imported but zero usage in game code', date: '2026-03-15' },
-  { status: 'open', label: 'Companion selection screen missing before run start', date: '2026-03-15' },
-  { status: 'open', label: 'Echo dice face (value 5) defined but behavior unclear', date: '2026-03-15' },
-  { status: 'open', label: 'Curse hasCurse flag set but never read — dead code', date: '2026-03-15' },
-  { status: 'open', label: 'Zone scaling caps at zone 4 — endless mode needs infinite scaling', date: '2026-03-15' },
-  { status: 'open', label: 'Map events and shop costs hardcoded — not admin-tunable', date: '2026-03-15' },
-  { status: 'open', label: 'Map doesn\'t visually refresh after combat (node not marked visited)', date: '2026-03-15' },
-  { status: 'open', label: 'No shop node guaranteed on map — player can miss shop entirely', date: '2026-03-15' },
-  { status: 'open', label: 'No boss node at end of zone — zone structure is random', date: '2026-03-15' },
-  { status: 'open', label: 'Wallet connect button still visible — needs removal', date: '2026-03-15' },
-  { status: 'open', label: 'Post-combat loot choice missing (Max HP / Mana / Gold)', date: '2026-03-15' },
-  { status: 'open', label: 'No biome system — all zones use same background', date: '2026-03-15' },
+
+// ─── Brand Colors ─────────────────────────────────────────────────────────────
+const BRAND_COLORS = [
+  { name: 'Primary Gold', hex: '#F59E0B' },
+  { name: 'Deep Jungle', hex: '#052E16' },
+  { name: 'Bone White', hex: '#F5F0E8' },
+  { name: 'Blood Red', hex: '#DC2626' },
+  { name: 'Mystic Purple', hex: '#7C3AED' },
+  { name: 'Shadow Black', hex: '#0A0A0A' },
+  { name: 'Accent Cyan', hex: '#06B6D4' },
 ];
+
+// ─── Empty Config ─────────────────────────────────────────────────────────────
+const EMPTY_CONFIG = {
+  assets: {
+    monsters: { mob: [], champions: [], boss: [] },
+    backgrounds: { jungle: [], ruins: [], temple: [] },
+    zones: { general: [] },
+    events: { general: [] },
+  },
+  gameLogic: {
+    enemyHpScale: 1, enemyDamageScale: 1, scoreScale: 1,
+    randomEventChance: 0.2, waveGrowthPerStage: 0.12,
+    bossHpMultiplier: 2.4, bossDamageMultiplier: 1.8,
+    critChance: 0.12, critMultiplier: 1.75, dodgeChance: 0.08,
+    lifeSteal: 0.05, shieldDecayPerTurn: 0.15, comboWindowTurns: 2,
+    rerollCostScore: 20, reviveHpRatio: 0.35, eventIntensityScale: 1,
+    dropRateMultiplier: 1,
+  },
+  randomEvents: [],
+  visuals: { backgroundUrl: '', logoUrl: '', storyFragmentImageUrl: '' },
+  characters: { playable: {}, emotionUrls: {} },
+  narrative: { kabalian: [], kkm: [] },
+  adminBacklog: [],
+  monsters: { traitsCatalog: [], customMonsters: [] },
+  artifacts: { customArtifacts: [] },
+  assetsMeta: {},
+  sounds: {},
+  brandKit: { tagline: '', elevatorPitch: '', keyMessages: ['', '', ''], hashtags: '' },
+  sprintItems: [],
+  narrativeArcs: {},
+  xpThresholds: DEFAULT_XP_THRESHOLDS,
+  npcEncounters: [],
+  restCamp: { healPercent: 30, bonusXp: 50, specialEvents: [] },
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 async function toDataUrl(file) {
@@ -300,9 +286,14 @@ function ensureStructuredAssets(rawAssets = {}) {
   const out = { ...EMPTY_CONFIG.assets };
   Object.entries(ASSET_SCHEMA).forEach(([category, subcats]) => {
     const current = rawAssets?.[category];
-    if (Array.isArray(current)) { out[category] = { [subcats[0]]: current }; return; }
+    if (Array.isArray(current)) {
+      out[category] = { [subcats[0]]: current };
+      return;
+    }
     const nested = {};
-    subcats.forEach((sub) => { nested[sub] = Array.isArray(current?.[sub]) ? current[sub] : []; });
+    subcats.forEach((sub) => {
+      nested[sub] = Array.isArray(current?.[sub]) ? current[sub] : [];
+    });
     out[category] = nested;
   });
   return out;
@@ -310,177 +301,120 @@ function ensureStructuredAssets(rawAssets = {}) {
 
 function withDefaults(raw = {}) {
   return {
-    ...EMPTY_CONFIG, ...raw,
+    ...EMPTY_CONFIG,
+    ...raw,
     assets: ensureStructuredAssets(raw.assets || {}),
     gameLogic: { ...EMPTY_CONFIG.gameLogic, ...(raw.gameLogic || {}) },
-    pools: {
-      ...EMPTY_CONFIG.pools,
-      ...(raw.pools || {}),
-      artifactWeights: { ...EMPTY_CONFIG.pools.artifactWeights, ...(raw.pools?.artifactWeights || {}) },
-      starterWeights: { ...EMPTY_CONFIG.pools.starterWeights, ...(raw.pools?.starterWeights || {}) },
-      shopItemEnabled: { ...(raw.pools?.shopItemEnabled || {}) },
-      mapNodeWeights: { ...EMPTY_CONFIG.pools.mapNodeWeights, ...(raw.pools?.mapNodeWeights || {}) },
+    visuals: { ...EMPTY_CONFIG.visuals, ...(raw.visuals || {}) },
+    characters: {
+      playable: { ...(raw.characters?.playable || {}) },
+      emotionUrls: { ...(raw.characters?.emotionUrls || {}) },
     },
+    narrative: {
+      kabalian: Array.isArray(raw.narrative?.kabalian) ? raw.narrative.kabalian : [],
+      kkm: Array.isArray(raw.narrative?.kkm) ? raw.narrative.kkm : [],
+    },
+    monsters: {
+      traitsCatalog: Array.isArray(raw.monsters?.traitsCatalog) ? raw.monsters.traitsCatalog : [],
+      customMonsters: Array.isArray(raw.monsters?.customMonsters) ? raw.monsters.customMonsters : [],
+    },
+    artifacts: {
+      customArtifacts: Array.isArray(raw.artifacts?.customArtifacts) ? raw.artifacts.customArtifacts : [],
+    },
+    adminBacklog: Array.isArray(raw.adminBacklog) ? raw.adminBacklog : [],
+    assetsMeta: raw.assetsMeta && typeof raw.assetsMeta === 'object' ? raw.assetsMeta : {},
     sounds: raw.sounds && typeof raw.sounds === 'object' ? raw.sounds : {},
     brandKit: { ...EMPTY_CONFIG.brandKit, ...(raw.brandKit || {}) },
     sprintItems: Array.isArray(raw.sprintItems) ? raw.sprintItems : [],
-    visuals: {
-      ...EMPTY_CONFIG.visuals,
-      ...(raw.visuals || {}),
-      buttonImages: { ...EMPTY_CONFIG.visuals.buttonImages, ...(raw.visuals?.buttonImages || {}) },
-      biomeBackgrounds: { ...EMPTY_CONFIG.visuals.biomeBackgrounds, ...(raw.visuals?.biomeBackgrounds || {}) },
-    },
-    characters: { playable: { ...(raw.characters?.playable || {}) }, emotionUrls: { ...(raw.characters?.emotionUrls || {}) } },
-    narrative: { kabalian: Array.isArray(raw.narrative?.kabalian) ? raw.narrative.kabalian : [], kkm: Array.isArray(raw.narrative?.kkm) ? raw.narrative.kkm : [] },
-    monsters: { traitsCatalog: Array.isArray(raw.monsters?.traitsCatalog) ? raw.monsters.traitsCatalog : [], customMonsters: Array.isArray(raw.monsters?.customMonsters) ? raw.monsters.customMonsters : [] },
-    artifacts: { customArtifacts: Array.isArray(raw.artifacts?.customArtifacts) ? raw.artifacts.customArtifacts : [] },
-    adminBacklog: Array.isArray(raw.adminBacklog) ? raw.adminBacklog : [],
-    assetsMeta: raw.assetsMeta && typeof raw.assetsMeta === 'object' ? raw.assetsMeta : {},
-    randomEvents: Array.isArray(raw.randomEvents) ? raw.randomEvents : [],
-    narrativeArcs: Array.isArray(raw.narrativeArcs) && raw.narrativeArcs.length
-      ? raw.narrativeArcs
-      : EMPTY_CONFIG.narrativeArcs,
+    narrativeArcs: raw.narrativeArcs && typeof raw.narrativeArcs === 'object' ? raw.narrativeArcs : {},
+    xpThresholds: Array.isArray(raw.xpThresholds) ? raw.xpThresholds : DEFAULT_XP_THRESHOLDS,
+    npcEncounters: Array.isArray(raw.npcEncounters) ? raw.npcEncounters : [],
+    restCamp: { ...EMPTY_CONFIG.restCamp, ...(raw.restCamp || {}) },
   };
 }
 
+// ─── Meta Progression Reader ──────────────────────────────────────────────────
 function readLocalMeta() {
-  try { const raw = localStorage.getItem(META_KEY); if (!raw) return null; return JSON.parse(raw); } catch { return null; }
+  try {
+    const raw = localStorage.getItem(META_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
 }
 
-// ─── Asset Card Component ─────────────────────────────────────────────────────
-function AssetCard({ asset, meta, statusColor, onMetaChange, onReplace, onDelete }) {
-  const [replaceMode, setReplaceMode] = React.useState(false);
-  const [replaceUrl, setReplaceUrl] = React.useState('');
-  const [copied, setCopied] = React.useState(false);
-
-  function copyUrl() {
-    navigator.clipboard.writeText(asset.url).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
-  }
-
-  function commitReplace() {
-    if (replaceUrl.trim()) { onReplace(replaceUrl.trim()); }
-    setReplaceMode(false);
-    setReplaceUrl('');
-  }
-
+// ─── Small reusable components ────────────────────────────────────────────────
+function MetaStatusBadge({ id, meta }) {
+  const unlocked = meta?.unlockedIds?.includes(id);
   return (
-    <figure className={`rounded-xl border ${statusColor} bg-zinc-800/80 overflow-hidden flex flex-col`}>
-      {/* Preview */}
-      <div className="relative group h-28 bg-zinc-900 overflow-hidden cursor-pointer" onClick={() => window.open(asset.url, '_blank')}>
-        <img src={asset.url} alt={asset.originalName || asset.fileName || 'asset'} className="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-105" />
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-          <span className="text-xs font-bold text-white bg-black/60 px-2 py-1 rounded">🔍 Open</span>
-        </div>
-        {meta.status && meta.status !== 'active' && (
-          <div className={`absolute top-1 right-1 text-[9px] font-bold px-1.5 py-0.5 rounded ${meta.status === 'draft' ? 'bg-amber-600 text-white' : 'bg-red-700 text-white'}`}>{meta.status}</div>
-        )}
-      </div>
-
-      {/* Info */}
-      <div className="p-2 flex flex-col gap-1.5 flex-1">
-        <div className="text-[10px] text-zinc-300 truncate font-mono leading-tight" title={asset.originalName || asset.url}>
-          {asset.originalName || asset.fileName || '(no name)'}
-        </div>
-
-        {/* Tags */}
-        <input
-          placeholder="tags: boss, mob..."
-          value={meta.tags || ''}
-          onChange={(e) => onMetaChange({ tags: e.target.value })}
-          className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-1.5 py-1 text-zinc-100 placeholder-zinc-600"
-        />
-
-        {/* Status */}
-        <select
-          value={meta.status || 'active'}
-          onChange={(e) => onMetaChange({ status: e.target.value })}
-          className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-1.5 py-1 text-zinc-100"
-        >
-          <option value="active">✅ active</option>
-          <option value="draft">⏳ draft</option>
-          <option value="deprecated">🗑️ deprecated</option>
-        </select>
-
-        {/* Replace URL mode */}
-        {replaceMode ? (
-          <div className="flex gap-1">
-            <input
-              autoFocus
-              placeholder="Paste new image URL..."
-              value={replaceUrl}
-              onChange={(e) => setReplaceUrl(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') commitReplace(); if (e.key === 'Escape') setReplaceMode(false); }}
-              className="flex-1 text-[10px] rounded bg-zinc-900 border border-amber-500/60 px-1.5 py-1 text-zinc-100 placeholder-zinc-600"
-            />
-            <button onClick={commitReplace} className="text-[10px] rounded bg-amber-600 hover:bg-amber-500 px-2 py-1 text-white font-bold">✓</button>
-            <button onClick={() => setReplaceMode(false)} className="text-[10px] rounded bg-zinc-700 hover:bg-zinc-600 px-2 py-1 text-zinc-300">✕</button>
-          </div>
-        ) : (
-          <div className="flex gap-1">
-            <button onClick={copyUrl} className={`flex-1 text-[9px] rounded px-1.5 py-1 font-bold transition ${copied ? 'bg-emerald-700 text-white' : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-300'}`}>
-              {copied ? '✅ Copied' : '📋 Copy URL'}
-            </button>
-            <button onClick={() => setReplaceMode(true)} className="flex-1 text-[9px] rounded bg-amber-700/70 hover:bg-amber-600/80 px-1.5 py-1 font-bold text-amber-100">
-              🔄 Replace
-            </button>
-            <button onClick={onDelete} className="text-[9px] rounded bg-red-900/70 hover:bg-red-800 px-1.5 py-1 font-bold text-red-300" title="Remove from bucket">
-              🗑️
-            </button>
-          </div>
-        )}
-      </div>
-    </figure>
+    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${unlocked ? 'bg-emerald-600/40 text-emerald-200 border border-emerald-500/40' : 'bg-zinc-800 text-zinc-500 border border-zinc-700'}`}>
+      {unlocked ? '✅ Unlocked' : '🔒 Locked'}
+    </span>
   );
-}
-
-function readLocalGameState() {
-  try { const raw = localStorage.getItem(GAME_KEY); if (!raw) return null; return JSON.parse(raw); } catch { return null; }
 }
 
 function JsonEditor({ label, value, onSave, rows = 12 }) {
   const [text, setText] = useState(JSON.stringify(value, null, 2));
-  const [err, setErr] = useState('');
   useEffect(() => setText(JSON.stringify(value, null, 2)), [value]);
-  function trySave() {
-    try { const parsed = JSON.parse(text); setErr(''); onSave(parsed); }
-    catch (e) { setErr(e.message); }
-  }
   return (
     <div className="space-y-2">
       <div className="text-sm text-zinc-300 font-medium">{label}</div>
-      <textarea value={text} onChange={(e) => { setText(e.target.value); setErr(''); }} rows={rows} className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-mono focus:border-indigo-500 focus:outline-none" />
-      {err && <div className="text-xs text-rose-400">❌ {err}</div>}
-      <button onClick={trySave} className="px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-sm font-medium">
-        💾 Save {label}
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={rows}
+        className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-mono text-zinc-200"
+      />
+      <button
+        onClick={() => { try { const parsed = JSON.parse(text); onSave(parsed); } catch(e) { alert('Invalid JSON: ' + e.message); } }}
+        className="px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-sm font-medium"
+      >
+        Save {label}
       </button>
     </div>
   );
 }
 
-// ─── Toast Component ──────────────────────────────────────────────────────────
-function Toast({ toasts, onDismiss }) {
-  if (!toasts.length) return null;
+function SectionCard({ title, children, className = '' }) {
   return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
-      {toasts.map((t) => (
-        <div key={t.id} onClick={() => onDismiss(t.id)}
-          className={`flex items-start gap-3 rounded-xl border px-4 py-3 shadow-2xl cursor-pointer transition-all ${
-            t.type === 'error' ? 'border-rose-500/60 bg-rose-950/90 text-rose-200' :
-            t.type === 'success' ? 'border-emerald-500/60 bg-emerald-950/90 text-emerald-200' :
-            'border-amber-400/40 bg-zinc-900/95 text-zinc-200'
-          }`}>
-          <span className="text-lg shrink-0">{t.type === 'error' ? '❌' : t.type === 'success' ? '✅' : 'ℹ️'}</span>
-          <div className="flex-1 text-sm">{t.message}</div>
-          <span className="text-zinc-500 text-xs shrink-0">✕</span>
-        </div>
-      ))}
+    <div className={`rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-4 ${className}`}>
+      {title && <h2 className="text-xl font-semibold text-amber-200">{title}</h2>}
+      {children}
     </div>
   );
 }
 
+function AmberBtn({ onClick, children, className = '', disabled = false, variant = 'primary' }) {
+  const base = 'px-3 py-1.5 rounded text-sm font-medium transition-colors disabled:opacity-50';
+  const variants = {
+    primary: 'bg-amber-600 hover:bg-amber-500 text-black',
+    secondary: 'bg-zinc-700 hover:bg-zinc-600 text-zinc-200 border border-zinc-600',
+    danger: 'bg-rose-700 hover:bg-rose-600 text-white',
+    ghost: 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10',
+  };
+  return (
+    <button onClick={onClick} disabled={disabled} className={`${base} ${variants[variant]} ${className}`}>
+      {children}
+    </button>
+  );
+}
+
+function Toast({ message, onClose }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 3000);
+    return () => clearTimeout(t);
+  }, [onClose]);
+  if (!message) return null;
+  return (
+    <div className="fixed bottom-4 right-4 z-50 rounded-lg border border-amber-500/50 bg-zinc-900 px-4 py-3 text-sm text-amber-200 shadow-xl">
+      {message}
+    </div>
+  );
+}
+
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function DieInTheJungleAdmin() {
-  const [activeTab, setActiveTab] = useState('testgame');
+  const [activeTab, setActiveTab] = useState('ops');
   const [category, setCategory] = useState('monsters');
   const [subcategory, setSubcategory] = useState('mob');
   const [config, setConfig] = useState(EMPTY_CONFIG);
@@ -488,33 +422,46 @@ export default function DieInTheJungleAdmin() {
   const [loading, setLoading] = useState(false);
   const [localMeta, setLocalMeta] = useState(null);
   const [presetApplied, setPresetApplied] = useState(null);
-  const [logicDirty, setLogicDirty] = useState(false);
-  const [apiOk, setApiOk] = useState(null); // null=checking, true=ok, false=no server
-  const [toasts, setToasts] = useState([]);
-  // Upload preview state
-  const [pendingFiles, setPendingFiles] = useState([]); // files awaiting confirm
-  // Meta editor state
-  const [editMeta, setEditMeta] = useState({ xp: 0, gems: 0, unlockedIds: [], achievements: [] });
-  const [metaEditMode, setMetaEditMode] = useState(false);
-  // Enemy viewer filter
-  const [enemyTierFilter, setEnemyTierFilter] = useState('all');
-  // Artifact viewer filter
-  const [artifactFilter, setArtifactFilter] = useState('all');
-  // Cheat mode
-  const [cheatFloor, setCheatFloor] = useState(2);
-  const [cheatHp, setCheatHp] = useState(20);
+  const [toast, setToast] = useState('');
 
-  function toast(message, type = 'info', duration = 4000) {
-    const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev.slice(-3), { id, message, type }]);
-    if (duration > 0) setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), duration);
-  }
-  function dismissToast(id) { setToasts((prev) => prev.filter((t) => t.id !== id)); }
+  // Assets state
+  const [pendingFiles, setPendingFiles] = useState([]);
+  const [pendingPreviews, setPendingPreviews] = useState([]);
+
+  // Events sub-tab
+  const [eventsSubTab, setEventsSubTab] = useState('random');
+
+  // New enemy form
+  const [newEnemy, setNewEnemy] = useState({ name: '', hp: 100, damage: 10, type: 'mob', traits: '', imageUrl: '' });
+  // New artifact form
+  const [newArtifact, setNewArtifact] = useState({ name: '', emoji: '🔮', description: '', rarity: 'common', passive: '' });
+  // New random event form
+  const [newEvent, setNewEvent] = useState({ title: '', description: '', choices: ['', ''] });
+  // New NPC form
+  const [newNPC, setNewNPC] = useState({ name: '', image: '', dialogue: [''] });
+  // Sprint note
+  const [sprintNotes, setSprintNotes] = useState('');
+  // New sprint item
+  const [newSprintItem, setNewSprintItem] = useState('');
+  // Roadmap collapsed
+  const [roadmapCollapsed, setRoadmapCollapsed] = useState({ 0: false, 1: false, 2: false });
+  // New backlog item
+  const [newBacklogItem, setNewBacklogItem] = useState('');
+  // Narrative arc being edited
+  const [activeArc, setActiveArc] = useState(0);
+  // Logo/brand uploads
+  const [brandLogos, setBrandLogos] = useState({ main: '', icon: '', horizontal: '' });
+  // Difficulty master
+  const [difficultyMaster, setDifficultyMaster] = useState(2);
+  // Characters sub-tab
+  const [activeCharacter, setActiveCharacter] = useState('kabalian');
 
   const availableSubcategories = ASSET_SCHEMA[category] || ['general'];
 
   useEffect(() => {
-    if (!availableSubcategories.includes(subcategory)) setSubcategory(availableSubcategories[0]);
+    if (!availableSubcategories.includes(subcategory)) {
+      setSubcategory(availableSubcategories[0]);
+    }
   }, [availableSubcategories, subcategory]);
 
   const assetBucket = useMemo(() => {
@@ -522,143 +469,92 @@ export default function DieInTheJungleAdmin() {
     return assets?.[category]?.[subcategory] || [];
   }, [config.assets, category, subcategory]);
 
-  function refreshLocalMeta() {
-    const m = readLocalMeta();
-    setLocalMeta(m);
-    if (m) setEditMeta({ xp: m.xp ?? 0, gems: m.gems ?? 0, unlockedIds: m.unlockedIds ?? [], achievements: m.achievements ?? [] });
-  }
+  function refreshLocalMeta() { setLocalMeta(readLocalMeta()); }
 
   useEffect(() => {
     refreshLocalMeta();
-    // API health check
-    fetch('/api/miniapp/config')
-      .then((r) => { setApiOk(r.ok || r.status < 500); return r.json(); })
-      .then((payload) => {
-        if (payload?.ok) {
-          setConfig(withDefaults(payload.config || EMPTY_CONFIG));
-          setStatus('✅ Config loaded');
-        }
-      })
-      .catch(() => {
-        setApiOk(false);
-        setStatus('⚠️ API not available — run: npm run api');
-        toast('API server not reachable. Run "npm run api" to enable save/upload.', 'error', 0);
-      });
+    loadConfig();
   }, []);
 
   async function loadConfig() {
-    setLoading(true); setStatus('Loading...');
+    setLoading(true);
+    setStatus('Loading...');
     try {
       const res = await fetch('/api/miniapp/config');
       const payload = await res.json();
       if (!res.ok || !payload.ok) throw new Error(payload.error || 'Load failed');
       setConfig(withDefaults(payload.config || EMPTY_CONFIG));
-      setStatus('✅ Config loaded'); setLogicDirty(false);
-    } catch (error) { setStatus(`❌ ${error.message}`); }
-    finally { setLoading(false); }
+      setStatus('✅ Config loaded');
+    } catch (error) {
+      setStatus('❌ ' + error.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function saveConfig(nextConfig) {
-    if (apiOk === false) { toast('API server not available. Run: npm run api', 'error', 6000); return; }
-    setLoading(true); setStatus('Saving...');
+    setLoading(true);
+    setStatus('Saving...');
     try {
-      const res = await fetch('/api/miniapp/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nextConfig) });
+      const res = await fetch('/api/miniapp/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nextConfig),
+      });
       const payload = await res.json();
       if (!res.ok || !payload.ok) throw new Error(payload.error || 'Save failed');
       setConfig(withDefaults(payload.config || nextConfig));
-      setStatus('✅ Saved'); setLogicDirty(false);
-      toast('Config saved successfully', 'success');
+      setStatus('✅ Config saved');
     } catch (error) {
-      setStatus(`❌ ${error.message}`);
-      toast(`Save failed: ${error.message}`, 'error', 8000);
+      setStatus('❌ ' + error.message);
+    } finally {
+      setLoading(false);
     }
-    finally { setLoading(false); }
   }
 
-  // Stage files for preview before uploading
-  async function stageFilesForUpload(event) {
+  async function onUpload(event) {
     const files = Array.from(event.target.files || []).slice(0, 30);
     if (!files.length) return;
-    const previews = await Promise.all(files.map(async (file) => ({
-      name: file.name,
-      size: file.size,
-      dataUrl: await toDataUrl(file),
-    })));
-    setPendingFiles(previews);
+    const previews = await Promise.all(files.map(async (f) => ({ name: f.name, dataUrl: await toDataUrl(f), file: f })));
+    setPendingFiles(files);
+    setPendingPreviews(previews);
     event.target.value = '';
   }
 
   async function confirmUpload() {
     if (!pendingFiles.length) return;
-    if (apiOk === false) { toast('API server not available. Run: npm run api', 'error', 6000); return; }
-    setLoading(true); setStatus(`Uploading ${pendingFiles.length} file(s)...`);
+    setLoading(true);
+    setStatus('Uploading ' + pendingFiles.length + ' file(s)...');
     try {
-      const res = await fetch('/api/miniapp/assets/upload-batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category, subcategory, files: pendingFiles }) });
+      const prepared = await Promise.all(pendingPreviews.map(async (p) => ({ name: p.name, dataUrl: p.dataUrl })));
+      const res = await fetch('/api/miniapp/assets/upload-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category, subcategory, files: prepared }),
+      });
       const payload = await res.json();
       if (!res.ok || !payload.ok) throw new Error(payload.error || 'Upload failed');
       setConfig(withDefaults(payload.config || config));
-      setStatus(`✅ ${payload.uploaded?.length || pendingFiles.length} asset(s) uploaded`);
-      toast(`${payload.uploaded?.length || pendingFiles.length} assets uploaded successfully`, 'success');
+      setStatus('✅ ' + (payload.uploaded?.length || pendingFiles.length) + ' asset(s) uploaded');
       setPendingFiles([]);
+      setPendingPreviews([]);
     } catch (error) {
-      setStatus(`❌ ${error.message}`);
-      toast(`Upload failed: ${error.message}`, 'error', 8000);
+      setStatus('❌ ' + error.message);
+    } finally {
+      setLoading(false);
     }
-    finally { setLoading(false); }
-  }
-
-  // Add asset by URL directly (no file upload needed)
-  async function addAssetByUrl(url, name) {
-    if (!url.trim()) return;
-    if (apiOk === false) {
-      // Fallback: inject directly into config without server
-      const asset = { url: url.trim(), originalName: name || url.trim().split('/').pop(), fileName: name || 'url-asset', id: Date.now().toString() };
-      setConfig((prev) => {
-        const assets = { ...prev.assets };
-        if (!assets[category]) assets[category] = {};
-        if (!assets[category][subcategory]) assets[category][subcategory] = [];
-        assets[category][subcategory] = [...assets[category][subcategory], asset];
-        return { ...prev, assets };
-      });
-      toast('Asset added (URL only — save config to persist)', 'info');
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await fetch('/api/miniapp/assets/upload-batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category, subcategory, files: [{ name: name || 'url-asset', dataUrl: url.trim() }] }) });
-      const payload = await res.json();
-      if (!res.ok || !payload.ok) throw new Error(payload.error || 'Failed');
-      setConfig(withDefaults(payload.config || config));
-      toast('Asset added by URL', 'success');
-    } catch {
-      // Fallback: add to local config
-      const asset = { url: url.trim(), originalName: name || url.trim().split('/').pop(), fileName: name || 'url-asset', id: Date.now().toString() };
-      setConfig((prev) => {
-        const assets = { ...prev.assets };
-        if (!assets[category]) assets[category] = {};
-        if (!assets[category][subcategory]) assets[category][subcategory] = [];
-        assets[category][subcategory] = [...assets[category][subcategory], asset];
-        return { ...prev, assets };
-      });
-      toast('Asset added locally — click Save All to persist', 'info');
-    }
-    setLoading(false);
   }
 
   function updateLogic(key, value) {
     setConfig((prev) => ({ ...prev, gameLogic: { ...(prev.gameLogic || {}), [key]: Number(value) } }));
-    setLogicDirty(true);
   }
 
   function updateAssetMeta(asset, patch) {
     const key = asset.id || asset.url;
-    setConfig((prev) => ({
-      ...prev,
-      assetsMeta: { ...(prev.assetsMeta || {}), [key]: { ...(prev.assetsMeta?.[key] || {}), ...patch } },
-    }));
+    const current = config.assetsMeta?.[key] || {};
+    setConfig({ ...config, assetsMeta: { ...(config.assetsMeta || {}), [key]: { ...current, ...patch } } });
   }
 
-  // ── Test Preset Actions ──────────────────────────────────────────────────────
   function applyPreset(presetKey) {
     const preset = PRESETS[presetKey];
     if (!preset) return;
@@ -666,14 +562,21 @@ export default function DieInTheJungleAdmin() {
     localStorage.removeItem(GAME_KEY);
     setPresetApplied(presetKey);
     refreshLocalMeta();
-    setStatus(`✅ Preset "${preset.label}" applied — open game to test`);
   }
 
-  function clearGameState() { localStorage.removeItem(GAME_KEY); localStorage.removeItem(LB_KEY); setStatus('✅ Run state cleared'); }
+  function clearGameState() {
+    localStorage.removeItem(GAME_KEY);
+    localStorage.removeItem(LB_KEY);
+    setStatus('✅ Game state cleared');
+  }
 
   function clearAllLocalStorage() {
-    localStorage.removeItem(META_KEY); localStorage.removeItem(GAME_KEY); localStorage.removeItem(LB_KEY);
-    setPresetApplied(null); refreshLocalMeta(); setStatus('✅ All storage cleared');
+    localStorage.removeItem(META_KEY);
+    localStorage.removeItem(GAME_KEY);
+    localStorage.removeItem(LB_KEY);
+    setPresetApplied(null);
+    refreshLocalMeta();
+    setStatus('✅ All local storage cleared');
   }
 
   function exportCurrentMeta() {
@@ -681,183 +584,300 @@ export default function DieInTheJungleAdmin() {
     if (!meta) { setStatus('⚠️ No meta found'); return; }
     const blob = new Blob([JSON.stringify(meta, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `diejungle-meta-${Date.now()}.json`; a.click();
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ditj-meta-' + Date.now() + '.json';
+    a.click();
   }
 
-  // ── Meta Editor ──────────────────────────────────────────────────────────────
-  function saveMeta() {
-    const next = { ...readLocalMeta(), xp: editMeta.xp, gems: editMeta.gems, unlockedIds: editMeta.unlockedIds, achievements: editMeta.achievements };
-    localStorage.setItem(META_KEY, JSON.stringify(next));
-    refreshLocalMeta(); setStatus('✅ Meta saved — open game to test'); setMetaEditMode(false);
+  function applyDifficultyPreset(level) {
+    setDifficultyMaster(level);
+    const scale = DIFFICULTY_PRESETS[level].scale;
+    const updates = {};
+    DIFFICULTY_KEYS.forEach((k) => { updates[k] = parseFloat((scale * (EMPTY_CONFIG.gameLogic[k] || 1)).toFixed(3)); });
+    setConfig((prev) => ({ ...prev, gameLogic: { ...prev.gameLogic, ...updates } }));
   }
 
-  function toggleUnlock(id) {
-    setEditMeta((prev) => ({
-      ...prev,
-      unlockedIds: prev.unlockedIds.includes(id) ? prev.unlockedIds.filter((x) => x !== id) : [...prev.unlockedIds, id],
-    }));
+  function addEnemy() {
+    if (!newEnemy.name.trim()) return;
+    const enemy = { ...newEnemy, id: Date.now().toString(), traits: newEnemy.traits.split(',').map(t => t.trim()).filter(Boolean) };
+    setConfig((prev) => ({ ...prev, monsters: { ...prev.monsters, customMonsters: [...prev.monsters.customMonsters, enemy] } }));
+    setNewEnemy({ name: '', hp: 100, damage: 10, type: 'mob', traits: '', imageUrl: '' });
   }
 
-  function toggleAchievement(id) {
-    setEditMeta((prev) => ({
-      ...prev,
-      achievements: prev.achievements.includes(id) ? prev.achievements.filter((x) => x !== id) : [...prev.achievements, id],
-    }));
+  function removeEnemy(id) {
+    setConfig((prev) => ({ ...prev, monsters: { ...prev.monsters, customMonsters: prev.monsters.customMonsters.filter(e => e.id !== id) } }));
   }
 
-  // ── Cheat Mode ────────────────────────────────────────────────────────────────
-  function injectFloor(floor) {
+  function addArtifact() {
+    if (!newArtifact.name.trim()) return;
+    const art = { ...newArtifact, id: Date.now().toString() };
+    setConfig((prev) => ({ ...prev, artifacts: { ...prev.artifacts, customArtifacts: [...prev.artifacts.customArtifacts, art] } }));
+    setNewArtifact({ name: '', emoji: '🔮', description: '', rarity: 'common', passive: '' });
+  }
+
+  function removeArtifact(id) {
+    setConfig((prev) => ({ ...prev, artifacts: { ...prev.artifacts, customArtifacts: prev.artifacts.customArtifacts.filter(a => a.id !== id) } }));
+  }
+
+  function addRandomEvent() {
+    if (!newEvent.title.trim()) return;
+    const ev = { ...newEvent, id: Date.now().toString(), choices: newEvent.choices.filter(c => c.trim()) };
+    setConfig((prev) => ({ ...prev, randomEvents: [...(prev.randomEvents || []), ev] }));
+    setNewEvent({ title: '', description: '', choices: ['', ''] });
+  }
+
+  function removeRandomEvent(id) {
+    setConfig((prev) => ({ ...prev, randomEvents: (prev.randomEvents || []).filter(e => e.id !== id) }));
+  }
+
+  function addNPC() {
+    if (!newNPC.name.trim()) return;
+    const npc = { ...newNPC, id: Date.now().toString(), dialogue: newNPC.dialogue.filter(d => d.trim()) };
+    setConfig((prev) => ({ ...prev, npcEncounters: [...(prev.npcEncounters || []), npc] }));
+    setNewNPC({ name: '', image: '', dialogue: [''] });
+  }
+
+  function removeNPC(id) {
+    setConfig((prev) => ({ ...prev, npcEncounters: (prev.npcEncounters || []).filter(n => n.id !== id) }));
+  }
+
+  function addSprintItem() {
+    if (!newSprintItem.trim()) return;
+    const item = { id: Date.now().toString(), text: newSprintItem.trim(), done: false };
+    setConfig((prev) => ({ ...prev, sprintItems: [...(prev.sprintItems || []), item] }));
+    setNewSprintItem('');
+  }
+
+  function toggleSprintItem(id) {
+    setConfig((prev) => ({ ...prev, sprintItems: (prev.sprintItems || []).map(i => i.id === id ? { ...i, done: !i.done } : i) }));
+  }
+
+  function removeSprintItem(id) {
+    setConfig((prev) => ({ ...prev, sprintItems: (prev.sprintItems || []).filter(i => i.id !== id) }));
+  }
+
+  function getArcLines(arcIdx) {
+    const arcName = NARRATIVE_ARCS[arcIdx];
+    const arc = config.narrativeArcs?.[arcName] || { lines: Array(33).fill(''), image: '' };
+    return arc;
+  }
+
+  function updateArcLine(arcIdx, lineIdx, value) {
+    const arcName = NARRATIVE_ARCS[arcIdx];
+    const arc = getArcLines(arcIdx);
+    const newLines = [...arc.lines];
+    newLines[lineIdx] = value;
+    setConfig((prev) => ({ ...prev, narrativeArcs: { ...(prev.narrativeArcs || {}), [arcName]: { ...arc, lines: newLines } } }));
+  }
+
+  function updateArcImage(arcIdx, value) {
+    const arcName = NARRATIVE_ARCS[arcIdx];
+    const arc = getArcLines(arcIdx);
+    setConfig((prev) => ({ ...prev, narrativeArcs: { ...(prev.narrativeArcs || {}), [arcName]: { ...arc, image: value } } }));
+  }
+
+  function updateXpThreshold(idx, value) {
+    const next = [...(config.xpThresholds || DEFAULT_XP_THRESHOLDS)];
+    next[idx] = Number(value);
+    setConfig((prev) => ({ ...prev, xpThresholds: next }));
+  }
+
+  async function uploadSound(soundId, file) {
+    if (!file) return;
+    setLoading(true);
+    setStatus('Uploading sound...');
     try {
-      const raw = readLocalGameState();
-      if (!raw) { setStatus('⚠️ No saved run — play first then inject'); return; }
-      const next = { ...raw, floor, room: 0 };
-      localStorage.setItem(GAME_KEY, JSON.stringify(next));
-      setStatus(`✅ Floor injected: ${floor} — reload the game tab`);
-    } catch (e) { setStatus(`❌ ${e.message}`); }
+      const dataUrl = await toDataUrl(file);
+      const res = await fetch('/api/miniapp/assets/upload-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: 'sounds', subcategory: 'general', files: [{ name: soundId + '.mp3', dataUrl }] }),
+      });
+      const payload = await res.json();
+      if (!res.ok || !payload.ok) throw new Error(payload.error || 'Upload failed');
+      const url = payload.uploaded?.[0]?.url || '';
+      if (url) {
+        setConfig((prev) => ({ ...prev, sounds: { ...(prev.sounds || {}), [soundId]: url } }));
+      }
+      setStatus('✅ Sound uploaded');
+    } catch (error) {
+      setStatus('❌ ' + error.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function injectHp(hp) {
-    try {
-      const raw = readLocalGameState();
-      if (!raw) { setStatus('⚠️ No saved run — play first then inject'); return; }
-      const next = { ...raw, player: { ...raw.player, hp } };
-      localStorage.setItem(GAME_KEY, JSON.stringify(next));
-      setStatus(`✅ HP injected: ${hp} — reload the game tab`);
-    } catch (e) { setStatus(`❌ ${e.message}`); }
-  }
+  const colorMap = {
+    emerald: 'border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20',
+    amber: 'border-amber-400/50 bg-amber-400/10 hover:bg-amber-400/20',
+    blue: 'border-blue-400/50 bg-blue-400/10 hover:bg-blue-400/20',
+  };
 
-  function injectCoins(coins) {
-    try {
-      const raw = readLocalGameState();
-      if (!raw) { setStatus('⚠️ No saved run — play first then inject'); return; }
-      const next = { ...raw, player: { ...raw.player, coins } };
-      localStorage.setItem(GAME_KEY, JSON.stringify(next));
-      setStatus(`✅ Coins injected: ${coins} — reload the game tab`);
-    } catch (e) { setStatus(`❌ ${e.message}`); }
-  }
-
-  function injectGems(gems) {
-    try {
-      const meta = readLocalMeta() || {};
-      const next = { ...meta, gems };
-      localStorage.setItem(META_KEY, JSON.stringify(next));
-      refreshLocalMeta(); setStatus(`✅ Gems injected: ${gems}`);
-    } catch (e) { setStatus(`❌ ${e.message}`); }
-  }
-
-  const colorMap = { emerald: 'border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20', amber: 'border-amber-400/50 bg-amber-400/10 hover:bg-amber-400/20', blue: 'border-blue-400/50 bg-blue-400/10 hover:bg-blue-400/20', violet: 'border-violet-400/50 bg-violet-400/10 hover:bg-violet-400/20' };
-  const btnColor = { emerald: 'bg-emerald-600 hover:bg-emerald-500 border-emerald-500', amber: 'bg-amber-600 hover:bg-amber-500 border-amber-500', blue: 'bg-blue-600 hover:bg-blue-500 border-blue-500', violet: 'bg-violet-600 hover:bg-violet-500 border-violet-500' };
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <Toast toasts={toasts} onDismiss={dismissToast} />
-
-      {/* API Warning Banner */}
-      {apiOk === false && (
-        <div className="bg-rose-900/80 border-b border-rose-700 px-6 py-3 text-center">
-          <span className="font-bold text-rose-200">⚠️ API server not running — saves and uploads are disabled.</span>
-          <span className="text-rose-300 ml-2 text-sm">Start it with: <code className="bg-rose-950 rounded px-2 py-0.5 font-mono">npm run api</code></span>
-        </div>
-      )}
+      <Toast message={toast} onClose={() => setToast('')} />
 
       {/* Header */}
-      <div className="border-b border-zinc-800 bg-zinc-900/80 px-6 py-4 sticky top-0 z-10">
+      <div className="border-b border-amber-900/40 bg-zinc-900/90 px-6 py-4 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold tracking-tight">🌴 DIE JUNGLE · Admin</h1>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${apiOk === true ? 'bg-emerald-900/50 border-emerald-500/50 text-emerald-300' : apiOk === false ? 'bg-rose-900/50 border-rose-500/50 text-rose-300' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}>
-                {apiOk === true ? '● API LIVE' : apiOk === false ? '● API OFFLINE' : '● connecting...'}
-              </span>
-            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-amber-400">🌴 Die In The Jungle · Admin</h1>
             <p className="text-zinc-500 text-sm mt-0.5">
-              Game: <a className="text-cyan-400 hover:text-cyan-300 underline" href="/diejungle" target="_blank" rel="noreferrer">/diejungle</a>
-              {' '}· Admin: <span className="text-zinc-400">/diejungle/admin</span>
-              {' '}· Mini: <a className="text-cyan-400 hover:text-cyan-300 underline" href="http://localhost:5180" target="_blank" rel="noreferrer">localhost:5180</a>
+              Preview:{' '}
+              <a className="text-amber-400 hover:text-amber-300 underline" href="/diejungle" target="_blank" rel="noreferrer">/diejungle</a>
+              {' '}&middot; Admin: <span className="text-zinc-400">/diejungle/admin</span>
+              {' '}&middot; Telegram:{' '}
+              <a className="text-amber-400 hover:text-amber-300 underline" href="http://localhost:5180" target="_blank" rel="noreferrer">localhost:5180</a>
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => { fetch('/api/miniapp/config').then(r => r.json()).then(p => { if (p?.ok) { setConfig(withDefaults(p.config || EMPTY_CONFIG)); setApiOk(true); toast('Config reloaded', 'success'); } }).catch(() => { setApiOk(false); toast('API not reachable', 'error'); }); }} disabled={loading} className="px-3 py-1.5 rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-sm">🔄 Reload</button>
-            <button onClick={() => saveConfig(config)} disabled={loading || apiOk === false} className={`px-3 py-1.5 rounded text-sm font-medium ${logicDirty ? 'bg-amber-600 hover:bg-amber-500 text-white animate-pulse' : 'bg-blue-700 hover:bg-blue-600 text-white'} disabled:opacity-40 disabled:cursor-not-allowed`}>
-              {logicDirty ? '⚠️ Save Changes' : '💾 Save All'}
+            <button onClick={loadConfig} disabled={loading} className="px-3 py-1.5 rounded bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 text-sm border border-zinc-600">
+              🔄 Reload
             </button>
-            {loading && <span className="text-xs text-zinc-400 animate-pulse">working...</span>}
+            <button onClick={() => saveConfig(config)} disabled={loading} className="px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-sm font-bold text-black">
+              💾 Save All
+            </button>
+            {status && <span className="text-sm text-zinc-300 max-w-xs truncate">{status}</span>}
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-        {/* Tab Bar */}
-        <div className="flex flex-wrap gap-1.5">
-          {TABS.map((tab) => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${activeTab === tab.id ? 'bg-amber-500/25 border-amber-400/50 text-amber-200' : 'bg-zinc-800/60 border-zinc-700 text-zinc-300 hover:bg-zinc-700/60'}`}>
-              {tab.label}
-            </button>
-          ))}
+      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        {/* Tab Bar — scrollable on mobile */}
+        <div className="overflow-x-auto">
+          <div className="flex gap-1.5 min-w-max pb-1">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'bg-amber-500/20 border-amber-400/60 text-amber-300'
+                    : 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:bg-zinc-700/60 hover:text-zinc-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* ── TEST GAME ───────────────────────────────────────────────────────────── */}
-        {activeTab === 'testgame' && (
+        {/* ══════════════════════════════════════════════════════════════════════
+            OPS TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'ops' && (
           <div className="space-y-6">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-4">
-              <div>
-                <h2 className="text-xl font-semibold">🎮 Test Presets</h2>
-                <p className="text-zinc-400 text-sm mt-1">Apply a preset, then open the game. The active run is cleared so you start fresh.</p>
+            {/* Difficulty Quick Set */}
+            <SectionCard title="💀 Difficulty Master (Quick Set)">
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(DIFFICULTY_PRESETS).map(([lvl, p]) => (
+                  <button
+                    key={lvl}
+                    onClick={() => applyDifficultyPreset(Number(lvl))}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
+                      difficultyMaster === Number(lvl)
+                        ? 'bg-amber-500/30 border-amber-400 text-amber-200'
+                        : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-amber-500/50'
+                    }`}
+                  >
+                    {p.skulls} {p.label}
+                  </button>
+                ))}
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              <p className="text-xs text-zinc-500">Sets all difficulty sliders to preset multiplier. You can fine-tune in the Difficulty tab.</p>
+            </SectionCard>
+
+            {/* Test Presets */}
+            <SectionCard title="🎮 Test Presets">
+              <p className="text-zinc-400 text-sm">Apply a preset to localStorage, then open the game to test a specific progression state.</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {Object.entries(PRESETS).map(([key, preset]) => (
-                  <div key={key} className={`rounded-xl border p-4 space-y-3 transition-colors ${colorMap[preset.color]}`}>
+                  <div
+                    key={key}
+                    className={`rounded-xl border p-4 space-y-3 transition-colors cursor-pointer ${colorMap[preset.color]}`}
+                    onClick={() => applyPreset(key)}
+                  >
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="text-lg">{preset.emoji}</div>
-                        <div className="font-bold text-sm mt-1">{preset.label}</div>
+                        <div className="font-bold text-sm mt-1 text-zinc-100">{preset.label}</div>
                       </div>
-                      {presetApplied === key && <span className="text-[10px] bg-emerald-600/50 text-emerald-200 border border-emerald-500/50 rounded px-2 py-0.5 font-bold">ACTIVE</span>}
+                      {presetApplied === key && (
+                        <span className="text-[10px] bg-emerald-600/50 text-emerald-200 border border-emerald-500/50 rounded px-2 py-0.5 font-bold">APPLIED</span>
+                      )}
                     </div>
                     <p className="text-xs text-zinc-400">{preset.description}</p>
                     <div className="text-[10px] text-zinc-500 space-y-0.5">
                       <div>XP: {preset.meta.xp} · Gems: {preset.meta.gems}</div>
                       <div>Unlocks: {preset.meta.unlockedIds.length === 0 ? 'none' : preset.meta.unlockedIds.length}</div>
+                      <div>Achievements: {preset.meta.achievements.length === 0 ? 'none' : preset.meta.achievements.join(', ')}</div>
                     </div>
-                    <button className={`w-full py-2 rounded-lg text-sm font-bold border ${btnColor[preset.color]}`} onClick={() => applyPreset(key)}>
-                      Apply
+                    <button
+                      className={`w-full py-2 rounded-lg text-sm font-bold border transition-colors ${
+                        preset.color === 'emerald' ? 'bg-emerald-600 hover:bg-emerald-500 border-emerald-500 text-white' :
+                        preset.color === 'amber' ? 'bg-amber-600 hover:bg-amber-500 border-amber-500 text-black' :
+                        'bg-blue-600 hover:bg-blue-500 border-blue-500 text-white'
+                      }`}
+                      onClick={(e) => { e.stopPropagation(); applyPreset(key); }}
+                    >
+                      Apply Preset
                     </button>
                   </div>
                 ))}
               </div>
-              <div className="flex flex-wrap gap-2 pt-2 border-t border-zinc-800">
-                <a href="/diejungle" target="_blank" rel="noreferrer" className="px-4 py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-sm font-medium">🎮 Open Game</a>
-                <a href="http://localhost:5180" target="_blank" rel="noreferrer" className="px-4 py-2 rounded-lg bg-violet-700 hover:bg-violet-600 text-sm font-medium">📱 Telegram Mini App</a>
-                <button onClick={clearGameState} className="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-sm font-medium">🗑️ Clear Run</button>
-                <button onClick={exportCurrentMeta} className="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-sm font-medium">📤 Export Meta</button>
-                <button onClick={clearAllLocalStorage} className="px-4 py-2 rounded-lg bg-rose-800 hover:bg-rose-700 text-sm font-medium">⚠️ Clear ALL</button>
-              </div>
-            </div>
 
-            {/* Current State Summary */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">📊 Current localStorage State</h2>
-                <button onClick={refreshLocalMeta} className="text-xs text-zinc-400 hover:text-zinc-200 border border-zinc-700 rounded px-2 py-1">🔄 Refresh</button>
+              <div className="flex flex-wrap gap-2 pt-2 border-t border-zinc-800">
+                <a href="/diejungle" target="_blank" rel="noreferrer" className="px-4 py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-sm font-medium">
+                  🎮 Open Game (web)
+                </a>
+                <a href="http://localhost:5180" target="_blank" rel="noreferrer" className="px-4 py-2 rounded-lg bg-violet-700 hover:bg-violet-600 text-sm font-medium">
+                  📱 Open Telegram Mini App
+                </a>
+                <button onClick={clearGameState} className="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-sm font-medium">
+                  🗑️ Clear Run State
+                </button>
+                <button onClick={exportCurrentMeta} className="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-sm font-medium">
+                  📤 Export Meta JSON
+                </button>
+                <button onClick={clearAllLocalStorage} className="px-4 py-2 rounded-lg bg-rose-800 hover:bg-rose-700 text-sm font-medium">
+                  ⚠️ Clear ALL Storage
+                </button>
+              </div>
+            </SectionCard>
+
+            {/* Current Meta State */}
+            <SectionCard title="📊 Current localStorage State">
+              <div className="flex justify-end">
+                <button onClick={refreshLocalMeta} className="text-xs text-zinc-400 hover:text-zinc-200 border border-zinc-700 rounded px-2 py-1">
+                  🔄 Refresh
+                </button>
               </div>
               {localMeta ? (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {[{ label: 'XP', value: localMeta.xp ?? 0 }, { label: 'Gems 💎', value: localMeta.gems ?? 0 }, { label: 'Total Runs', value: localMeta.totalRuns ?? 0 }, { label: 'Best Score', value: localMeta.bestScore ?? 0 }].map((s) => (
-                      <div key={s.label} className="rounded-lg border border-zinc-700 bg-zinc-800/60 p-3 text-center">
-                        <div className="text-xs text-zinc-400 mb-1">{s.label}</div>
-                        <div className="text-lg font-bold">{s.value.toLocaleString()}</div>
+                    {[
+                      { label: 'XP', value: localMeta.xp ?? 0 },
+                      { label: 'Gems 💎', value: localMeta.gems ?? 0 },
+                      { label: 'Total Runs', value: localMeta.totalRuns ?? 0 },
+                      { label: 'Best Score', value: localMeta.bestScore ?? 0 },
+                    ].map((stat) => (
+                      <div key={stat.label} className="rounded-lg border border-zinc-700 bg-zinc-800/60 p-3 text-center">
+                        <div className="text-xs text-zinc-400 mb-1">{stat.label}</div>
+                        <div className="text-lg font-bold text-amber-300">{stat.value.toLocaleString()}</div>
                       </div>
                     ))}
                   </div>
                   <div>
                     <div className="text-sm text-zinc-300 mb-2 font-medium">Unlocks</div>
-                    <div className="flex flex-wrap gap-2">
-                      {ALL_UNLOCK_IDS.map((id) => {
-                        const has = localMeta.unlockedIds?.includes(id);
-                        return <span key={id} className={`px-2 py-1 rounded text-xs border ${has ? 'bg-emerald-600/30 border-emerald-500/40 text-emerald-200' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}>{has ? '✅' : '🔒'} {UNLOCK_LABELS[id] || id}</span>;
-                      })}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {ALL_UNLOCK_IDS.map((id) => (
+                        <div key={id} className="flex items-center justify-between gap-2 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2">
+                          <span className="text-sm text-zinc-300 font-mono">{id}</span>
+                          <MetaStatusBadge id={id} meta={localMeta} />
+                        </div>
+                      ))}
                     </div>
                   </div>
                   <div>
@@ -865,1632 +885,1316 @@ export default function DieInTheJungleAdmin() {
                     <div className="flex flex-wrap gap-2">
                       {ALL_ACHIEVEMENTS.map((ach) => {
                         const has = localMeta.achievements?.includes(ach);
-                        return <span key={ach} className={`px-2 py-1 rounded text-xs border ${has ? 'bg-cyan-600/30 border-cyan-500/40 text-cyan-200' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}>{has ? '🏆' : '🔒'} {ach}</span>;
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-zinc-500 text-sm">No meta found. Apply a preset or play a run.</div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── META EDITOR ─────────────────────────────────────────────────────────── */}
-        {activeTab === 'metaeditor' && (
-          <div className="space-y-6">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold">🧬 Meta Progression Editor</h2>
-                  <p className="text-zinc-400 text-sm mt-1">Directly edit XP, gems, unlocks and achievements in localStorage. Changes apply when you open the game.</p>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={refreshLocalMeta} className="px-3 py-1.5 text-sm border border-zinc-700 rounded hover:bg-zinc-800">🔄 Reload from storage</button>
-                  <button onClick={saveMeta} className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-sm font-bold">💾 Save to storage</button>
-                </div>
-              </div>
-
-              {/* XP + Gems */}
-              <div className="grid grid-cols-2 gap-4">
-                <label className="block space-y-1">
-                  <span className="text-sm text-zinc-300 font-medium">XP</span>
-                  <input type="number" min="0" value={editMeta.xp} onChange={(e) => setEditMeta((p) => ({ ...p, xp: Number(e.target.value) }))} className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm" />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-sm text-zinc-300 font-medium">Gems 💎</span>
-                  <input type="number" min="0" value={editMeta.gems} onChange={(e) => setEditMeta((p) => ({ ...p, gems: Number(e.target.value) }))} className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm" />
-                </label>
-              </div>
-
-              {/* Unlocks checkboxes */}
-              <div>
-                <div className="text-sm font-medium text-zinc-200 mb-3">Unlocks</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {ALL_UNLOCK_IDS.map((id) => {
-                    const checked = editMeta.unlockedIds.includes(id);
-                    return (
-                      <label key={id} className={`flex items-center gap-3 rounded-lg border px-3 py-2 cursor-pointer transition ${checked ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-zinc-700 bg-zinc-800/40 hover:bg-zinc-800'}`}>
-                        <input type="checkbox" checked={checked} onChange={() => toggleUnlock(id)} className="h-4 w-4 accent-emerald-400" />
-                        <span className="text-sm">{UNLOCK_LABELS[id] || id}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Achievements checkboxes */}
-              <div>
-                <div className="text-sm font-medium text-zinc-200 mb-3">Achievements</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {ALL_ACHIEVEMENTS.map((id) => {
-                    const checked = editMeta.achievements.includes(id);
-                    return (
-                      <label key={id} className={`flex items-center gap-3 rounded-lg border px-3 py-2 cursor-pointer transition ${checked ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-zinc-700 bg-zinc-800/40 hover:bg-zinc-800'}`}>
-                        <input type="checkbox" checked={checked} onChange={() => toggleAchievement(id)} className="h-4 w-4 accent-cyan-400" />
-                        <span className="text-sm font-mono text-xs">{id}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Quick buttons */}
-              <div className="flex flex-wrap gap-2 pt-2 border-t border-zinc-800">
-                <button onClick={() => setEditMeta({ xp: 0, gems: 0, unlockedIds: [], achievements: [] })} className="px-3 py-1.5 rounded bg-zinc-700 hover:bg-zinc-600 text-sm">Reset all</button>
-                <button onClick={() => setEditMeta({ xp: 5000, gems: 2000, unlockedIds: ALL_UNLOCK_IDS, achievements: ALL_ACHIEVEMENTS })} className="px-3 py-1.5 rounded bg-amber-700 hover:bg-amber-600 text-sm">Max all</button>
-                <button onClick={() => setEditMeta((p) => ({ ...p, unlockedIds: ALL_UNLOCK_IDS }))} className="px-3 py-1.5 rounded bg-zinc-700 hover:bg-zinc-600 text-sm">Unlock all</button>
-                <button onClick={() => setEditMeta((p) => ({ ...p, unlockedIds: [] }))} className="px-3 py-1.5 rounded bg-zinc-700 hover:bg-zinc-600 text-sm">Lock all</button>
-              </div>
-
-              <button onClick={saveMeta} className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-base">
-                💾 Save Meta to localStorage → Open Game to Test
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── CHEAT MODE ──────────────────────────────────────────────────────────── */}
-        {activeTab === 'cheatmode' && (
-          <div className="space-y-6">
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5 space-y-5">
-              <div>
-                <h2 className="text-xl font-semibold text-amber-300">🔧 Cheat Mode — Inject Game State</h2>
-                <p className="text-zinc-400 text-sm mt-1">Directly modify localStorage game state. Start a run first, then use these injectors. Reload the game tab after injecting.</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {/* Floor injector */}
-                <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 space-y-3">
-                  <h3 className="font-semibold text-amber-200">📍 Jump to Floor</h3>
-                  <p className="text-xs text-zinc-400">Teleport to any floor (zone). Useful to test mid-game and boss fights.</p>
-                  <div className="flex gap-2">
-                    <input type="number" min="1" max="10" value={cheatFloor} onChange={(e) => setCheatFloor(Number(e.target.value))} className="w-20 rounded bg-zinc-800 border border-zinc-700 px-2 py-2 text-sm text-center" />
-                    <button onClick={() => injectFloor(cheatFloor)} className="flex-1 rounded bg-amber-600 hover:bg-amber-500 py-2 text-sm font-bold">Inject Floor {cheatFloor}</button>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[1, 2, 3, 4, 5].map((f) => <button key={f} onClick={() => injectFloor(f)} className="px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-xs border border-zinc-700">Zone {f}</button>)}
-                  </div>
-                </div>
-
-                {/* HP injector */}
-                <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 space-y-3">
-                  <h3 className="font-semibold text-rose-200">❤️ Set Player HP</h3>
-                  <p className="text-xs text-zinc-400">Force player HP for testing near-death scenarios or revive testing.</p>
-                  <div className="flex gap-2">
-                    <input type="number" min="1" max="50" value={cheatHp} onChange={(e) => setCheatHp(Number(e.target.value))} className="w-20 rounded bg-zinc-800 border border-zinc-700 px-2 py-2 text-sm text-center" />
-                    <button onClick={() => injectHp(cheatHp)} className="flex-1 rounded bg-rose-700 hover:bg-rose-600 py-2 text-sm font-bold">Set HP to {cheatHp}</button>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[1, 3, 5, 10, 24, 34].map((hp) => <button key={hp} onClick={() => injectHp(hp)} className="px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-xs border border-zinc-700">{hp} HP</button>)}
-                  </div>
-                </div>
-
-                {/* Coins injector */}
-                <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 space-y-3">
-                  <h3 className="font-semibold text-amber-200">🪙 Set Coins</h3>
-                  <p className="text-xs text-zinc-400">Inject coins for testing shop purchases.</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[0, 3, 5, 10, 20].map((c) => <button key={c} onClick={() => injectCoins(c)} className="px-3 py-1.5 rounded bg-amber-800/50 hover:bg-amber-700/50 text-xs border border-amber-700/50">{c} coins</button>)}
-                  </div>
-                </div>
-
-                {/* Gems injector */}
-                <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 space-y-3">
-                  <h3 className="font-semibold text-cyan-200">💎 Set Gems (Meta)</h3>
-                  <p className="text-xs text-zinc-400">Inject gems for testing unlock purchases. Updates meta directly.</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[0, 100, 300, 500, 1000, 2000].map((g) => <button key={g} onClick={() => injectGems(g)} className="px-3 py-1.5 rounded bg-cyan-800/50 hover:bg-cyan-700/50 text-xs border border-cyan-700/50">{g} gems</button>)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Raw game state viewer */}
-              <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-zinc-200">📋 Current Run State (Raw)</h3>
-                  <button onClick={() => { refreshLocalMeta(); }} className="text-xs text-zinc-400 hover:text-zinc-200 border border-zinc-700 rounded px-2 py-1">Refresh</button>
-                </div>
-                {(() => {
-                  const gs = readLocalGameState();
-                  if (!gs) return <div className="text-zinc-500 text-sm">No active run found.</div>;
-                  return (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                      {[['Floor', gs.floor], ['Phase', gs.phase], ['HP', `${gs.player?.hp}/${gs.player?.maxHp}`], ['Shield', gs.player?.shield ?? 0], ['Coins', gs.player?.coins ?? 0], ['Score', gs.score], ['Turn', gs.turn], ['Room', gs.room]].map(([l, v]) => (
-                        <div key={l} className="rounded border border-zinc-800 bg-zinc-800/50 p-2 text-center">
-                          <div className="text-zinc-400">{l}</div>
-                          <div className="font-bold text-white">{v}</div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── GAME LOGIC ──────────────────────────────────────────────────────────── */}
-        {activeTab === 'gamelogic' && (
-          <section className="space-y-4">
-            {logicDirty && (
-              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 flex items-center justify-between">
-                <span className="text-amber-200 text-sm">⚠️ Unsaved changes</span>
-                <button onClick={() => saveConfig(config)} className="px-4 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-sm font-bold">Save Now</button>
-              </div>
-            )}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
-              <h2 className="text-xl font-semibold mb-1">⚙️ Game Logic Parameters</h2>
-              <p className="text-zinc-400 text-sm">These values are saved to the server config and read by the game at runtime. Changes highlighted in amber until saved.</p>
-            </div>
-
-            {/* ── Master Difficulty Slider ─────────────────────────────────────── */}
-            <div className="rounded-xl border-2 border-rose-500/40 bg-gradient-to-r from-rose-950/40 to-amber-950/30 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h3 className="text-lg font-bold text-rose-200">🎮 Master Difficulty</h3>
-                  <p className="text-zinc-400 text-xs mt-0.5">Scales enemy HP + damage simultaneously. Applies to all players immediately on save.</p>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-black text-rose-300">{Number(config.gameLogic?.difficultyMultiplier ?? 1.0).toFixed(1)}×</div>
-                  <div className="text-[10px] text-zinc-400 uppercase tracking-wider">
-                    {Number(config.gameLogic?.difficultyMultiplier ?? 1.0) <= 0.8 ? 'Easy' :
-                     Number(config.gameLogic?.difficultyMultiplier ?? 1.0) <= 1.0 ? 'Normal' :
-                     Number(config.gameLogic?.difficultyMultiplier ?? 1.0) <= 1.4 ? 'Hard' :
-                     Number(config.gameLogic?.difficultyMultiplier ?? 1.0) <= 1.8 ? 'Brutal' : 'Nightmare'}
-                  </div>
-                </div>
-              </div>
-              <input
-                type="range"
-                min="0.5"
-                max="2.5"
-                step="0.1"
-                value={Number(config.gameLogic?.difficultyMultiplier ?? 1.0)}
-                onChange={(e) => updateLogic('difficultyMultiplier', e.target.value)}
-                className="w-full accent-rose-500 cursor-pointer"
-                style={{ height: '8px' }}
-              />
-              <div className="flex justify-between text-[10px] text-zinc-500 mt-1">
-                <span>0.5× Easy</span>
-                <span>1.0× Normal</span>
-                <span>1.5× Hard</span>
-                <span>2.0× Brutal</span>
-                <span>2.5× Nightmare</span>
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] text-zinc-400">
-                <div className="rounded bg-black/30 p-2 text-center">
-                  <div className="font-black text-zinc-200">HP ×{(Number(config.gameLogic?.difficultyMultiplier ?? 1.0) * (Number(config.gameLogic?.enemyHpScale ?? 1))).toFixed(2)}</div>
-                  <div>enemy HP total</div>
-                </div>
-                <div className="rounded bg-black/30 p-2 text-center">
-                  <div className="font-black text-zinc-200">DMG ×{(Number(config.gameLogic?.difficultyMultiplier ?? 1.0) * (Number(config.gameLogic?.enemyDamageScale ?? 1))).toFixed(2)}</div>
-                  <div>enemy damage total</div>
-                </div>
-                <div className="rounded bg-black/30 p-2 text-center">
-                  <button
-                    onClick={() => { updateLogic('difficultyMultiplier', 1.0); }}
-                    className="w-full rounded bg-zinc-700 hover:bg-zinc-600 px-2 py-1 text-xs font-bold"
-                  >
-                    Reset to 1.0×
-                  </button>
-                </div>
-              </div>
-              {logicDirty && (
-                <button
-                  onClick={() => saveConfig(config)}
-                  className="mt-3 w-full rounded-lg bg-rose-600 hover:bg-rose-500 py-2 text-sm font-bold text-white"
-                >
-                  💾 Save Difficulty — Apply to All Players Now
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-              {Object.entries(GAME_LOGIC_GROUPS).map(([group, { label, keys, descriptions }]) => (
-                <div key={group} className="rounded-lg border border-zinc-700 bg-zinc-900 p-4 space-y-3">
-                  <h3 className="text-zinc-200 font-semibold capitalize border-b border-zinc-700 pb-2">{label}</h3>
-                  {keys.map((key) => (
-                    <label key={key} className="text-sm text-zinc-300 space-y-1 block">
-                      <span className="block text-zinc-400 text-xs font-mono">{key}</span>
-                      {descriptions[key] && <span className="block text-zinc-500 text-[11px]">{descriptions[key]}</span>}
-                      <input type="number" step="0.01" value={Number(config.gameLogic?.[key] ?? 0)} onChange={(e) => updateLogic(key, e.target.value)} className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none" />
-                    </label>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* ── ENEMIES VIEWER ──────────────────────────────────────────────────────── */}
-        {activeTab === 'enemies' && (
-          <section className="space-y-4">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
-              <h2 className="text-xl font-semibold mb-1">👾 Enemy Pool Viewer</h2>
-              <p className="text-zinc-400 text-sm">These are the hardcoded enemy pools from the game. Filter by tier to see each enemy's stats, intents and modifiers. Custom enemies can be added via the Advanced tab.</p>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {['all', ...Object.keys(ENEMY_TIERS)].map((tier) => (
-                  <button key={tier} onClick={() => setEnemyTierFilter(tier)}
-                    className={`px-3 py-1.5 rounded-lg text-sm border transition ${enemyTierFilter === tier ? 'bg-amber-500/25 border-amber-400/50 text-amber-200' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'}`}>
-                    {tier === 'all' ? 'All Tiers' : `${tier.charAt(0).toUpperCase() + tier.slice(1)}`}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
-              <p className="text-zinc-500 text-sm italic">Enemy pool data is hardcoded in DieInTheJungle.tsx · ENEMY_POOLS (lines 155-402). Use the Advanced tab to add custom enemies that extend the pool.</p>
-              <div className="mt-4 space-y-2">
-                {Object.entries(ENEMY_TIERS).filter(([tier]) => enemyTierFilter === 'all' || enemyTierFilter === tier).map(([tier, info]) => (
-                  <div key={tier} className="rounded-lg border border-zinc-700 bg-zinc-800/40 p-3">
-                    <div className={`text-sm font-bold mb-1 ${tier === 'boss' ? 'text-rose-300' : tier === 'champions' ? 'text-amber-300' : tier === 'medium' ? 'text-blue-300' : 'text-zinc-300'}`}>
-                      {tier.toUpperCase()} — {info.desc}
-                    </div>
-                    <div className="text-xs text-zinc-400">{info.label} enemies are drawn from the hardcoded pool. Add custom ones via Advanced → customMonsters with <code className="bg-zinc-900 px-1 rounded">tier: "{tier}"</code> to override.</div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-4 rounded-lg border border-zinc-700 bg-zinc-900/70 p-4">
-                <h3 className="text-sm font-semibold text-zinc-200 mb-2">Modifiers Reference</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-                  {[
-                    { name: 'Berserk', badge: '+2 DMG', desc: 'All attacks deal +2 damage' },
-                    { name: 'Stone Skin', badge: '1st hit immune', desc: 'Ignores the first hit each combat' },
-                    { name: 'Thorns', badge: 'Recoil 1', desc: 'Attacking the enemy deals 1 HP recoil' },
-                    { name: 'Swift', badge: '+2 first intent', desc: 'First intent each combat gets +2 value' },
-                    { name: 'Venom', badge: '+1 poison', desc: 'If enemy hits HP, you lose +1 extra HP' },
-                    { name: 'Regen', badge: '+2 regen', desc: 'Enemy heals 2 at end of its turn' },
-                  ].map((m) => (
-                    <div key={m.name} className="flex items-start gap-2 rounded border border-zinc-700 bg-zinc-800/50 p-2">
-                      <span className="rounded bg-zinc-700 px-1.5 py-0.5 text-[10px] font-bold text-zinc-200 shrink-0">{m.badge}</span>
-                      <div>
-                        <div className="text-xs font-semibold text-zinc-200">{m.name}</div>
-                        <div className="text-[11px] text-zinc-400">{m.desc}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ── ARTIFACTS VIEWER ─────────────────────────────────────────────────────── */}
-        {activeTab === 'artifacts' && (
-          <section className="space-y-4">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
-              <h2 className="text-xl font-semibold mb-1">📦 Artifact Pool</h2>
-              <p className="text-zinc-400 text-sm">These are the hardcoded artifacts (ARTIFACT_POOL in DieInTheJungle.tsx lines 414-579). Filter by rarity to audit balance.</p>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {['all', 'common', 'rare', 'epic', 'legendary'].map((r) => (
-                  <button key={r} onClick={() => setArtifactFilter(r)}
-                    className={`px-3 py-1.5 rounded-lg text-sm border transition ${artifactFilter === r ? 'bg-amber-500/25 border-amber-400/50 text-amber-200' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'}`}>
-                    {r.charAt(0).toUpperCase() + r.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {[
-                  { id: 'venomFang', name: 'Venom Fang', rarity: 'common', category: 'offense', tags: ['attack', 'poison'], effectText: 'When you place an attack die, enemy takes 1 extra damage.' },
-                  { id: 'ironBark', name: 'Iron Bark', rarity: 'common', category: 'defense', tags: ['shield'], effectText: '+2 shield at combat start.' },
-                  { id: 'moonSap', name: 'Moon Sap', rarity: 'common', category: 'heal', tags: ['heal'], effectText: '+1 heal per heal die placed.' },
-                  { id: 'swiftStrike', name: 'Swift Strike', rarity: 'rare', category: 'offense', tags: ['attack', 'combo'], effectText: 'After 3 attack dice in a row, +3 bonus damage.' },
-                  { id: 'shieldwall', name: 'Shieldwall', rarity: 'rare', category: 'defense', tags: ['shield', 'combo'], effectText: 'Surge (3 shields) grants +2 bonus shield.' },
-                  { id: 'jungleMask', name: 'Jungle Mask', rarity: 'epic', category: 'utility', tags: ['combo'], effectText: 'SURGE attacks deal double bonus damage.' },
-                  { id: 'bleedingCharm', name: 'Bleeding Charm', rarity: 'epic', category: 'offense', tags: ['attack', 'risky'], effectText: '+3 attack bonus. Lose 1 HP per turn.' },
-                  { id: 'kabalSigil', name: 'Kabal Sigil', rarity: 'legendary', category: 'survival', tags: ['revive'], effectText: 'Once per run: revive at 40% HP on death.' },
-                  { id: 'timeEngine', name: 'Time Engine', rarity: 'legendary', category: 'utility', tags: ['cooldown'], effectText: 'Every 3 turns, reset all dice cooldowns.' },
-                ].filter((a) => artifactFilter === 'all' || a.rarity === artifactFilter).map((a) => {
-                  const rarityStyle = a.rarity === 'legendary' ? 'border-amber-400/60 bg-amber-500/10 text-amber-100' : a.rarity === 'epic' ? 'border-violet-400/60 bg-violet-500/10 text-violet-100' : a.rarity === 'rare' ? 'border-blue-400/50 bg-blue-500/10 text-blue-100' : 'border-zinc-600/60 bg-zinc-800/60 text-zinc-200';
-                  return (
-                    <div key={a.id} className={`rounded-xl border p-3 space-y-2 ${rarityStyle}`}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="font-bold text-sm">{a.name}</div>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold uppercase ${rarityStyle}`}>{a.rarity}</span>
-                      </div>
-                      <div className="text-xs opacity-80">{a.effectText}</div>
-                      <div className="flex flex-wrap gap-1">
-                        {a.tags.map((t) => <span key={t} className="text-[10px] rounded-full border border-current/30 px-1.5 py-0.5 opacity-70">{t}</span>)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="mt-4 text-xs text-zinc-500">Full artifact pool is hardcoded in DieInTheJungle.tsx. Add custom artifacts via Advanced → customArtifacts.</p>
-            </div>
-          </section>
-        )}
-
-        {/* ── ASSETS ──────────────────────────────────────────────────────────────── */}
-        {activeTab === 'assets' && (() => {
-          const [urlInput, setUrlInput] = React.useState('');
-          const [urlName, setUrlName] = React.useState('');
-          return (
-          <section className="space-y-5">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
-              <h2 className="text-xl font-semibold">🖼️ Asset Library</h2>
-              <p className="text-zinc-400 text-sm mt-1">Upload images or add by URL (postimg.cc, etc). Tag and manage all assets.</p>
-            </div>
-
-            {/* Filters row */}
-            <div className="flex flex-wrap items-end gap-3 rounded-xl border border-zinc-700 bg-zinc-800/50 p-4">
-              <div>
-                <label className="block text-xs font-bold text-zinc-400 mb-1 uppercase tracking-wide">Category</label>
-                <select value={category} onChange={(e) => setCategory(e.target.value)} className="bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-100">
-                  {Object.keys(ASSET_SCHEMA).map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-zinc-400 mb-1 uppercase tracking-wide">Sub-category</label>
-                <select value={subcategory} onChange={(e) => setSubcategory(e.target.value)} className="bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-100">
-                  {availableSubcategories.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </div>
-              <div className="text-xs text-zinc-500 font-mono self-center mt-4">{assetBucket.length} asset{assetBucket.length !== 1 ? 's' : ''} in <span className="text-zinc-300">{category}/{subcategory}</span></div>
-            </div>
-
-            {/* Add by URL */}
-            <div className="rounded-xl border border-amber-400/20 bg-amber-500/5 p-4 space-y-3">
-              <div className="font-bold text-amber-300 text-sm">🔗 Add by URL (recommended — paste postimg.cc or any image URL)</div>
-              <div className="flex gap-2 flex-wrap">
-                <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)}
-                  placeholder="https://i.postimg.cc/... or any image URL"
-                  className="flex-1 min-w-[300px] rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-amber-400 focus:outline-none"
-                  onKeyDown={(e) => { if (e.key === 'Enter' && urlInput.trim()) { addAssetByUrl(urlInput, urlName); setUrlInput(''); setUrlName(''); } }}
-                />
-                <input value={urlName} onChange={(e) => setUrlName(e.target.value)}
-                  placeholder="Name (optional)"
-                  className="w-40 rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-amber-400 focus:outline-none"
-                />
-                <button
-                  onClick={() => { if (urlInput.trim()) { addAssetByUrl(urlInput, urlName); setUrlInput(''); setUrlName(''); } }}
-                  disabled={!urlInput.trim()}
-                  className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm disabled:opacity-40"
-                >+ Add</button>
-              </div>
-              {urlInput && (
-                <div className="flex items-center gap-3">
-                  <img src={urlInput} alt="preview" className="h-16 w-16 object-cover rounded border border-zinc-600 bg-zinc-900" onError={(e) => e.target.style.opacity = '0.2'} />
-                  <span className="text-xs text-zinc-400">Preview</span>
-                </div>
-              )}
-            </div>
-
-            {/* File upload with preview */}
-            <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 space-y-3">
-              <div className="font-bold text-zinc-300 text-sm">📁 Upload files from disk</div>
-              <label className={`block cursor-pointer rounded-xl border-2 border-dashed px-4 py-6 text-center transition ${apiOk === false ? 'border-zinc-700 opacity-40 cursor-not-allowed' : 'border-zinc-600 hover:border-amber-400/60'}`}>
-                <div className="text-zinc-400 text-sm">{apiOk === false ? '⛔ API offline — use URL method above' : '📁 Click to select images (max 30)'}</div>
-                <input type="file" accept="image/*" multiple disabled={loading || apiOk === false} onChange={stageFilesForUpload} className="hidden" />
-              </label>
-
-              {/* Preview pending files */}
-              {pendingFiles.length > 0 && (
-                <div className="space-y-3">
-                  <div className="text-sm font-bold text-amber-300">{pendingFiles.length} file{pendingFiles.length > 1 ? 's' : ''} ready to upload — review then confirm:</div>
-                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                    {pendingFiles.map((f, i) => (
-                      <div key={i} className="rounded-lg border border-zinc-600 bg-zinc-900 overflow-hidden">
-                        <img src={f.dataUrl} alt={f.name} className="w-full h-20 object-cover" />
-                        <div className="p-1 text-[9px] text-zinc-400 truncate">{f.name}</div>
-                        <div className="p-1 text-[9px] text-zinc-600">{(f.size / 1024).toFixed(0)}KB</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={confirmUpload} disabled={loading} className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm disabled:opacity-50">
-                      ✅ Confirm Upload ({pendingFiles.length} files)
-                    </button>
-                    <button onClick={() => setPendingFiles([])} className="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 font-bold text-sm">
-                      ✕ Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Asset Grid */}
-            {assetBucket.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/40 py-12 text-center text-zinc-500">
-                <div className="text-3xl mb-2">📂</div>
-                <div className="text-sm">No assets in <span className="text-zinc-300 font-mono">{category}/{subcategory}</span> yet.</div>
-                <div className="text-xs mt-1">Add an image URL above or upload files from disk.</div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-                {assetBucket.slice(0, 120).map((asset) => {
-                  const key = asset.id || asset.url;
-                  const meta = config.assetsMeta?.[key] || {};
-                  const statusColor = meta.status === 'deprecated' ? 'border-red-700/50 opacity-60' : meta.status === 'draft' ? 'border-amber-600/50' : 'border-zinc-700';
-                  return (
-                    <AssetCard key={key} asset={asset} meta={meta} statusColor={statusColor}
-                      onMetaChange={(patch) => updateAssetMeta(asset, patch)}
-                      onReplace={(newUrl) => {
-                        setConfig((prev) => {
-                          const assets = JSON.parse(JSON.stringify(prev.assets || {}));
-                          const bucket = assets?.[category]?.[subcategory];
-                          if (!bucket) return prev;
-                          const idx = bucket.findIndex((a) => (a.id || a.url) === key);
-                          if (idx !== -1) bucket[idx] = { ...bucket[idx], url: newUrl };
-                          return { ...prev, assets };
-                        });
-                      }}
-                      onDelete={() => {
-                        setConfig((prev) => {
-                          const assets = JSON.parse(JSON.stringify(prev.assets || {}));
-                          const bucket = assets?.[category]?.[subcategory];
-                          if (!bucket) return prev;
-                          assets[category][subcategory] = bucket.filter((a) => (a.id || a.url) !== key);
-                          return { ...prev, assets };
-                        });
-                        toast('Asset removed — save config to persist', 'info');
-                      }}
-                    />
-                  );
-                })}
-              </div>
-            )}
-
-            <button onClick={() => saveConfig(config)} disabled={apiOk === false} className="px-4 py-2 rounded bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm disabled:opacity-40">💾 Save Asset Changes</button>
-          </section>
-          );
-        })()}
-
-        {/* ── AVATARS ──────────────────────────────────────────────────────────────── */}
-        {activeTab === 'avatars' && (
-          <section className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-4">
-            <h2 className="text-xl font-semibold">🎭 Avatars & Visuals</h2>
-            <JsonEditor label="characters.playable" value={config.characters.playable} onSave={(value) => setConfig((p) => ({ ...p, characters: { ...p.characters, playable: value } }))} />
-            <JsonEditor label="characters.emotionUrls" value={config.characters.emotionUrls} onSave={(value) => setConfig((p) => ({ ...p, characters: { ...p.characters, emotionUrls: value } }))} />
-            <JsonEditor label="visuals (background, logo, storyFragment URLs)" value={config.visuals} onSave={(value) => setConfig((p) => ({ ...p, visuals: value }))} rows={6} />
-
-            {/* Button Images */}
-            <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 space-y-3">
-              <div className="font-semibold text-amber-300">🎮 Action Button Images</div>
-              <p className="text-zinc-400 text-xs">Paste image URLs for each action button. Leave blank to use text fallback.</p>
-              {['roll', 'reroll', 'resolve', 'restart'].map(key => (
-                <div key={key} className="flex items-center gap-3">
-                  <label className="w-16 text-xs text-zinc-300 font-mono uppercase">{key}</label>
-                  <input
-                    type="text"
-                    className="flex-1 rounded bg-zinc-900 border border-zinc-700 px-2 py-1 text-xs text-zinc-100 font-mono"
-                    placeholder={`URL for ${key} button image`}
-                    value={config.visuals?.buttonImages?.[key] || ''}
-                    onChange={e => setConfig(p => ({
-                      ...p,
-                      visuals: {
-                        ...p.visuals,
-                        buttonImages: { ...p.visuals.buttonImages, [key]: e.target.value }
-                      }
-                    }))}
-                  />
-                  {config.visuals?.buttonImages?.[key] && (
-                    <img src={config.visuals.buttonImages[key]} alt={key} className="h-10 w-auto object-contain rounded border border-zinc-600" />
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Biome Backgrounds */}
-            <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 space-y-3">
-              <div className="font-semibold text-emerald-300">🌿 Biome Background Images</div>
-              <p className="text-zinc-400 text-xs">Background URL per biome. Changes dynamically in game after boss kills.</p>
-              {[
-                { id: 'jungle', label: '🌿 Deep Jungle',    placeholder: 'https://i.postimg.cc/YSmfqq2c/Background-desktop.png' },
-                { id: 'ruins',  label: '🏛️ Ka Ruins',       placeholder: 'URL for ruins background' },
-                { id: 'temple', label: '⛩️ Cursed Temple',  placeholder: 'URL for temple background' },
-                { id: 'abyss',  label: '🌑 Abyss',          placeholder: 'URL for abyss background' },
-                { id: 'void',   label: '⚡ Eternal Void',   placeholder: 'URL for void background' },
-              ].map(b => (
-                <div key={b.id} className="flex items-center gap-3">
-                  <label className="w-32 text-xs text-zinc-300">{b.label}</label>
-                  <input
-                    type="text"
-                    className="flex-1 rounded bg-zinc-900 border border-zinc-700 px-2 py-1 text-xs text-zinc-100 font-mono"
-                    placeholder={b.placeholder}
-                    value={config.visuals?.biomeBackgrounds?.[b.id] || ''}
-                    onChange={e => setConfig(p => ({
-                      ...p,
-                      visuals: {
-                        ...p.visuals,
-                        biomeBackgrounds: { ...p.visuals.biomeBackgrounds, [b.id]: e.target.value }
-                      }
-                    }))}
-                  />
-                </div>
-              ))}
-            </div>
-
-            <button onClick={() => saveConfig(config)} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Save to server</button>
-          </section>
-        )}
-
-        {/* ── NARRATIVE ────────────────────────────────────────────────────────────── */}
-        {activeTab === 'narrative' && (() => {
-          const [openArc, setOpenArc] = React.useState(null);
-          const [arcUrl, setArcUrl] = React.useState({});
-          const [arcLine, setArcLine] = React.useState({});
-
-          function updateArc(idx, patch) {
-            setConfig((p) => {
-              const arcs = [...(p.narrativeArcs || EMPTY_CONFIG.narrativeArcs)];
-              arcs[idx] = { ...arcs[idx], ...patch };
-              return { ...p, narrativeArcs: arcs };
-            });
-          }
-          function addLine(idx) {
-            const val = (arcLine[idx] || '').trim();
-            if (!val) return;
-            const lines = [...(config.narrativeArcs?.[idx]?.lines || []), val];
-            updateArc(idx, { lines });
-            setArcLine((p) => ({ ...p, [idx]: '' }));
-          }
-          function removeLine(arcIdx, lineIdx) {
-            const lines = [...(config.narrativeArcs?.[arcIdx]?.lines || [])];
-            lines.splice(lineIdx, 1);
-            updateArc(arcIdx, { lines });
-          }
-          const arcs = config.narrativeArcs || EMPTY_CONFIG.narrativeArcs;
-          return (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">📖 Narrative Arcs</h2>
-                <button onClick={() => saveConfig(config)} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Save</button>
-              </div>
-              <p className="text-zinc-400 text-sm">6 arcs × image + story lines shown between zones. Each arc unlocks as the player progresses through the jungle.</p>
-              {/* Legacy quick-edit */}
-              <details className="rounded-lg border border-zinc-700 bg-zinc-900/50">
-                <summary className="cursor-pointer px-4 py-2 text-sm text-zinc-400 select-none">🔧 Legacy JSON editor (kabalian / kkm lines)</summary>
-                <div className="px-4 pb-4 pt-2 space-y-3">
-                  <JsonEditor label="narrative.kabalian" value={config.narrative.kabalian} onSave={(value) => setConfig((p) => ({ ...p, narrative: { ...p.narrative, kabalian: value } }))} rows={8} />
-                  <JsonEditor label="narrative.kkm" value={config.narrative.kkm} onSave={(value) => setConfig((p) => ({ ...p, narrative: { ...p.narrative, kkm: value } }))} rows={8} />
-                </div>
-              </details>
-              {/* 6 Arcs */}
-              {arcs.map((arc, idx) => (
-                <div key={arc.id} className="rounded-xl border border-zinc-700 bg-zinc-900/70 overflow-hidden">
-                  {/* Arc Header */}
-                  <button
-                    onClick={() => setOpenArc(openArc === idx ? null : idx)}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-zinc-800/50 transition-colors"
-                  >
-                    <span className="text-amber-400 font-bold text-sm w-16 shrink-0">Arc {idx + 1}</span>
-                    <span className="flex-1 font-semibold text-zinc-200">{arc.title}</span>
-                    <span className="text-xs text-zinc-500">{arc.lines?.length || 0} lines</span>
-                    {arc.imageUrl && <span className="text-xs text-emerald-400">🖼️ img</span>}
-                    <span className="text-zinc-500 text-xs">{openArc === idx ? '▲' : '▼'}</span>
-                  </button>
-                  {openArc === idx && (
-                    <div className="border-t border-zinc-700 px-4 py-4 space-y-4">
-                      {/* Title */}
-                      <div>
-                        <label className="text-xs text-zinc-400 block mb-1">Arc Title</label>
-                        <input
-                          value={arc.title}
-                          onChange={(e) => updateArc(idx, { title: e.target.value })}
-                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none"
-                        />
-                      </div>
-                      {/* Image URL */}
-                      <div>
-                        <label className="text-xs text-zinc-400 block mb-1">Arc Image URL</label>
-                        <div className="flex gap-2">
-                          <input
-                            placeholder="https://i.postimg.cc/..."
-                            value={arcUrl[idx] !== undefined ? arcUrl[idx] : (arc.imageUrl || '')}
-                            onChange={(e) => setArcUrl((p) => ({ ...p, [idx]: e.target.value }))}
-                            onBlur={() => { if (arcUrl[idx] !== undefined) { updateArc(idx, { imageUrl: arcUrl[idx] }); setArcUrl((p) => { const n = {...p}; delete n[idx]; return n; }); }}}
-                            className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none"
-                          />
-                          {arc.imageUrl && <img src={arc.imageUrl} alt="arc" className="h-9 w-9 rounded object-cover border border-zinc-600" />}
-                        </div>
-                      </div>
-                      {/* Lines */}
-                      <div>
-                        <label className="text-xs text-zinc-400 block mb-2">Story Lines ({arc.lines?.length || 0}/33 target)</label>
-                        <div className="space-y-1 max-h-64 overflow-y-auto mb-2">
-                          {(arc.lines || []).map((line, li) => (
-                            <div key={li} className="flex items-start gap-2 group">
-                              <span className="text-[10px] text-zinc-600 w-5 shrink-0 mt-1">{li + 1}.</span>
-                              <span className="flex-1 text-xs text-zinc-300 bg-zinc-800/60 rounded px-2 py-1">{line}</span>
-                              <button onClick={() => removeLine(idx, li)} className="opacity-0 group-hover:opacity-100 text-[10px] text-red-400 hover:text-red-300 shrink-0">✕</button>
-                            </div>
-                          ))}
-                          {(!arc.lines || arc.lines.length === 0) && <div className="text-xs text-zinc-600 italic">No lines yet. Add some below.</div>}
-                        </div>
-                        <div className="flex gap-2">
-                          <input
-                            placeholder='Add narrative line... "The jungle watches you."'
-                            value={arcLine[idx] || ''}
-                            onChange={(e) => setArcLine((p) => ({ ...p, [idx]: e.target.value }))}
-                            onKeyDown={(e) => { if (e.key === 'Enter') addLine(idx); }}
-                            className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none"
-                          />
-                          <button onClick={() => addLine(idx)} className="px-3 py-2 rounded bg-amber-600 hover:bg-amber-500 text-sm font-bold text-white">+ Add</button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-              <button onClick={() => saveConfig(config)} className="w-full px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Save Narrative to Server</button>
-            </div>
-          );
-        })()}
-
-        {/* ── EVENTS ────────────────────────────────────────────────────────────────── */}
-        {activeTab === 'events' && (() => {
-          const [showForm, setShowForm] = React.useState(false);
-          const [editIdx, setEditIdx] = React.useState(null);
-          const [form, setForm] = React.useState({ id: '', title: '', description: '', imageUrl: '', type: 'choice', choices: [], autoReward: '', tags: '' });
-          const [newChoice, setNewChoice] = React.useState({ label: '', effect: '', icon: '' });
-
-          const events = config.randomEvents || [];
-
-          function resetForm() {
-            setForm({ id: '', title: '', description: '', imageUrl: '', type: 'choice', choices: [], autoReward: '', tags: '' });
-            setNewChoice({ label: '', effect: '', icon: '' });
-            setEditIdx(null);
-            setShowForm(false);
-          }
-
-          function openNew() {
-            resetForm();
-            setShowForm(true);
-          }
-
-          function openEdit(idx) {
-            const ev = events[idx];
-            setForm({ ...ev, choices: ev.choices ? [...ev.choices] : [], tags: (ev.tags || []).join(', ') });
-            setEditIdx(idx);
-            setShowForm(true);
-          }
-
-          function deleteEvent(idx) {
-            const next = events.filter((_, i) => i !== idx);
-            setConfig((p) => ({ ...p, randomEvents: next }));
-          }
-
-          function addChoice() {
-            if (!newChoice.label.trim()) return;
-            setForm((p) => ({ ...p, choices: [...p.choices, { ...newChoice }] }));
-            setNewChoice({ label: '', effect: '', icon: '' });
-          }
-
-          function removeChoice(ci) {
-            setForm((p) => ({ ...p, choices: p.choices.filter((_, i) => i !== ci) }));
-          }
-
-          function saveEvent() {
-            if (!form.title.trim()) return;
-            const ev = {
-              ...form,
-              id: form.id || `evt_${Date.now()}`,
-              tags: form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
-            };
-            const next = editIdx !== null
-              ? events.map((e, i) => i === editIdx ? ev : e)
-              : [...events, ev];
-            setConfig((p) => ({ ...p, randomEvents: next }));
-            resetForm();
-          }
-
-          const typeColors = { choice: 'border-violet-700 bg-violet-900/20', auto: 'border-emerald-700 bg-emerald-900/20', npc: 'border-amber-700 bg-amber-900/20', rest: 'border-blue-700 bg-blue-900/20' };
-          const typeIcons = { choice: '🎲', auto: '⚡', npc: '🧙', rest: '🏕️' };
-
-          return (
-            <div className="space-y-5">
-              {/* Header */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold">🎲 Random Events</h2>
-                  <p className="text-zinc-400 text-sm mt-0.5">{events.length} events · shown on event nodes on the map</p>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => saveConfig(config)} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Save</button>
-                  <button onClick={openNew} className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-sm font-bold">+ New Event</button>
-                </div>
-              </div>
-
-              {/* Event form */}
-              {showForm && (
-                <div className="rounded-xl border border-amber-400/30 bg-zinc-900/90 p-5 space-y-4">
-                  <h3 className="font-bold text-amber-300">{editIdx !== null ? '✏️ Edit Event' : '✨ New Event'}</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-zinc-400 block mb-1">Title *</label>
-                      <input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} placeholder='e.g. "The Old Shaman"' className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-zinc-400 block mb-1">Type</label>
-                      <select value={form.type} onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))} className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none">
-                        <option value="choice">🎲 Choice (player picks option)</option>
-                        <option value="auto">⚡ Auto reward (no choice)</option>
-                        <option value="npc">🧙 NPC Encounter</option>
-                        <option value="rest">🏕️ Rest Camp</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs text-zinc-400 block mb-1">Description / Lore Text</label>
-                    <textarea value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} placeholder="Atmospheric lore text shown to player..." rows={3} className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none" />
-                  </div>
-                  <div className="flex gap-3">
-                    <div className="flex-1">
-                      <label className="text-xs text-zinc-400 block mb-1">Image URL</label>
-                      <input value={form.imageUrl} onChange={(e) => setForm((p) => ({ ...p, imageUrl: e.target.value }))} placeholder="https://i.postimg.cc/..." className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none" />
-                    </div>
-                    {form.imageUrl && <img src={form.imageUrl} alt="preview" className="h-10 w-10 rounded object-cover border border-zinc-600 shrink-0" />}
-                  </div>
-                  <div>
-                    <label className="text-xs text-zinc-400 block mb-1">Tags (comma-separated)</label>
-                    <input value={form.tags} onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))} placeholder="jungle, npc, lore, reward..." className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none" />
-                  </div>
-                  {form.type === 'auto' && (
-                    <div>
-                      <label className="text-xs text-zinc-400 block mb-1">Auto Reward (e.g. "+2 HP, +1 Gold")</label>
-                      <input value={form.autoReward} onChange={(e) => setForm((p) => ({ ...p, autoReward: e.target.value }))} placeholder="+2 HP" className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none" />
-                    </div>
-                  )}
-                  {(form.type === 'choice' || form.type === 'npc') && (
-                    <div className="space-y-2">
-                      <label className="text-xs text-zinc-400 block">Choices ({form.choices.length})</label>
-                      {form.choices.map((c, ci) => (
-                        <div key={ci} className="flex items-center gap-2 rounded-lg bg-zinc-800/60 px-3 py-2">
-                          <span className="text-base">{c.icon || '🎲'}</span>
-                          <span className="flex-1 text-sm text-zinc-200">{c.label}</span>
-                          <span className="text-xs text-zinc-500">{c.effect}</span>
-                          <button onClick={() => removeChoice(ci)} className="text-xs text-red-400 hover:text-red-300">✕</button>
-                        </div>
-                      ))}
-                      <div className="flex gap-2">
-                        <input value={newChoice.icon} onChange={(e) => setNewChoice((p) => ({ ...p, icon: e.target.value }))} placeholder="🗡️" className="w-10 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 text-center" />
-                        <input value={newChoice.label} onChange={(e) => setNewChoice((p) => ({ ...p, label: e.target.value }))} placeholder="Choice label" className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100" />
-                        <input value={newChoice.effect} onChange={(e) => setNewChoice((p) => ({ ...p, effect: e.target.value }))} placeholder="Effect: +3 HP" className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100" />
-                        <button onClick={addChoice} className="px-3 py-1.5 rounded bg-violet-600 hover:bg-violet-500 text-sm font-bold text-white">+</button>
-                      </div>
-                    </div>
-                  )}
-                  {form.type === 'rest' && (
-                    <div className="rounded-lg border border-blue-700/40 bg-blue-900/10 px-4 py-3 text-sm text-blue-300">
-                      🏕️ Rest camp auto-heals the player. You can configure the heal amount in the choices as "heal:X" effects.
-                    </div>
-                  )}
-                  <div className="flex gap-2 pt-2">
-                    <button onClick={saveEvent} className="px-5 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-sm font-bold text-white">✅ {editIdx !== null ? 'Update' : 'Add'} Event</button>
-                    <button onClick={resetForm} className="px-4 py-2 rounded bg-zinc-700 hover:bg-zinc-600 text-sm text-zinc-300">Cancel</button>
-                  </div>
-                </div>
-              )}
-
-              {/* Events list */}
-              {events.length === 0 && !showForm && (
-                <div className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/40 p-8 text-center">
-                  <div className="text-4xl mb-3">🎲</div>
-                  <div className="text-zinc-400 text-sm">No random events yet. Create your first event to add flavor to the map nodes.</div>
-                </div>
-              )}
-              <div className="space-y-3">
-                {events.map((ev, idx) => (
-                  <div key={ev.id || idx} className={`rounded-xl border ${typeColors[ev.type] || 'border-zinc-700 bg-zinc-900/40'} overflow-hidden`}>
-                    <div className="flex items-start gap-3 p-4">
-                      {ev.imageUrl && <img src={ev.imageUrl} alt={ev.title} className="h-14 w-14 rounded-lg object-cover border border-zinc-600 shrink-0" />}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-base">{typeIcons[ev.type] || '🎲'}</span>
-                          <span className="font-semibold text-zinc-100">{ev.title}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-400">{ev.type}</span>
-                          {(ev.tags || []).map((t) => <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500">{t}</span>)}
-                        </div>
-                        <p className="text-xs text-zinc-400 line-clamp-2">{ev.description}</p>
-                        {ev.choices?.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {ev.choices.map((c, ci) => <span key={ci} className="text-[10px] px-2 py-0.5 rounded-full bg-violet-900/50 text-violet-300 border border-violet-700/30">{c.icon} {c.label}</span>)}
-                          </div>
-                        )}
-                        {ev.autoReward && <div className="text-xs text-emerald-400 mt-1">⚡ {ev.autoReward}</div>}
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        <button onClick={() => openEdit(idx)} className="text-xs px-2 py-1.5 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-300">✏️</button>
-                        <button onClick={() => deleteEvent(idx)} className="text-xs px-2 py-1.5 rounded bg-red-900/60 hover:bg-red-800 text-red-300">🗑️</button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {events.length > 0 && <button onClick={() => saveConfig(config)} className="w-full px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Save Events to Server</button>}
-            </div>
-          );
-        })()}
-
-        {/* ── ADVANCED ─────────────────────────────────────────────────────────────── */}
-        {activeTab === 'advanced' && (
-          <section className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-4">
-            <h2 className="text-xl font-semibold">🔬 Advanced — Custom Monsters & Artifacts</h2>
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-200">
-              ⚠️ Custom monsters and artifacts are stored in the server config. They are not yet merged into the game's hardcoded pools. This feature is in the backlog. For now, use these as staging / design documents.
-            </div>
-            <JsonEditor label="monsters.traitsCatalog" value={config.monsters.traitsCatalog} onSave={(value) => setConfig((p) => ({ ...p, monsters: { ...p.monsters, traitsCatalog: value } }))} rows={10} />
-            <JsonEditor label="monsters.customMonsters" value={config.monsters.customMonsters} onSave={(value) => setConfig((p) => ({ ...p, monsters: { ...p.monsters, customMonsters: value } }))} rows={12} />
-            <JsonEditor label="artifacts.customArtifacts" value={config.artifacts.customArtifacts} onSave={(value) => setConfig((p) => ({ ...p, artifacts: { ...p.artifacts, customArtifacts: value } }))} rows={12} />
-            <button onClick={() => saveConfig(config)} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Save to server</button>
-          </section>
-        )}
-
-        {/* ── ROADMAP ──────────────────────────────────────────────────────────────── */}
-        {activeTab === 'roadmap' && (() => {
-          const [openSections, setOpenSections] = React.useState({ 0: true }); // "Done" collapsed by default, others open
-          const [issuesOpen, setIssuesOpen] = React.useState(false);
-          const [showFixed, setShowFixed] = React.useState(false);
-
-          function toggleSection(idx) {
-            setOpenSections((p) => ({ ...p, [idx]: !p[idx] }));
-          }
-
-          const all = ROADMAP.flatMap((s) => s.items);
-          const done = all.filter((i) => i.done).length;
-          const pct = Math.round((done / all.length) * 100);
-
-          const colorMap = {
-            emerald: { border: 'border-emerald-800', header: 'text-emerald-300', badge: 'bg-emerald-900/40 text-emerald-300' },
-            amber: { border: 'border-amber-800', header: 'text-amber-300', badge: 'bg-amber-900/40 text-amber-300' },
-            violet: { border: 'border-violet-800', header: 'text-violet-300', badge: 'bg-violet-900/40 text-violet-300' },
-            zinc: { border: 'border-zinc-700', header: 'text-zinc-400', badge: 'bg-zinc-800 text-zinc-400' },
-          };
-
-          const filteredIssues = showFixed ? KNOWN_ISSUES : KNOWN_ISSUES.filter((i) => i.status !== 'fixed');
-          const openCount = KNOWN_ISSUES.filter((i) => i.status !== 'fixed').length;
-
-          return (
-            <div className="space-y-4">
-              {/* Progress bar at top */}
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-5 py-4">
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-zinc-300 font-semibold">Overall Progress</span>
-                  <span className="text-zinc-400">{done} / {all.length} features — <span className="text-emerald-400 font-bold">{pct}%</span></span>
-                </div>
-                <div className="h-3 rounded-full bg-zinc-800 overflow-hidden">
-                  <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all" style={{ width: `${pct}%` }} />
-                </div>
-              </div>
-
-              {/* Bugs & Issues collapsible */}
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
-                <button onClick={() => setIssuesOpen((p) => !p)} className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-zinc-800/40 transition-colors">
-                  <h2 className="text-lg font-semibold flex-1">🐛 Known Issues & Fixes</h2>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-900/50 text-red-300 border border-red-700/40">{openCount} open</span>
-                  <span className="text-zinc-500 text-sm">{issuesOpen ? '▲' : '▼'}</span>
-                </button>
-                {issuesOpen && (
-                  <div className="border-t border-zinc-800 px-5 py-4 space-y-2">
-                    <label className="flex items-center gap-2 text-xs text-zinc-500 cursor-pointer select-none">
-                      <input type="checkbox" checked={showFixed} onChange={(e) => setShowFixed(e.target.checked)} className="rounded" />
-                      Show fixed issues
-                    </label>
-                    {filteredIssues.map((issue, i) => (
-                      <div key={i} className={`flex items-start gap-3 rounded-lg border px-3 py-2 ${issue.status === 'fixed' ? 'border-emerald-700/50 bg-emerald-900/20' : 'border-zinc-700 bg-zinc-800/40'}`}>
-                        <span className="text-base shrink-0">{issue.status === 'fixed' ? '✅' : '🔴'}</span>
-                        <div>
-                          <div className={`text-sm ${issue.status === 'fixed' ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>{issue.label}</div>
-                          <div className="text-[11px] text-zinc-600">{issue.date}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Roadmap sections — each collapsible */}
-              {ROADMAP.map((section, idx) => {
-                const c = colorMap[section.color] || colorMap.zinc;
-                const isOpen = openSections[idx] !== false; // default open except "Done" (idx 0 starts closed)
-                const doneInSection = section.items.filter((i) => i.done).length;
-                return (
-                  <div key={section.section} className={`rounded-xl border ${c.border} bg-zinc-900/70 overflow-hidden`}>
-                    <button onClick={() => toggleSection(idx)} className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-zinc-800/40 transition-colors">
-                      <h3 className={`text-base font-bold flex-1 ${c.header}`}>{section.section}</h3>
-                      <span className={`text-[11px] px-2 py-0.5 rounded-full ${c.badge}`}>{doneInSection}/{section.items.length}</span>
-                      <span className="text-zinc-500 text-sm">{isOpen ? '▲' : '▼'}</span>
-                    </button>
-                    {isOpen && (
-                      <div className="border-t border-zinc-800/60 px-5 py-3 space-y-1">
-                        {section.items.map((item) => (
-                          <div key={item.label} className="flex items-start gap-2.5 py-1">
-                            <span className="text-base mt-0.5 shrink-0">{item.done ? '✅' : '⬜'}</span>
-                            <span className={`text-sm ${item.done ? 'text-zinc-500' : 'text-zinc-300'}`}>{item.label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
-
-        {/* ── DIFFICULTY TAB ─────────────────────────────────────────────────── */}
-        {activeTab === 'difficulty' && (
-          <div className="space-y-6">
-            {/* Master Slider */}
-            <div className="rounded-xl border border-amber-400/30 bg-amber-500/5 p-5 space-y-4">
-              <h2 className="text-xl font-bold text-amber-300">💀 Master Difficulty</h2>
-              <p className="text-zinc-400 text-sm">Sets all difficulty sliders at once. Individual values can still be tweaked below.</p>
-              <div className="flex items-center gap-4">
-                <div className="flex gap-2 text-2xl">
-                  {[1,2,3,4,5].map((n) => {
-                    const current = (() => {
-                      const hp = config.gameLogic?.enemyHpScale || 1;
-                      if (hp <= 0.75) return 1;
-                      if (hp <= 1.0) return 2;
-                      if (hp <= 1.35) return 3;
-                      if (hp <= 1.75) return 4;
-                      return 5;
-                    })();
-                    return <span key={n} className={`cursor-pointer transition-transform hover:scale-125 ${n <= current ? 'opacity-100' : 'opacity-20'}`}
-                      onClick={() => {
-                        const presets = {
-                          1: { enemyHpScale:0.7, enemyDamageScale:0.7, waveGrowthPerStage:0.08, bossHpMultiplier:1.8, bossDamageMultiplier:1.3, eventIntensityScale:0.7, dropRateMultiplier:1.3 },
-                          2: { enemyHpScale:1.0, enemyDamageScale:1.0, waveGrowthPerStage:0.12, bossHpMultiplier:2.4, bossDamageMultiplier:1.8, eventIntensityScale:1.0, dropRateMultiplier:1.0 },
-                          3: { enemyHpScale:1.3, enemyDamageScale:1.3, waveGrowthPerStage:0.16, bossHpMultiplier:3.0, bossDamageMultiplier:2.2, eventIntensityScale:1.3, dropRateMultiplier:0.85 },
-                          4: { enemyHpScale:1.7, enemyDamageScale:1.7, waveGrowthPerStage:0.22, bossHpMultiplier:3.8, bossDamageMultiplier:2.8, eventIntensityScale:1.6, dropRateMultiplier:0.7 },
-                          5: { enemyHpScale:2.2, enemyDamageScale:2.2, waveGrowthPerStage:0.30, bossHpMultiplier:5.0, bossDamageMultiplier:3.5, eventIntensityScale:2.0, dropRateMultiplier:0.5 },
-                        };
-                        const p = presets[n];
-                        setConfig((prev) => ({ ...prev, gameLogic: { ...prev.gameLogic, ...p } }));
-                        setLogicDirty(true);
-                      }}
-                    >💀</span>;
-                  })}
-                </div>
-                <div className="text-zinc-400 text-sm">
-                  {(() => {
-                    const hp = config.gameLogic?.enemyHpScale || 1;
-                    if (hp <= 0.75) return '1 skull — Easy mode';
-                    if (hp <= 1.0) return '2 skulls — Normal (default)';
-                    if (hp <= 1.35) return '3 skulls — Hard';
-                    if (hp <= 1.75) return '4 skulls — Extreme';
-                    return '5 skulls — NIGHTMARE';
-                  })()}
-                </div>
-              </div>
-            </div>
-
-            {/* Individual sliders */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[
-                { key: 'enemyHpScale', label: 'Enemy HP Scale', min: 0.5, max: 3, step: 0.05, def: 1 },
-                { key: 'enemyDamageScale', label: 'Enemy Damage Scale', min: 0.5, max: 3, step: 0.05, def: 1 },
-                { key: 'waveGrowthPerStage', label: 'Wave Growth / Stage', min: 0.05, max: 0.5, step: 0.01, def: 0.12 },
-                { key: 'bossHpMultiplier', label: 'Boss HP Multiplier', min: 1, max: 8, step: 0.1, def: 2.4 },
-                { key: 'bossDamageMultiplier', label: 'Boss Damage Multiplier', min: 1, max: 6, step: 0.1, def: 1.8 },
-                { key: 'eventIntensityScale', label: 'Event Intensity', min: 0.5, max: 3, step: 0.05, def: 1 },
-                { key: 'dropRateMultiplier', label: 'Drop Rate Multiplier', min: 0.3, max: 3, step: 0.05, def: 1 },
-                { key: 'critChance', label: 'Crit Chance', min: 0, max: 0.5, step: 0.01, def: 0.12 },
-                { key: 'critMultiplier', label: 'Crit Multiplier', min: 1, max: 4, step: 0.05, def: 1.75 },
-                { key: 'dodgeChance', label: 'Dodge Chance', min: 0, max: 0.4, step: 0.01, def: 0.08 },
-              ].map(({ key, label, min, max, step, def }) => {
-                const val = Number(config.gameLogic?.[key] ?? def);
-                return (
-                  <div key={key} className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-zinc-200">{label}</span>
-                      <span className="text-sm font-mono text-amber-300">{val.toFixed(2)}</span>
-                    </div>
-                    <input type="range" min={min} max={max} step={step} value={val}
-                      onChange={(e) => { setConfig((p) => ({ ...p, gameLogic: { ...p.gameLogic, [key]: parseFloat(e.target.value) } })); setLogicDirty(true); }}
-                      className="w-full accent-amber-400" />
-                    <div className="flex justify-between text-[10px] text-zinc-500">
-                      <span>{min}</span><span className="text-zinc-600">default: {def}</span><span>{max}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {logicDirty && (
-              <button onClick={() => { saveConfig(config); setLogicDirty(false); }} className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-base shadow-lg shadow-amber-500/20">
-                💾 Save Difficulty Settings
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* ── POOL TAB ───────────────────────────────────────────────────────── */}
-        {activeTab === 'pool' && (
-          <div className="space-y-6">
-            <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-5">
-              <h2 className="text-xl font-bold mb-1">🎲 Drop Rate & Pool Editor</h2>
-              <p className="text-zinc-400 text-sm">Adjust relative weights for artifact rarity, shop items, and map node types. Changes apply live — players see new rates on next run start.</p>
-            </div>
-
-            {/* Artifact Reward Weights */}
-            <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-5 space-y-4">
-              <h3 className="font-bold text-amber-300">📦 Artifact Reward Weights</h3>
-              <p className="text-zinc-500 text-xs">Used when showing 3 artifact choices after boss kills. Higher weight = more likely to appear. Chrome is the rarest.</p>
-              {[
-                { key: 'gray', label: '⚪ Gray (Common)', color: 'zinc', field: 'artifactWeights' },
-                { key: 'gold', label: '🟡 Gold (Rare)', color: 'amber', field: 'artifactWeights' },
-                { key: 'chrome', label: '🔵 Chrome (Epic)', color: 'cyan', field: 'artifactWeights' },
-              ].map(({ key, label, color, field }) => {
-                const weights = config.pools?.[field] || { gray: 4, gold: 3, chrome: 1 };
-                const total = Object.values(weights).reduce((a, b) => a + Number(b), 0);
-                const pct = total > 0 ? Math.round((Number(weights[key]) / total) * 100) : 0;
-                return (
-                  <div key={key} className="flex items-center gap-4">
-                    <span className="w-40 text-sm text-zinc-300 shrink-0">{label}</span>
-                    <input type="range" min={0} max={20} step={1} value={Number(weights[key] ?? 1)}
-                      onChange={(e) => setConfig((p) => ({ ...p, pools: { ...p.pools, [field]: { ...(p.pools?.[field] || {}), [key]: parseInt(e.target.value) } } }))}
-                      className="flex-1 accent-amber-400" />
-                    <span className="w-20 text-right font-mono text-amber-300 text-sm">{weights[key]} ({pct}%)</span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Starter Artifact Weights */}
-            <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-5 space-y-4">
-              <h3 className="font-bold text-amber-300">🌱 Starter Artifact Weights</h3>
-              <p className="text-zinc-500 text-xs">Used for the very first artifact reward (beginning of run). Should favor commons to ease new players in.</p>
-              {[
-                { key: 'gray', label: '⚪ Gray (Common)' },
-                { key: 'gold', label: '🟡 Gold (Rare)' },
-                { key: 'chrome', label: '🔵 Chrome (Epic)' },
-              ].map(({ key, label }) => {
-                const weights = config.pools?.starterWeights || { gray: 6, gold: 3, chrome: 1 };
-                const total = Object.values(weights).reduce((a, b) => a + Number(b), 0);
-                const pct = total > 0 ? Math.round((Number(weights[key]) / total) * 100) : 0;
-                return (
-                  <div key={key} className="flex items-center gap-4">
-                    <span className="w-40 text-sm text-zinc-300 shrink-0">{label}</span>
-                    <input type="range" min={0} max={20} step={1} value={Number(weights[key] ?? 1)}
-                      onChange={(e) => setConfig((p) => ({ ...p, pools: { ...p.pools, starterWeights: { ...(p.pools?.starterWeights || {}), [key]: parseInt(e.target.value) } } }))}
-                      className="flex-1 accent-amber-400" />
-                    <span className="w-20 text-right font-mono text-amber-300 text-sm">{weights[key]} ({pct}%)</span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Shop Item Pool */}
-            <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-5 space-y-4">
-              <h3 className="font-bold text-amber-300">🏪 Shop Item Pool</h3>
-              <p className="text-zinc-500 text-xs">Toggle which items can appear in the shop. Disabled items never show up. The shop always picks 4 from the active pool.</p>
-              <div className="space-y-2">
-                {[
-                  { key: 'heal-8', name: 'Heal 8 HP', cost: 30, rarity: 'common', icon: '❤️', desc: 'Instant consumable' },
-                  { key: 'maxhp-5', name: '+5 Max HP', cost: 50, rarity: 'common', icon: '🧬', desc: 'Permanent for the run' },
-                  { key: 'weapon-common', name: 'Common Weapon', cost: 60, rarity: 'common', icon: '🗡️', desc: 'Random common/gray weapon' },
-                  { key: 'weapon-rare', name: 'Rare Weapon', cost: 120, rarity: 'gold', icon: '✨', desc: 'Random gold/chrome weapon' },
-                  { key: 'reroll-shop', name: 'Reroll Shop', cost: 15, rarity: 'gray', icon: '🎲', desc: 'Regenerates shop inventory' },
-                  { key: 'reroll-artifact', name: 'Reroll Artifact', cost: 40, rarity: 'gold', icon: '🎁', desc: '+1 artifact reroll token' },
-                ].map((item) => {
-                  const enabled = config.pools?.shopItemEnabled?.[item.key] !== false;
-                  return (
-                    <div key={item.key} className={`flex items-center gap-3 rounded-lg border px-4 py-3 transition ${enabled ? 'border-zinc-600 bg-zinc-800' : 'border-zinc-800 bg-zinc-900/50 opacity-50'}`}>
-                      <span className="text-xl">{item.icon}</span>
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-zinc-200">{item.name}</div>
-                        <div className="text-xs text-zinc-500">{item.desc} · {item.cost} coins · {item.rarity}</div>
-                      </div>
-                      <button
-                        onClick={() => setConfig((p) => ({ ...p, pools: { ...p.pools, shopItemEnabled: { ...(p.pools?.shopItemEnabled || {}), [item.key]: !enabled } } }))}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${enabled ? 'bg-emerald-600/30 border-emerald-500/50 text-emerald-300 hover:bg-emerald-600/50' : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:bg-zinc-700'}`}
-                      >
-                        {enabled ? '✅ Enabled' : '🔒 Disabled'}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Map Node Type Weights */}
-            <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-5 space-y-4">
-              <h3 className="font-bold text-amber-300">🗺️ Map Node Type Weights</h3>
-              <p className="text-zinc-500 text-xs">Relative weights for each type of node when generating the map. Higher combat = more fights. Higher shop = more shops, etc.</p>
-              {[
-                { key: 'combat', label: '⚔️ Combat', desc: 'Fight an enemy' },
-                { key: 'shop', label: '🏪 Shop', desc: 'Buy items' },
-                { key: 'rest', label: '🏕️ Rest Camp', desc: 'Heal + passive bonus' },
-                { key: 'event', label: '❓ Random Event', desc: 'Narrative choice or reward' },
-              ].map(({ key, label, desc }) => {
-                const weights = config.pools?.mapNodeWeights || { combat: 3, shop: 1, rest: 1, event: 1 };
-                const total = Object.values(weights).reduce((a, b) => a + Number(b), 0);
-                const pct = total > 0 ? Math.round((Number(weights[key]) / total) * 100) : 0;
-                return (
-                  <div key={key} className="space-y-1">
-                    <div className="flex items-center gap-4">
-                      <span className="w-40 text-sm text-zinc-300 shrink-0">{label}</span>
-                      <input type="range" min={0} max={10} step={1} value={Number(weights[key] ?? 1)}
-                        onChange={(e) => setConfig((p) => ({ ...p, pools: { ...p.pools, mapNodeWeights: { ...(p.pools?.mapNodeWeights || {}), [key]: parseInt(e.target.value) } } }))}
-                        className="flex-1 accent-amber-400" />
-                      <span className="w-20 text-right font-mono text-amber-300 text-sm">{weights[key]} ({pct}%)</span>
-                    </div>
-                    <div className="text-xs text-zinc-600 pl-44">{desc}</div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <button onClick={() => saveConfig(config)} className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-base shadow-lg shadow-amber-500/20">
-              💾 Save Pool Settings
-            </button>
-          </div>
-        )}
-
-        {/* ── SOUND DESIGN TAB ───────────────────────────────────────────────── */}
-        {activeTab === 'sound' && (() => {
-          const SOUND_CATS = [
-            { id: 'dice', label: '🎲 Dice', color: 'amber', sounds: [
-              { id: 'roll_dice', name: 'Dice Roll', desc: 'Main roll sound', maxKB: 200, idealKB: 80 },
-              { id: 'reroll_dice', name: 'Reroll', desc: 'Reroll activated', maxKB: 150, idealKB: 60 },
-              { id: 'place_die', name: 'Place Die', desc: 'Die placed on slot', maxKB: 100, idealKB: 40 },
-              { id: 'special_pierce', name: 'Pierce Special', desc: 'Pierce die activated', maxKB: 150, idealKB: 60 },
-              { id: 'special_echo', name: 'Echo Special', desc: 'Echo die activated', maxKB: 150, idealKB: 60 },
-              { id: 'special_nurture', name: 'Nurture Special', desc: 'Nurture die activated', maxKB: 150, idealKB: 60 },
-              { id: 'special_fortress', name: 'Fortress Special', desc: 'Fortress die activated', maxKB: 150, idealKB: 60 },
-            ]},
-            { id: 'combat', label: '⚔️ Combat', color: 'rose', sounds: [
-              { id: 'hit_normal', name: 'Normal Hit', desc: 'Standard damage', maxKB: 100, idealKB: 40 },
-              { id: 'hit_crit', name: 'Critical Hit', desc: 'Crit damage', maxKB: 150, idealKB: 60 },
-              { id: 'hit_miss', name: 'Miss / Dodge', desc: 'Attack dodged', maxKB: 100, idealKB: 40 },
-              { id: 'player_hurt', name: 'Player Hurt', desc: 'Player takes damage', maxKB: 150, idealKB: 60 },
-              { id: 'player_death', name: 'Player Death', desc: 'Game over sound', maxKB: 300, idealKB: 120 },
-              { id: 'enemy_death', name: 'Enemy Defeated', desc: 'Enemy killed', maxKB: 200, idealKB: 80 },
-              { id: 'boss_appear', name: 'Boss Entrance', desc: 'Boss fight starts', maxKB: 500, idealKB: 200 },
-              { id: 'combo_surge', name: 'SURGE Combo', desc: '3-of-a-kind trigger', maxKB: 200, idealKB: 80 },
-            ]},
-            { id: 'weapons', label: '🗡️ Weapons', color: 'violet', sounds: [
-              { id: 'weapon_slash', name: 'Slash', desc: 'Jungle Blade attack', maxKB: 150, idealKB: 60 },
-              { id: 'weapon_magic', name: 'Magic Staff', desc: 'Amber Staff attack', maxKB: 150, idealKB: 60 },
-              { id: 'weapon_shield', name: 'Shield Block', desc: 'Stone Shield block', maxKB: 150, idealKB: 60 },
-              { id: 'weapon_totem', name: 'Ka Totem', desc: 'Totem activation', maxKB: 200, idealKB: 80 },
-              { id: 'weapon_cannon', name: 'Chrome Cannon', desc: 'Cannon fire', maxKB: 200, idealKB: 80 },
-              { id: 'weapon_venom', name: 'Venom Fang', desc: 'Poison strike', maxKB: 150, idealKB: 60 },
-              { id: 'companion_ability', name: 'Companion Ability', desc: 'Companion active skill', maxKB: 200, idealKB: 80 },
-            ]},
-            { id: 'rewards', label: '💎 Rewards', color: 'emerald', sounds: [
-              { id: 'coin_collect', name: 'Coin Collect', desc: 'Coins gained', maxKB: 100, idealKB: 40 },
-              { id: 'gem_collect', name: 'Gem Collect', desc: 'Gem gained', maxKB: 150, idealKB: 60 },
-              { id: 'artifact_pickup', name: 'Artifact Pickup', desc: 'Artifact chosen', maxKB: 300, idealKB: 120 },
-              { id: 'level_up', name: 'Level Up', desc: 'XP milestone', maxKB: 300, idealKB: 120 },
-              { id: 'unlock_new', name: 'New Unlock', desc: 'Feature unlocked', maxKB: 400, idealKB: 150 },
-            ]},
-            { id: 'map', label: '🗺️ Map', color: 'cyan', sounds: [
-              { id: 'node_select', name: 'Node Select', desc: 'Tap a map node', maxKB: 100, idealKB: 40 },
-              { id: 'zone_enter', name: 'Zone Enter', desc: 'New zone starts', maxKB: 200, idealKB: 80 },
-              { id: 'zone_clear', name: 'Zone Clear', desc: 'Zone completed', maxKB: 300, idealKB: 120 },
-              { id: 'shop_open', name: 'Shop Open', desc: 'Shop node entered', maxKB: 150, idealKB: 60 },
-              { id: 'rest_camp', name: 'Rest Camp', desc: 'Rest node entered', maxKB: 200, idealKB: 80 },
-              { id: 'event_trigger', name: 'Event Trigger', desc: 'Random event fired', maxKB: 200, idealKB: 80 },
-            ]},
-            { id: 'music', label: '🎵 Music', color: 'indigo', sounds: [
-              { id: 'bgm_jungle', name: 'Jungle Ambient', desc: 'Main ambient loop', maxKB: 3000, idealKB: 1000 },
-              { id: 'bgm_combat', name: 'Combat Music', desc: 'Battle music loop', maxKB: 3000, idealKB: 1200 },
-              { id: 'bgm_boss', name: 'Boss Music', desc: 'Boss fight theme', maxKB: 4000, idealKB: 1500 },
-              { id: 'bgm_victory', name: 'Victory Fanfare', desc: 'Run complete', maxKB: 2000, idealKB: 800 },
-              { id: 'bgm_gameover', name: 'Game Over', desc: 'Death stinger', maxKB: 2000, idealKB: 800 },
-              { id: 'bgm_menu', name: 'Menu Music', desc: 'Main menu loop', maxKB: 3000, idealKB: 1000 },
-            ]},
-          ];
-
-          const totalSounds = SOUND_CATS.flatMap(c => c.sounds).length;
-          const uploadedSounds = Object.keys(config.sounds || {}).filter(k => config.sounds[k]).length;
-
-          return (
-            <div className="space-y-6">
-              <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-bold">🎵 Sound Design</h2>
-                    <p className="text-zinc-400 text-sm mt-1">Upload MP3 files for each sound. Drag onto the drop zone or click to select. Green = uploaded.</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-black text-amber-300">{uploadedSounds}/{totalSounds}</div>
-                    <div className="text-xs text-zinc-500">sounds uploaded</div>
-                    <div className="mt-1 h-2 w-24 rounded-full bg-zinc-700 overflow-hidden">
-                      <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-400" style={{ width: `${Math.round((uploadedSounds/totalSounds)*100)}%` }} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {SOUND_CATS.map((cat) => {
-                const colorMap = { amber:'border-amber-800/50 bg-amber-900/10', rose:'border-rose-800/50 bg-rose-900/10', violet:'border-violet-800/50 bg-violet-900/10', emerald:'border-emerald-800/50 bg-emerald-900/10', cyan:'border-cyan-800/50 bg-cyan-900/10', indigo:'border-indigo-800/50 bg-indigo-900/10' };
-                const headerMap = { amber:'text-amber-300', rose:'text-rose-300', violet:'text-violet-300', emerald:'text-emerald-300', cyan:'text-cyan-300', indigo:'text-indigo-300' };
-                return (
-                  <div key={cat.id} className={`rounded-xl border ${colorMap[cat.color]} p-5 space-y-3`}>
-                    <h3 className={`font-bold text-lg ${headerMap[cat.color]}`}>{cat.label}</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                      {cat.sounds.map((sound) => {
-                        const uploaded = config.sounds?.[sound.id];
-                        const audioRef = React.createRef();
                         return (
-                          <div key={sound.id} className={`rounded-xl border p-3 space-y-2 transition ${uploaded ? 'border-emerald-500/50 bg-emerald-950/30' : 'border-zinc-700 bg-zinc-800/60'}`}>
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <div className="text-sm font-bold text-zinc-200">{sound.name}</div>
-                                <div className="text-xs text-zinc-500">{sound.desc}</div>
-                              </div>
-                              {uploaded && <span className="text-emerald-400 text-lg shrink-0">✅</span>}
-                            </div>
-                            <div className="text-[10px] text-zinc-600">MP3 · max {sound.maxKB >= 1000 ? `${sound.maxKB/1000}MB` : `${sound.maxKB}KB`} · ideal {sound.idealKB >= 1000 ? `${sound.idealKB/1000}MB` : `${sound.idealKB}KB`}</div>
-
-                            {uploaded ? (
-                              <div className="flex gap-2">
-                                <audio ref={audioRef} src={uploaded} className="hidden" />
-                                <button onClick={() => { const a = document.createElement('audio'); a.src = uploaded; a.play(); }} className="flex-1 text-[11px] rounded-lg bg-emerald-700/50 hover:bg-emerald-600/60 border border-emerald-600/40 px-2 py-1.5 font-bold text-emerald-200">
-                                  ▶ Play
-                                </button>
-                                <button
-                                  onClick={() => setConfig((p) => ({ ...p, sounds: { ...p.sounds, [sound.id]: '' } }))}
-                                  className="text-[11px] rounded-lg bg-red-900/50 hover:bg-red-800/60 border border-red-700/40 px-2 py-1.5 text-red-300"
-                                >🗑️</button>
-                              </div>
-                            ) : (
-                              <label className="block cursor-pointer">
-                                <div className="rounded-lg border-2 border-dashed border-zinc-600 hover:border-amber-400/60 px-3 py-3 text-center text-xs text-zinc-500 hover:text-amber-300 transition">
-                                  📁 Drop MP3 or click to upload
-                                </div>
-                                <input type="file" accept=".mp3,audio/mpeg" className="hidden"
-                                  onChange={async (e) => {
-                                    const file = e.target.files?.[0];
-                                    if (!file) return;
-                                    if (file.size > sound.maxKB * 1024) { alert(`File too large. Max ${sound.maxKB}KB`); return; }
-                                    const dataUrl = await toDataUrl(file);
-                                    setConfig((p) => ({ ...p, sounds: { ...p.sounds, [sound.id]: dataUrl } }));
-                                    e.target.value = '';
-                                  }}
-                                />
-                              </label>
-                            )}
-
-                            {/* URL input alternative */}
-                            {!uploaded && (
-                              <input placeholder="or paste URL..."
-                                className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-2 py-1 text-zinc-300 placeholder-zinc-700"
-                                onBlur={(e) => { if (e.target.value.trim()) { setConfig((p) => ({ ...p, sounds: { ...p.sounds, [sound.id]: e.target.value.trim() } })); e.target.value = ''; } }}
-                                onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { setConfig((p) => ({ ...p, sounds: { ...p.sounds, [sound.id]: e.target.value.trim() } })); e.target.value = ''; } }}
-                              />
-                            )}
-                          </div>
+                          <span key={ach} className={`px-2 py-1 rounded text-xs border ${has ? 'bg-emerald-600/30 border-emerald-500/40 text-emerald-200' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}>
+                            {has ? '✅' : '🔒'} {ach}
+                          </span>
                         );
                       })}
                     </div>
                   </div>
-                );
-              })}
-
-              <button onClick={() => saveConfig(config)} className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-base">
-                💾 Save Sound Config
-              </button>
-            </div>
-          );
-        })()}
-
-        {/* ── BRAND KIT TAB ──────────────────────────────────────────────────── */}
-        {activeTab === 'brandkit' && (
-          <div className="space-y-6">
-            {/* Colors */}
-            <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-5 space-y-4">
-              <h2 className="text-xl font-bold">🎨 Brand Colors</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                {[
-                  { name: 'Primary Gold', hex: '#F59E0B' },
-                  { name: 'Deep Jungle', hex: '#052E16' },
-                  { name: 'Bone White', hex: '#F5F0E8' },
-                  { name: 'Blood Red', hex: '#DC2626' },
-                  { name: 'Mystic Purple', hex: '#7C3AED' },
-                  { name: 'Shadow Black', hex: '#0A0A0A' },
-                  { name: 'Accent Cyan', hex: '#06B6D4' },
-                ].map((c) => (
-                  <div key={c.hex} className="space-y-2">
-                    <div className="h-16 rounded-xl border border-white/10 shadow-lg cursor-pointer hover:scale-105 transition-transform"
-                      style={{ background: c.hex }}
-                      onClick={() => { navigator.clipboard.writeText(c.hex); }}
-                      title="Click to copy"
-                    />
-                    <div className="text-xs font-medium text-zinc-200 text-center">{c.name}</div>
-                    <button onClick={() => navigator.clipboard.writeText(c.hex)}
-                      className="w-full text-[10px] font-mono text-zinc-400 hover:text-amber-300 border border-zinc-700 rounded px-2 py-1">
-                      {c.hex}
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3 rounded-lg border border-zinc-700 bg-zinc-900 p-3">
-                <div className="text-xs font-bold text-zinc-400 mb-2">CSS Variables — click to copy block</div>
-                <button onClick={() => navigator.clipboard.writeText(`:root {\n  --color-gold: #F59E0B;\n  --color-jungle: #052E16;\n  --color-bone: #F5F0E8;\n  --color-blood: #DC2626;\n  --color-purple: #7C3AED;\n  --color-black: #0A0A0A;\n  --color-cyan: #06B6D4;\n}`)}
-                  className="text-left w-full font-mono text-[10px] text-zinc-400 hover:text-amber-300 transition">
-                  {`:root {\n  --color-gold: #F59E0B;\n  --color-jungle: #052E16;\n  --color-bone: #F5F0E8;\n  ...`}
-                </button>
-              </div>
-            </div>
-
-            {/* Typography */}
-            <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-5 space-y-3">
-              <h2 className="text-xl font-bold">🔤 Typography</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[
-                  { role: 'Display / Titles', family: 'Playfair Display, Georgia, serif', sample: 'Die In The Jungle' },
-                  { role: 'Stats / Code / Numbers', family: 'JetBrains Mono, Consolas, monospace', sample: 'SCORE: 18,450' },
-                  { role: 'Body / UI', family: 'Inter, system-ui, sans-serif', sample: 'Roll your dice and place them on the board.' },
-                ].map((t) => (
-                  <div key={t.role} className="rounded-lg border border-zinc-700 bg-zinc-800 p-4 space-y-2">
-                    <div className="text-xs text-amber-300 font-bold uppercase tracking-widest">{t.role}</div>
-                    <div className="text-base text-zinc-100" style={{ fontFamily: t.family }}>{t.sample}</div>
-                    <div className="text-[10px] font-mono text-zinc-500">{t.family}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Brand Voice */}
-            <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-5 space-y-4">
-              <h2 className="text-xl font-bold">✍️ Brand Voice</h2>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-sm font-medium text-zinc-300 block mb-1">Tagline</label>
-                  <input value={config.brandKit?.tagline || ''} onChange={(e) => setConfig((p) => ({ ...p, brandKit: { ...p.brandKit, tagline: e.target.value } }))}
-                    className="w-full rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:border-amber-400 focus:outline-none" />
+                  <details className="rounded-lg border border-zinc-700 bg-zinc-900">
+                    <summary className="px-3 py-2 text-xs text-zinc-400 cursor-pointer hover:text-zinc-200">Raw JSON</summary>
+                    <pre className="px-3 py-2 text-[10px] font-mono text-zinc-300 overflow-auto max-h-40">{JSON.stringify(localMeta, null, 2)}</pre>
+                  </details>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-zinc-300 block mb-1">Elevator Pitch (1-2 sentences)</label>
-                  <textarea rows={3} value={config.brandKit?.elevatorPitch || ''} onChange={(e) => setConfig((p) => ({ ...p, brandKit: { ...p.brandKit, elevatorPitch: e.target.value } }))}
-                    className="w-full rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:border-amber-400 focus:outline-none" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-zinc-300 block mb-1">Key Messages</label>
-                  {(config.brandKit?.keyMessages || ['', '', '']).map((msg, i) => (
-                    <input key={i} value={msg} onChange={(e) => {
-                      const msgs = [...(config.brandKit?.keyMessages || ['','',''])];
-                      msgs[i] = e.target.value;
-                      setConfig((p) => ({ ...p, brandKit: { ...p.brandKit, keyMessages: msgs } }));
-                    }}
-                    placeholder={`Key message ${i+1}`}
-                    className="w-full mb-2 rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:border-amber-400 focus:outline-none" />
-                  ))}
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-zinc-300 block mb-1">Hashtags</label>
-                  <input value={config.brandKit?.hashtags || ''} onChange={(e) => setConfig((p) => ({ ...p, brandKit: { ...p.brandKit, hashtags: e.target.value } }))}
-                    className="w-full rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:border-amber-400 focus:outline-none" />
-                </div>
-              </div>
-              <button onClick={() => saveConfig(config)} className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm">💾 Save Brand Voice</button>
-            </div>
-
-            {/* Post Templates */}
-            <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-5 space-y-4">
-              <h2 className="text-xl font-bold">📱 Post Templates</h2>
-              <p className="text-zinc-400 text-sm">Download template files for creating social media posts. Upload your PSD/Figma files here for the team.</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { id: 'twitter_post', name: 'Twitter/X Post', dims: '1200 × 675px', icon: '🐦' },
-                  { id: 'twitter_square', name: 'Twitter/X Square', dims: '1080 × 1080px', icon: '⬛' },
-                  { id: 'telegram_post', name: 'Telegram Post', dims: '800 × 450px', icon: '✈️' },
-                  { id: 'story', name: 'Story Format', dims: '1080 × 1920px', icon: '📱' },
-                ].map((tpl) => {
-                  const stored = config.brandKit?.[tpl.id];
-                  return (
-                    <div key={tpl.id} className="rounded-xl border border-zinc-700 bg-zinc-800 p-4 flex items-center gap-4">
-                      <div className="text-3xl">{tpl.icon}</div>
-                      <div className="flex-1">
-                        <div className="font-bold text-zinc-200">{tpl.name}</div>
-                        <div className="text-xs text-zinc-500">{tpl.dims}</div>
-                      </div>
-                      {stored ? (
-                        <div className="flex gap-2">
-                          <a href={stored} download className="px-3 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-sm font-bold text-white">📥 Download</a>
-                          <button onClick={() => setConfig((p) => ({ ...p, brandKit: { ...p.brandKit, [tpl.id]: '' } }))} className="px-3 py-2 rounded-lg bg-red-900/60 hover:bg-red-800 text-sm font-bold text-red-300">🗑️</button>
-                        </div>
-                      ) : (
-                        <label className="cursor-pointer px-3 py-2 rounded-lg border border-dashed border-zinc-600 hover:border-amber-400/60 text-sm text-zinc-500 hover:text-amber-300 transition">
-                          📤 Upload
-                          <input type="file" className="hidden" onChange={async (e) => {
-                            const file = e.target.files?.[0]; if (!file) return;
-                            const dataUrl = await toDataUrl(file);
-                            setConfig((p) => ({ ...p, brandKit: { ...p.brandKit, [tpl.id]: dataUrl } }));
-                            saveConfig({ ...config, brandKit: { ...config.brandKit, [tpl.id]: dataUrl } });
-                            e.target.value = '';
-                          }} />
-                        </label>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Logo Assets */}
-            <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-5 space-y-4">
-              <h2 className="text-xl font-bold">🏷️ Logo Assets</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[
-                  { id: 'logo_main', name: 'Main Logo', hint: 'PNG with transparent background', aspectHint: 'any' },
-                  { id: 'logo_icon', name: 'App Icon', hint: 'Square 1:1 — used for Telegram bot avatar', aspectHint: '1:1' },
-                  { id: 'logo_wide', name: 'Horizontal Logo', hint: 'Wide format for banners', aspectHint: '4:1' },
-                ].map((logo) => {
-                  const url = config.brandKit?.[logo.id] || config.visuals?.logoUrl;
-                  return (
-                    <div key={logo.id} className="rounded-xl border border-zinc-700 bg-zinc-800 p-4 space-y-3">
-                      <div className="font-bold text-zinc-200 text-sm">{logo.name}</div>
-                      <div className="text-xs text-zinc-500">{logo.hint}</div>
-                      {url ? (
-                        <div className="space-y-2">
-                          <img src={url} alt={logo.name} className="w-full h-20 object-contain rounded bg-zinc-900/60" />
-                          <div className="flex gap-2">
-                            <a href={url} download className="flex-1 text-xs text-center py-1.5 rounded-lg bg-emerald-700/60 hover:bg-emerald-600/70 text-emerald-200 font-bold">📥 Download</a>
-                            <button onClick={() => setConfig((p) => ({ ...p, brandKit: { ...p.brandKit, [logo.id]: '' } }))} className="text-xs py-1.5 px-2 rounded-lg bg-red-900/60 hover:bg-red-800 text-red-300">🗑️</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <label className="block cursor-pointer rounded-xl border-2 border-dashed border-zinc-600 hover:border-amber-400/60 p-4 text-center text-xs text-zinc-500 hover:text-amber-300 transition">
-                          📁 Upload image
-                          <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                            const file = e.target.files?.[0]; if (!file) return;
-                            const dataUrl = await toDataUrl(file);
-                            setConfig((p) => ({ ...p, brandKit: { ...p.brandKit, [logo.id]: dataUrl } }));
-                            e.target.value = '';
-                          }} />
-                        </label>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <button onClick={() => saveConfig(config)} className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm">💾 Save Logos</button>
-            </div>
+              ) : (
+                <div className="text-zinc-500 text-sm">No meta progression found in localStorage. Apply a preset or play a run.</div>
+              )}
+            </SectionCard>
           </div>
         )}
 
-        {/* ── SPRINT TAB ─────────────────────────────────────────────────────── */}
-        {activeTab === 'sprint' && (() => {
-          const items = config.sprintItems || [];
-          const done = items.filter(i => i.done).length;
-          return (
-            <div className="space-y-6">
-              <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-bold">🏃 Sprint Tracker</h2>
-                    <p className="text-zinc-400 text-sm mt-1">Current sprint goals. Check items off as you ship them.</p>
+        {/* ══════════════════════════════════════════════════════════════════════
+            DIFFICULTY TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'difficulty' && (
+          <div className="space-y-6">
+            <SectionCard title="💀 Difficulty Master">
+              <p className="text-zinc-400 text-sm">Select a difficulty level — this sets all sliders below to preset multipliers.</p>
+              <div className="flex flex-wrap gap-3">
+                {Object.entries(DIFFICULTY_PRESETS).map(([lvl, p]) => (
+                  <button
+                    key={lvl}
+                    onClick={() => applyDifficultyPreset(Number(lvl))}
+                    className={`flex flex-col items-center gap-1 px-6 py-4 rounded-xl border-2 transition-colors font-bold ${
+                      difficultyMaster === Number(lvl)
+                        ? 'bg-amber-500/20 border-amber-400 text-amber-300'
+                        : 'bg-zinc-900 border-zinc-700 text-zinc-400 hover:border-amber-500/50'
+                    }`}
+                  >
+                    <span className="text-2xl">{p.skulls}</span>
+                    <span className="text-sm">{p.label}</span>
+                    <span className="text-xs font-normal text-zinc-500">{p.scale}x</span>
+                  </button>
+                ))}
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Fine-tune Difficulty">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                {DIFFICULTY_KEYS.map((key) => {
+                  const val = Number(config.gameLogic?.[key] ?? 0);
+                  return (
+                    <div key={key} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm text-zinc-300 font-medium">{key}</label>
+                        <span className="text-amber-400 font-mono text-sm">{val}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={5}
+                        step={0.01}
+                        value={val}
+                        onChange={(e) => updateLogic(key, e.target.value)}
+                        className="w-full accent-amber-400"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={val}
+                        onChange={(e) => updateLogic(key, e.target.value)}
+                        className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-1.5 text-sm text-zinc-200"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="pt-2 border-t border-zinc-800">
+                <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>
+                  💾 Save Difficulty Settings
+                </AmberBtn>
+              </div>
+            </SectionCard>
+          </div>
+        )}
+
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            ENEMIES TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'enemies' && (
+          <div className="space-y-6">
+            <SectionCard title="👹 Enemy Pool">
+              {config.monsters.customMonsters.length === 0 ? (
+                <p className="text-zinc-500 text-sm">No custom enemies yet. Add one below.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {config.monsters.customMonsters.map((enemy) => (
+                    <div key={enemy.id} className="rounded-xl border border-zinc-700 bg-zinc-800/60 p-4 space-y-2">
+                      {enemy.imageUrl && (
+                        <img src={enemy.imageUrl} alt={enemy.name} className="w-full h-32 object-cover rounded-lg" />
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-zinc-100">{enemy.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded font-bold ${
+                          enemy.type === 'boss' ? 'bg-rose-700 text-white' :
+                          enemy.type === 'champion' ? 'bg-amber-600 text-black' :
+                          'bg-zinc-600 text-zinc-200'
+                        }`}>{enemy.type}</span>
+                      </div>
+                      <div className="text-xs text-zinc-400 flex gap-3">
+                        <span>HP: <span className="text-emerald-400 font-mono">{enemy.hp}</span></span>
+                        <span>DMG: <span className="text-rose-400 font-mono">{enemy.damage}</span></span>
+                      </div>
+                      {Array.isArray(enemy.traits) && enemy.traits.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {enemy.traits.map((t) => (
+                            <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-violet-900/50 border border-violet-700/50 text-violet-300">{t}</span>
+                          ))}
+                        </div>
+                      )}
+                      <button onClick={() => removeEnemy(enemy.id)} className="text-xs text-rose-400 hover:text-rose-300 mt-1">
+                        🗑️ Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+
+            <SectionCard title="Add New Enemy">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-sm text-zinc-400">Name *</label>
+                  <input
+                    value={newEnemy.name}
+                    onChange={(e) => setNewEnemy(p => ({ ...p, name: e.target.value }))}
+                    placeholder="Jungle Viper"
+                    className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm text-zinc-400">Type</label>
+                  <select
+                    value={newEnemy.type}
+                    onChange={(e) => setNewEnemy(p => ({ ...p, type: e.target.value }))}
+                    className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                  >
+                    <option value="mob">mob</option>
+                    <option value="champion">champion</option>
+                    <option value="boss">boss</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm text-zinc-400">HP</label>
+                  <input
+                    type="number"
+                    value={newEnemy.hp}
+                    onChange={(e) => setNewEnemy(p => ({ ...p, hp: Number(e.target.value) }))}
+                    className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm text-zinc-400">Damage</label>
+                  <input
+                    type="number"
+                    value={newEnemy.damage}
+                    onChange={(e) => setNewEnemy(p => ({ ...p, damage: Number(e.target.value) }))}
+                    className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm text-zinc-400">Traits (comma-separated)</label>
+                  <input
+                    value={newEnemy.traits}
+                    onChange={(e) => setNewEnemy(p => ({ ...p, traits: e.target.value }))}
+                    placeholder="venom, regen, berserk"
+                    className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm text-zinc-400">Image URL</label>
+                  <input
+                    value={newEnemy.imageUrl}
+                    onChange={(e) => setNewEnemy(p => ({ ...p, imageUrl: e.target.value }))}
+                    placeholder="https://..."
+                    className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                  />
+                </div>
+              </div>
+              <AmberBtn onClick={addEnemy}>+ Add Enemy</AmberBtn>
+            </SectionCard>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            ARTIFACTS TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'artifacts' && (
+          <div className="space-y-6">
+            <SectionCard title="💎 Artifacts">
+              {config.artifacts.customArtifacts.length === 0 ? (
+                <p className="text-zinc-500 text-sm">No custom artifacts yet. Add one below.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {config.artifacts.customArtifacts.map((art) => (
+                    <div key={art.id} className="rounded-xl border border-zinc-700 bg-zinc-800/60 p-4 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="text-2xl">{art.emoji}</span>
+                          <div className="font-bold text-zinc-100 mt-1">{art.name}</div>
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded font-bold ${
+                          art.rarity === 'legendary' ? 'bg-amber-500 text-black' :
+                          art.rarity === 'epic' ? 'bg-violet-600 text-white' :
+                          art.rarity === 'rare' ? 'bg-blue-600 text-white' :
+                          'bg-zinc-600 text-zinc-200'
+                        }`}>{art.rarity}</span>
+                      </div>
+                      <p className="text-xs text-zinc-400">{art.description}</p>
+                      {art.passive && <p className="text-xs text-amber-400 font-medium">✨ {art.passive}</p>}
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={() => removeArtifact(art.id)} className="text-xs text-rose-400 hover:text-rose-300">🗑️ Delete</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+
+            <SectionCard title="Add New Artifact">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-sm text-zinc-400">Name *</label>
+                  <input
+                    value={newArtifact.name}
+                    onChange={(e) => setNewArtifact(p => ({ ...p, name: e.target.value }))}
+                    placeholder="Jungle Amulet"
+                    className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm text-zinc-400">Emoji</label>
+                  <input
+                    value={newArtifact.emoji}
+                    onChange={(e) => setNewArtifact(p => ({ ...p, emoji: e.target.value }))}
+                    className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                  />
+                </div>
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-sm text-zinc-400">Description</label>
+                  <textarea
+                    value={newArtifact.description}
+                    onChange={(e) => setNewArtifact(p => ({ ...p, description: e.target.value }))}
+                    rows={2}
+                    className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm text-zinc-400">Rarity</label>
+                  <select
+                    value={newArtifact.rarity}
+                    onChange={(e) => setNewArtifact(p => ({ ...p, rarity: e.target.value }))}
+                    className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                  >
+                    <option value="common">Common</option>
+                    <option value="rare">Rare</option>
+                    <option value="epic">Epic</option>
+                    <option value="legendary">Legendary</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm text-zinc-400">Passive Effect</label>
+                  <input
+                    value={newArtifact.passive}
+                    onChange={(e) => setNewArtifact(p => ({ ...p, passive: e.target.value }))}
+                    placeholder="+10% crit chance"
+                    className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                  />
+                </div>
+              </div>
+              <AmberBtn onClick={addArtifact}>+ Add Artifact</AmberBtn>
+            </SectionCard>
+          </div>
+        )}
+
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            EVENTS TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'events' && (
+          <div className="space-y-6">
+            {/* Sub-tab bar */}
+            <div className="flex gap-2">
+              {[
+                { id: 'random', label: '🎲 Random Events' },
+                { id: 'npc', label: '🧙 NPC Encounters' },
+                { id: 'rest', label: '🏕️ Rest Camp' },
+              ].map((st) => (
+                <button
+                  key={st.id}
+                  onClick={() => setEventsSubTab(st.id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    eventsSubTab === st.id
+                      ? 'bg-amber-500/20 border-amber-400/60 text-amber-300'
+                      : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'
+                  }`}
+                >
+                  {st.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Random Events */}
+            {eventsSubTab === 'random' && (
+              <div className="space-y-4">
+                <SectionCard title="Random Events">
+                  {(!config.randomEvents || config.randomEvents.length === 0) ? (
+                    <p className="text-zinc-500 text-sm">No random events yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {config.randomEvents.map((ev) => (
+                        <div key={ev.id} className="rounded-lg border border-zinc-700 bg-zinc-800/60 p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="font-bold text-zinc-100">{ev.title}</div>
+                            <button onClick={() => removeRandomEvent(ev.id)} className="text-xs text-rose-400 hover:text-rose-300">🗑️</button>
+                          </div>
+                          <p className="text-sm text-zinc-400">{ev.description}</p>
+                          {ev.choices && ev.choices.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {ev.choices.map((c, i) => (
+                                <span key={i} className="text-xs px-2 py-1 rounded bg-zinc-700 text-zinc-300 border border-zinc-600">
+                                  {String.fromCharCode(65 + i)}: {c}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </SectionCard>
+
+                <SectionCard title="Create Random Event">
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-sm text-zinc-400">Title *</label>
+                      <input
+                        value={newEvent.title}
+                        onChange={(e) => setNewEvent(p => ({ ...p, title: e.target.value }))}
+                        placeholder="Strange Altar"
+                        className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm text-zinc-400">Description</label>
+                      <textarea
+                        value={newEvent.description}
+                        onChange={(e) => setNewEvent(p => ({ ...p, description: e.target.value }))}
+                        rows={3}
+                        className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm text-zinc-400">Choices</label>
+                      {newEvent.choices.map((c, i) => (
+                        <div key={i} className="flex gap-2">
+                          <input
+                            value={c}
+                            onChange={(e) => {
+                              const choices = [...newEvent.choices];
+                              choices[i] = e.target.value;
+                              setNewEvent(p => ({ ...p, choices }));
+                            }}
+                            placeholder={`Choice ${String.fromCharCode(65 + i)}`}
+                            className="flex-1 rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                          />
+                          {newEvent.choices.length > 1 && (
+                            <button
+                              onClick={() => setNewEvent(p => ({ ...p, choices: p.choices.filter((_, ci) => ci !== i) }))}
+                              className="px-2 text-zinc-500 hover:text-rose-400"
+                            >✕</button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => setNewEvent(p => ({ ...p, choices: [...p.choices, ''] }))}
+                        className="text-xs text-amber-400 hover:text-amber-300"
+                      >+ Add Choice</button>
+                    </div>
+                    <AmberBtn onClick={addRandomEvent}>+ Create Event</AmberBtn>
                   </div>
-                  <div className="text-right">
-                    <div className="text-3xl font-black text-amber-300">{done}/{items.length}</div>
-                    <div className="text-xs text-zinc-500">completed</div>
+                </SectionCard>
+              </div>
+            )}
+
+            {/* NPC Encounters */}
+            {eventsSubTab === 'npc' && (
+              <div className="space-y-4">
+                <SectionCard title="NPC Encounters">
+                  {(!config.npcEncounters || config.npcEncounters.length === 0) ? (
+                    <p className="text-zinc-500 text-sm">No NPC encounters yet.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {config.npcEncounters.map((npc) => (
+                        <div key={npc.id} className="rounded-xl border border-zinc-700 bg-zinc-800/60 p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="font-bold text-zinc-100">{npc.name}</div>
+                            <button onClick={() => removeNPC(npc.id)} className="text-xs text-rose-400 hover:text-rose-300">🗑️</button>
+                          </div>
+                          {npc.image && <img src={npc.image} alt={npc.name} className="w-full h-24 object-cover rounded" />}
+                          <div className="space-y-1">
+                            {(npc.dialogue || []).map((line, i) => (
+                              <div key={i} className="text-xs text-zinc-400 bg-zinc-900/60 rounded px-2 py-1">"{line}"</div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </SectionCard>
+
+                <SectionCard title="Create NPC">
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-sm text-zinc-400">Name *</label>
+                        <input
+                          value={newNPC.name}
+                          onChange={(e) => setNewNPC(p => ({ ...p, name: e.target.value }))}
+                          placeholder="Old Shaman"
+                          className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-sm text-zinc-400">Image URL</label>
+                        <input
+                          value={newNPC.image}
+                          onChange={(e) => setNewNPC(p => ({ ...p, image: e.target.value }))}
+                          placeholder="https://..."
+                          className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm text-zinc-400">Dialogue Lines</label>
+                      {newNPC.dialogue.map((line, i) => (
+                        <div key={i} className="flex gap-2">
+                          <input
+                            value={line}
+                            onChange={(e) => {
+                              const d = [...newNPC.dialogue];
+                              d[i] = e.target.value;
+                              setNewNPC(p => ({ ...p, dialogue: d }));
+                            }}
+                            placeholder={`Line ${i + 1}`}
+                            className="flex-1 rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                          />
+                          {newNPC.dialogue.length > 1 && (
+                            <button onClick={() => setNewNPC(p => ({ ...p, dialogue: p.dialogue.filter((_, di) => di !== i) }))} className="px-2 text-zinc-500 hover:text-rose-400">✕</button>
+                          )}
+                        </div>
+                      ))}
+                      <button onClick={() => setNewNPC(p => ({ ...p, dialogue: [...p.dialogue, ''] }))} className="text-xs text-amber-400 hover:text-amber-300">+ Add Line</button>
+                    </div>
+                    <AmberBtn onClick={addNPC}>+ Create NPC</AmberBtn>
+                  </div>
+                </SectionCard>
+              </div>
+            )}
+
+            {/* Rest Camp */}
+            {eventsSubTab === 'rest' && (
+              <SectionCard title="🏕️ Rest Camp Settings">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-sm text-zinc-400">Heal Percent (%)</label>
+                    <input
+                      type="number"
+                      value={config.restCamp?.healPercent ?? 30}
+                      onChange={(e) => setConfig(p => ({ ...p, restCamp: { ...(p.restCamp || {}), healPercent: Number(e.target.value) } }))}
+                      className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm text-zinc-400">Bonus XP</label>
+                    <input
+                      type="number"
+                      value={config.restCamp?.bonusXp ?? 50}
+                      onChange={(e) => setConfig(p => ({ ...p, restCamp: { ...(p.restCamp || {}), bonusXp: Number(e.target.value) } }))}
+                      className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                    />
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-sm text-zinc-400">Special Events (one per line)</label>
+                    <textarea
+                      value={(config.restCamp?.specialEvents || []).join('\n')}
+                      onChange={(e) => setConfig(p => ({ ...p, restCamp: { ...(p.restCamp || {}), specialEvents: e.target.value.split('\n').filter(Boolean) } }))}
+                      rows={4}
+                      placeholder="Campfire story&#10;Mysterious stranger&#10;Hidden cache"
+                      className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                    />
                   </div>
                 </div>
-                {items.length > 0 && (
-                  <div className="mt-3 h-3 rounded-full bg-zinc-800 overflow-hidden">
-                    <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-emerald-400 transition-all" style={{ width: `${items.length > 0 ? Math.round((done/items.length)*100) : 0}%` }} />
+                <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Rest Camp</AmberBtn>
+              </SectionCard>
+            )}
+          </div>
+        )}
+
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            CHARACTERS TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'characters' && (
+          <div className="space-y-6">
+            <div className="flex gap-2">
+              {['kabalian', 'kkm'].map((char) => (
+                <button
+                  key={char}
+                  onClick={() => setActiveCharacter(char)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors capitalize ${
+                    activeCharacter === char
+                      ? 'bg-amber-500/20 border-amber-400/60 text-amber-300'
+                      : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'
+                  }`}
+                >
+                  {char === 'kabalian' ? '🐍 Kabalian' : '⚡ KKM'}
+                </button>
+              ))}
+            </div>
+
+            <SectionCard title={activeCharacter === 'kabalian' ? '🐍 Kabalian' : '⚡ KKM'}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Portrait upload */}
+                <div className="space-y-3">
+                  <h3 className="text-zinc-300 font-medium">Portrait</h3>
+                  {config.characters.emotionUrls?.[activeCharacter + '_portrait'] && (
+                    <img
+                      src={config.characters.emotionUrls[activeCharacter + '_portrait']}
+                      alt="Portrait"
+                      className="w-32 h-32 object-cover rounded-xl border border-zinc-600"
+                    />
+                  )}
+                  <div className="space-y-1">
+                    <label className="text-sm text-zinc-400">Portrait URL</label>
+                    <input
+                      value={config.characters.emotionUrls?.[activeCharacter + '_portrait'] || ''}
+                      onChange={(e) => setConfig(p => ({
+                        ...p,
+                        characters: { ...p.characters, emotionUrls: { ...p.characters.emotionUrls, [activeCharacter + '_portrait']: e.target.value } }
+                      }))}
+                      placeholder="https://..."
+                      className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                    />
                   </div>
-                )}
+                </div>
+
+                {/* Emotion images */}
+                <div className="space-y-3">
+                  <h3 className="text-zinc-300 font-medium">Emotion Images</h3>
+                  {['happy', 'angry', 'hurt', 'neutral'].map((emotion) => {
+                    const key = activeCharacter + '_' + emotion;
+                    return (
+                      <div key={emotion} className="flex items-center gap-3">
+                        {config.characters.emotionUrls?.[key] && (
+                          <img src={config.characters.emotionUrls[key]} alt={emotion} className="w-10 h-10 rounded object-cover" />
+                        )}
+                        <div className="flex-1 space-y-1">
+                          <label className="text-xs text-zinc-400 capitalize">{emotion}</label>
+                          <input
+                            value={config.characters.emotionUrls?.[key] || ''}
+                            onChange={(e) => setConfig(p => ({
+                              ...p,
+                              characters: { ...p.characters, emotionUrls: { ...p.characters.emotionUrls, [key]: e.target.value } }
+                            }))}
+                            placeholder="https://..."
+                            className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-xs text-zinc-100"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Add item */}
-              <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-5 space-y-3">
-                <h3 className="font-bold text-amber-300">+ Add Sprint Item</h3>
-                <div className="flex gap-2">
-                  {(() => {
-                    const [newItem, setNewItem] = React.useState('');
-                    const [newPriority, setNewPriority] = React.useState('medium');
-                    return <>
-                      <input value={newItem} onChange={(e) => setNewItem(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && newItem.trim()) {
-                            const next = [...items, { id: Date.now(), text: newItem.trim(), done: false, priority: newPriority }];
-                            setConfig((p) => ({ ...p, sprintItems: next }));
-                            saveConfig({ ...config, sprintItems: next });
-                            setNewItem('');
-                          }
-                        }}
-                        placeholder="Sprint goal or task..." className="flex-1 rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:border-amber-400 focus:outline-none" />
-                      <select value={newPriority} onChange={(e) => setNewPriority(e.target.value)} className="rounded-lg border border-zinc-600 bg-zinc-800 px-2 py-2 text-sm text-zinc-100">
-                        <option value="high">🔴 High</option>
-                        <option value="medium">🟡 Medium</option>
-                        <option value="low">🟢 Low</option>
+              {/* Base Stats */}
+              <div className="pt-4 border-t border-zinc-800">
+                <h3 className="text-zinc-300 font-medium mb-3">Base Stats</h3>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  {['hp', 'atk', 'def', 'speed', 'cost'].map((stat) => (
+                    <div key={stat} className="space-y-1">
+                      <label className="text-xs text-zinc-400 uppercase">{stat}</label>
+                      <input
+                        type="number"
+                        value={config.characters.playable?.[activeCharacter]?.[stat] ?? ''}
+                        onChange={(e) => setConfig(p => ({
+                          ...p,
+                          characters: {
+                            ...p.characters,
+                            playable: {
+                              ...p.characters.playable,
+                              [activeCharacter]: {
+                                ...(p.characters.playable?.[activeCharacter] || {}),
+                                [stat]: Number(e.target.value),
+                              },
+                            },
+                          },
+                        }))}
+                        className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Character</AmberBtn>
+            </SectionCard>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            NARRATIVE TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'narrative' && (
+          <div className="space-y-6">
+            {/* Arc selector */}
+            <div className="flex flex-wrap gap-2">
+              {NARRATIVE_ARCS.map((arc, i) => (
+                <button
+                  key={arc}
+                  onClick={() => setActiveArc(i)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    activeArc === i
+                      ? 'bg-amber-500/20 border-amber-400/60 text-amber-300'
+                      : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'
+                  }`}
+                >
+                  {i + 1}. {arc}
+                </button>
+              ))}
+            </div>
+
+            <SectionCard title={'📖 Arc ' + (activeArc + 1) + ': ' + NARRATIVE_ARCS[activeArc]}>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-sm text-zinc-400">Arc Image URL</label>
+                  <input
+                    value={getArcLines(activeArc).image || ''}
+                    onChange={(e) => updateArcImage(activeArc, e.target.value)}
+                    placeholder="https://..."
+                    className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                  />
+                  {getArcLines(activeArc).image && (
+                    <img src={getArcLines(activeArc).image} alt="Arc" className="mt-2 h-24 rounded border border-zinc-600 object-cover" />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-zinc-400">Narrative Lines (33 lines)</label>
+                  <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+                    {Array.from({ length: 33 }).map((_, i) => (
+                      <div key={i} className="flex gap-2 items-start">
+                        <span className="text-xs text-zinc-600 w-6 pt-2.5 text-right shrink-0">{i + 1}</span>
+                        <textarea
+                          value={getArcLines(activeArc).lines?.[i] || ''}
+                          onChange={(e) => updateArcLine(activeArc, i, e.target.value)}
+                          rows={2}
+                          placeholder={'Line ' + (i + 1) + '...'}
+                          className="flex-1 rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100 resize-none"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Arc</AmberBtn>
+            </SectionCard>
+          </div>
+        )}
+
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            ASSETS TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'assets' && (
+          <div className="space-y-6">
+            <SectionCard title="🖼️ Asset Manager">
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Asset Type</label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-100"
+                  >
+                    {Object.keys(ASSET_SCHEMA).map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Subcategory</label>
+                  <select
+                    value={subcategory}
+                    onChange={(e) => setSubcategory(e.target.value)}
+                    className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-100"
+                  >
+                    {availableSubcategories.map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Select files (max 30)</label>
+                  <input type="file" accept="image/*" multiple onChange={onUpload} disabled={loading} className="text-sm text-zinc-300" />
+                </div>
+              </div>
+
+              {/* Preview pending */}
+              {pendingPreviews.length > 0 && (
+                <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-300 font-medium text-sm">{pendingPreviews.length} file(s) ready to upload</span>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setPendingFiles([]); setPendingPreviews([]); }} className="text-xs text-zinc-400 hover:text-rose-400">Cancel</button>
+                      <AmberBtn onClick={confirmUpload} disabled={loading}>✅ Confirm Upload</AmberBtn>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+                    {pendingPreviews.map((p) => (
+                      <div key={p.name} className="space-y-1">
+                        <img src={p.dataUrl} alt={p.name} className="w-full h-16 object-cover rounded border border-zinc-700" />
+                        <div className="text-[9px] text-zinc-500 truncate">{p.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {assetBucket.slice(0, 120).map((asset) => {
+                  const key = asset.id || asset.url;
+                  const meta = config.assetsMeta?.[key] || {};
+                  return (
+                    <figure key={key} className="rounded border border-zinc-700 bg-zinc-800 p-2 space-y-2">
+                      <img src={asset.url} alt={asset.originalName || asset.fileName || 'asset'} className="w-full h-24 object-cover rounded" />
+                      <figcaption className="text-[10px] text-zinc-300 truncate" title={asset.originalName || asset.fileName}>
+                        {asset.originalName || asset.fileName}
+                      </figcaption>
+                      <input
+                        placeholder="tags: poison,boss"
+                        value={meta.tags || ''}
+                        onChange={(e) => updateAssetMeta(asset, { tags: e.target.value })}
+                        className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-2 py-1 text-zinc-200"
+                      />
+                      <select
+                        value={meta.status || 'active'}
+                        onChange={(e) => updateAssetMeta(asset, { status: e.target.value })}
+                        className="w-full text-[10px] rounded bg-zinc-900 border border-zinc-700 px-2 py-1 text-zinc-200"
+                      >
+                        <option value="active">active</option>
+                        <option value="draft">draft</option>
+                        <option value="deprecated">deprecated</option>
                       </select>
-                      <button onClick={() => {
-                        if (!newItem.trim()) return;
-                        const next = [...items, { id: Date.now(), text: newItem.trim(), done: false, priority: newPriority }];
-                        setConfig((p) => ({ ...p, sprintItems: next }));
-                        saveConfig({ ...config, sprintItems: next });
-                        setNewItem('');
-                      }} className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm">Add</button>
-                    </>;
-                  })()}
-                </div>
+                    </figure>
+                  );
+                })}
               </div>
+            </SectionCard>
+          </div>
+        )}
 
-              {/* Item list */}
+        {/* ══════════════════════════════════════════════════════════════════════
+            META XP TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'metaxp' && (
+          <div className="space-y-6">
+            <SectionCard title="📈 XP Thresholds (Level 1–20)">
+              <p className="text-zinc-400 text-sm">Cumulative XP required to reach each level.</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-700 text-zinc-400 text-xs">
+                      <th className="text-left py-2 pr-4">Level</th>
+                      <th className="text-left py-2 pr-4">XP Threshold</th>
+                      <th className="text-left py-2 pr-4">Gem Cost (Unlock)</th>
+                      <th className="text-left py-2">Unlocks</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from({ length: 20 }).map((_, i) => (
+                      <tr key={i} className="border-b border-zinc-800/60 hover:bg-zinc-800/30">
+                        <td className="py-2 pr-4 font-bold text-amber-400">{i + 1}</td>
+                        <td className="py-2 pr-4">
+                          <input
+                            type="number"
+                            value={(config.xpThresholds || DEFAULT_XP_THRESHOLDS)[i] ?? 0}
+                            onChange={(e) => updateXpThreshold(i, e.target.value)}
+                            className="w-28 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-sm text-zinc-100"
+                          />
+                        </td>
+                        <td className="py-2 pr-4">
+                          <input
+                            type="number"
+                            placeholder="0"
+                            value={config.xpGemCosts?.[i] ?? ''}
+                            onChange={(e) => {
+                              const costs = [...(config.xpGemCosts || Array(20).fill(0))];
+                              costs[i] = Number(e.target.value);
+                              setConfig(p => ({ ...p, xpGemCosts: costs }));
+                            }}
+                            className="w-20 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-sm text-zinc-100"
+                          />
+                        </td>
+                        <td className="py-2 text-xs text-zinc-500">
+                          {ALL_UNLOCK_IDS[i] || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save XP Table</AmberBtn>
+            </SectionCard>
+
+            <SectionCard title="Unlock Tree">
+              <p className="text-zinc-400 text-sm mb-3">Unlock dependencies (level-gated).</p>
               <div className="space-y-2">
-                {items.length === 0 && <div className="text-zinc-500 text-sm text-center py-8">No sprint items yet. Add your first goal above.</div>}
-                {items.map((item) => (
-                  <div key={item.id} className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition ${item.done ? 'border-zinc-800 bg-zinc-900/40 opacity-60' : 'border-zinc-700 bg-zinc-800'}`}>
-                    <button onClick={() => {
-                      const next = items.map(i => i.id === item.id ? { ...i, done: !i.done } : i);
-                      setConfig((p) => ({ ...p, sprintItems: next }));
-                      saveConfig({ ...config, sprintItems: next });
-                    }} className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition ${item.done ? 'border-emerald-500 bg-emerald-600 text-white' : 'border-zinc-500 hover:border-amber-400'}`}>
-                      {item.done && '✓'}
-                    </button>
-                    <span className={`flex-1 text-sm ${item.done ? 'line-through text-zinc-500' : 'text-zinc-200'}`}>{item.text}</span>
-                    <span className="text-xs">{item.priority === 'high' ? '🔴' : item.priority === 'low' ? '🟢' : '🟡'}</span>
-                    <button onClick={() => {
-                      const next = items.filter(i => i.id !== item.id);
-                      setConfig((p) => ({ ...p, sprintItems: next }));
-                      saveConfig({ ...config, sprintItems: next });
-                    }} className="text-zinc-600 hover:text-red-400 transition text-xs">✕</button>
+                {ALL_UNLOCK_IDS.map((id, i) => (
+                  <div key={id} className="flex items-center gap-3 rounded-lg border border-zinc-700 bg-zinc-800/40 px-3 py-2">
+                    <span className="text-amber-400 font-bold text-sm w-8">Lv{i + 2}</span>
+                    <span className="font-mono text-sm text-zinc-200">{id}</span>
+                    {i > 0 && <span className="text-xs text-zinc-500">← requires {ALL_UNLOCK_IDS[i - 1]}</span>}
                   </div>
                 ))}
               </div>
+            </SectionCard>
+          </div>
+        )}
 
-              {done > 0 && (
-                <button onClick={() => {
-                  const next = items.filter(i => !i.done);
-                  setConfig((p) => ({ ...p, sprintItems: next }));
-                  saveConfig({ ...config, sprintItems: next });
-                }} className="text-xs text-zinc-500 hover:text-rose-400 border border-zinc-700 rounded-lg px-3 py-2 transition">
-                  🗑️ Clear completed ({done} items)
-                </button>
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            ROADMAP TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'roadmap' && (
+          <div className="space-y-4">
+            <SectionCard title="🗺️ Feature Roadmap">
+              <p className="text-zinc-400 text-sm">Current state of Die In The Jungle — what is done, what is next, what is in the backlog.</p>
+            </SectionCard>
+
+            {ROADMAP.map((section, si) => {
+              const isCollapsed = roadmapCollapsed[si] !== false;
+              const borderColor = section.color === 'emerald' ? 'border-emerald-800' : section.color === 'amber' ? 'border-amber-800' : 'border-zinc-800';
+              const headerColor = section.color === 'emerald' ? 'text-emerald-300' : section.color === 'amber' ? 'text-amber-300' : 'text-zinc-400';
+              return (
+                <div key={section.section} className={`rounded-xl border ${borderColor} bg-zinc-900/70`}>
+                  <button
+                    onClick={() => setRoadmapCollapsed(p => ({ ...p, [si]: !isCollapsed }))}
+                    className="w-full flex items-center justify-between px-5 py-4 text-left"
+                  >
+                    <h3 className={`text-lg font-bold ${headerColor}`}>{section.section}</h3>
+                    <span className="text-zinc-500 text-sm">{isCollapsed ? '▶' : '▼'} {section.items.length} items</span>
+                  </button>
+                  {!isCollapsed && (
+                    <div className="px-5 pb-5 space-y-1.5">
+                      {section.items.map((item) => (
+                        <div key={item.label} className="flex items-start gap-2.5 py-1">
+                          <span className="text-base mt-0.5 shrink-0">{item.done ? '✅' : '⬜'}</span>
+                          <span className={`text-sm ${item.done ? 'text-zinc-300' : 'text-zinc-400'}`}>{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Add to backlog */}
+            <SectionCard title="Add to Backlog">
+              <div className="flex gap-2">
+                <input
+                  value={newBacklogItem}
+                  onChange={(e) => setNewBacklogItem(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && newBacklogItem.trim()) { setConfig(p => ({ ...p, adminBacklog: [...(p.adminBacklog || []), { label: newBacklogItem.trim(), done: false }] })); setNewBacklogItem(''); } }}
+                  placeholder="New backlog item..."
+                  className="flex-1 rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                />
+                <AmberBtn onClick={() => { if (newBacklogItem.trim()) { setConfig(p => ({ ...p, adminBacklog: [...(p.adminBacklog || []), { label: newBacklogItem.trim(), done: false }] })); setNewBacklogItem(''); } }}>
+                  + Add
+                </AmberBtn>
+              </div>
+              {config.adminBacklog && config.adminBacklog.length > 0 && (
+                <div className="space-y-1.5 mt-2">
+                  {config.adminBacklog.map((item, i) => (
+                    <div key={i} className="flex items-center gap-2 py-1">
+                      <span className="text-base shrink-0">⬜</span>
+                      <span className="text-sm text-zinc-400 flex-1">{item.label || item}</span>
+                    </div>
+                  ))}
+                </div>
               )}
-            </div>
-          );
-        })()}
+            </SectionCard>
 
-        {/* ── DOCS TAB ───────────────────────────────────────────────────────── */}
-        {activeTab === 'docs' && (
+            {/* Progress */}
+            <SectionCard>
+              {(() => {
+                const all = ROADMAP.flatMap(s => s.items);
+                const done = all.filter(i => i.done).length;
+                const pct = Math.round((done / all.length) * 100);
+                return (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-zinc-300 font-medium">Overall Progress</span>
+                      <span className="text-amber-300">{done} / {all.length} features ({pct}%)</span>
+                    </div>
+                    <div className="h-3 rounded-full bg-zinc-800 overflow-hidden">
+                      <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all" style={{ width: pct + '%' }} />
+                    </div>
+                  </div>
+                );
+              })()}
+            </SectionCard>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            SPRINT TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'sprint' && (
           <div className="space-y-6">
-            <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 p-5">
-              <h2 className="text-xl font-bold">📚 Documentation</h2>
-              <p className="text-zinc-400 text-sm mt-1">Reference docs for the Die In The Jungle game system.</p>
-            </div>
+            <SectionCard title="🏃 Current Sprint Goals">
+              <div className="flex gap-2">
+                <input
+                  value={newSprintItem}
+                  onChange={(e) => setNewSprintItem(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') addSprintItem(); }}
+                  placeholder="Add sprint goal..."
+                  className="flex-1 rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                />
+                <AmberBtn onClick={addSprintItem}>+ Add</AmberBtn>
+              </div>
 
+              {(!config.sprintItems || config.sprintItems.length === 0) ? (
+                <p className="text-zinc-500 text-sm">No sprint goals yet. Add one above.</p>
+              ) : (
+                <div className="space-y-2">
+                  {config.sprintItems.map((item) => (
+                    <div key={item.id} className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${item.done ? 'border-emerald-800/50 bg-emerald-900/10' : 'border-zinc-700 bg-zinc-800/40'}`}>
+                      <button
+                        onClick={() => toggleSprintItem(item.id)}
+                        className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 transition-colors ${item.done ? 'bg-emerald-600 border-emerald-500' : 'border-zinc-600 hover:border-amber-400'}`}
+                      >
+                        {item.done && <span className="text-white text-xs">✓</span>}
+                      </button>
+                      <span className={`flex-1 text-sm ${item.done ? 'line-through text-zinc-500' : 'text-zinc-200'}`}>{item.text}</span>
+                      <button onClick={() => removeSprintItem(item.id)} className="text-xs text-zinc-600 hover:text-rose-400">✕</button>
+                    </div>
+                  ))}
+                  <div className="text-xs text-zinc-500 pt-1">
+                    {(config.sprintItems || []).filter(i => i.done).length} / {(config.sprintItems || []).length} done
+                  </div>
+                </div>
+              )}
+            </SectionCard>
+
+            <SectionCard title="Sprint Notes">
+              <textarea
+                value={sprintNotes}
+                onChange={(e) => setSprintNotes(e.target.value)}
+                rows={8}
+                placeholder="Sprint retrospective, blockers, notes..."
+                className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+              />
+            </SectionCard>
+
+            <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Sprint</AmberBtn>
+          </div>
+        )}
+
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            DOCS TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'docs' && (
+          <div className="space-y-4">
             {[
-              { title: '🎮 Game Loop', content: `1. Player selects character + loadout (companion, weapons, relic)\n2. Roll 3 dice → optionally reroll once\n3. Select a die → tap a board slot to place it\n4. 7-second timer forces placement\n5. After placing all dice → resolve combat\n6. After combat: path choice (map card), shop, rest, or event\n7. Boss kill → artifact reward (3 choices)\n8. Zone clear → next floor with scaled enemies` },
-              { title: '🎲 Dice System', content: `Dice types:\n- Attack (⚔️): deals damage equal to value\n- Shield (🛡️): adds shield before row multiplier\n- Heal (❤️): restores HP\n- Combo (🔥): builds combos for SURGE\n\nSpecial faces (unlockable):\n- Pierce: ignore target shield\n- Echo: repeat last effect\n- Nurture: double heal value\n- Fortress: gain 2x shield, persist next turn\n\nSURGE: 3 identical type dice in a row = bonus effect` },
-              { title: '⚔️ Lane Multipliers', content: `Board is 3×3 grid with 3 lanes (rows):\n- Top lane 🔥: ×3 multiplier\n- Mid lane ✨: ×2 multiplier\n- Bot lane 🪨: ×1 multiplier\n\nSlot cooldowns: used slots need time to reset\nBoard saturation: if all 9 slots fill → global cooldown reset\n\nLane bonuses (unlockable):\n- Top heal: resets all cooldowns\n- Bottom: +coins per die placed\n- Mid 2×: +5 bonus on double` },
-              { title: '🦎 Companion System', content: `7 companions, each with passive + active ability:\n- Gecko 🦎: +15% crit chance passive / Venomous Bite (3-turn CD)\n- Croak 🐊: regen 2 HP/turn / Death Roll (4-turn CD)\n- L'Œil 👁️: reveal intents 2 turns ahead / Hypnose (3-turn CD)\n- Shaman 🧙: -1 base cooldown / Spirit Call (4-turn CD)\n- Sprout 🌱: +2 heal bonus / Nature Surge (3-turn CD)\n- Hoarder 🐿️: +20% coins / Stash (5-turn CD)\n- Imp 😈: +2 attack on crits / Shadow Leap (4-turn CD)\n\nActive ability costs: pay by natural CD decrement` },
-              { title: '📈 Meta Progression', content: `localStorage key: jk_meta_progression_v1\n\nFields: xp, gems, unlockedIds[], achievements[], totalRuns, totalKills, bestScore\n\nXP thresholds → gem milestones → unlock specific features\nGems: spend to unlock companions, weapon slots, characters\n\nUnlock IDs:\n- character_kkm\n- weapon_slot_1, weapon_slot_2\n- dice_specials\n- lane_bonuses\n- companion_gecko, companion_croak, companion_oeil` },
-              { title: '🔌 API Endpoints', content: `GET  /api/miniapp/config          — Load server config\nPUT  /api/miniapp/config          — Save server config (JSON body)\nPOST /api/miniapp/assets/upload-batch — Upload assets (base64 dataUrls)\nGET  /api/miniapp/runs            — Run history\nPOST /api/miniapp/runs            — Record new run\nGET  /api/miniapp/leaderboard     — Global leaderboard\nGET  /api/miniapp/referrals       — Referral data\n\nConfig stores: assets, gameLogic, pools, sounds, visuals, characters, narrative, monsters, artifacts, adminBacklog, brandKit, sprintItems` },
-              { title: '🚀 Deployment', content: `diejungle/ sub-project → deploys to diejungle.fun (Vercel)\nMain app → deploys to junglekabal.app (or similar)\n\nVercel project: linked to chris-blvck/JungleKabal2026\nBranch: claude/fix-jungle-game-VsbsA → preview\nmain → production\n\nBuild commands:\n- diejungle: npm run build (Vite, ~2.5s)\n- Main app: standard Vite/Next build\n\nEnv vars: MINIAPP_CONFIG_SECRET, DATABASE_URL (check Vercel dashboard)` },
+              {
+                title: '🎮 Game Loop',
+                content: `Die In The Jungle is a roguelite dice-based combat game. Each run the player navigates a branching zone map, fighting enemies, visiting shops, rest camps, and random events.\n\nCombat: Player rolls 5 dice each turn and places them in 3 lanes (Top/Mid/Bot). Each die resolves its lane effect based on its face type (Attack, Shield, Heal, Special). After placing, enemies execute their intent. SURGE: 3 dice of the same type in one turn trigger a bonus.\n\nRun ends when player HP reaches 0 or all zones are cleared.`,
+              },
+              {
+                title: '🎲 Dice System',
+                content: `Standard dice have faces: ATK (swords), DEF (shield), HEAL (heart), ENERGY (bolt).\n\nSpecial faces (unlockable): PIERCE — damage ignores defense. ECHO — repeats last lane. NURTURE — heals based on allies. FORTRESS — grants a shield block for 2 turns.\n\nDice can be rerolled for a score cost (configurable via rerollCostScore). SURGE triggers when 3+ dice of same type are placed in a single turn.`,
+              },
+              {
+                title: '⚔️ Combat System',
+                content: `Enemies have intents (declared at start of turn): Attack, Block, Buff, Special. Modifiers: venom (DoT), thorns (reflect), regen (HP regen), berserk (double damage next turn), stoneSkin (high defense), swift (acts twice).\n\nPlayer stats: HP, ATK, DEF, Speed. Critical hit chance and multiplier are configurable. Dodge chance allows complete avoidance. Life steal heals player on hit. Boss HP/Damage multipliers apply on top of base stats.`,
+              },
+              {
+                title: '🦎 Companion System',
+                content: `Companions are unlocked via meta progression. Available: Gecko 🦎 (passive: +dodge chance, active: Hypnose — stuns enemy for 1 turn), Croak 🐊 (passive: +ATK, active: Leap — deals burst damage), L\'Oeil 👁️ (passive: reveals enemy intents, active: Vision — exposes all hidden buffs).\n\nOne companion per run. Companion ability has a cooldown measured in turns.`,
+              },
+              {
+                title: '📈 Meta Progression',
+                content: `XP and Gems are awarded at run end. XP levels up the player and unlocks new features via the unlock tree. Gems can be spent to buy unlocks early or reroll.\n\nUnlock tree (order): character_kkm → weapon_slot_1 → dice_specials → lane_bonuses → companion_gecko → companion_croak → weapon_slot_2 → companion_oeil.\n\nAchievements are milestone flags (zone boss firsts, etc.) stored per-player.`,
+              },
+              {
+                title: '🔌 API Endpoints',
+                content: `GET  /api/miniapp/config — Load game config\nPUT  /api/miniapp/config — Save game config\nPOST /api/miniapp/assets/upload-batch — Upload assets (batch)\nPOST /api/miniapp/runs/start — Record run start\nPOST /api/miniapp/runs/end — Record run end (awards XP/gems)\nGET  /api/miniapp/leaderboard — Get leaderboard entries\nPOST /api/miniapp/referral — Record referral\nGET  /api/miniapp/user/:id — Get user meta`,
+              },
+              {
+                title: '🚀 Deployment',
+                content: `Frontend: Vite + React, deployed via static build. Routes: /diejungle (game), /diejungle/admin (this panel).\n\nBackend: Node.js Express API at /api/miniapp/*. Assets stored in /public/uploads or CDN.\n\nTelegram Mini App: Separate Vite app on port 5180 (dev) or embedded via botFather webAppUrl. Uses Telegram WebApp SDK for auth (initDataUnsafe).`,
+              },
             ].map((doc) => (
-              <details key={doc.title} className="rounded-xl border border-zinc-700 bg-zinc-900/70 group">
-                <summary className="flex items-center justify-between px-5 py-4 cursor-pointer font-bold text-zinc-200 hover:text-amber-300 transition list-none">
-                  <span>{doc.title}</span>
-                  <span className="text-zinc-500 group-open:rotate-90 transition-transform text-xs">▶</span>
+              <details key={doc.title} className="rounded-xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
+                <summary className="px-5 py-4 cursor-pointer hover:bg-zinc-800/50 font-semibold text-amber-300 text-base">
+                  {doc.title}
                 </summary>
                 <div className="px-5 pb-5">
-                  <pre className="text-sm text-zinc-400 whitespace-pre-wrap font-mono leading-relaxed bg-zinc-950/50 rounded-lg p-4 border border-zinc-800">{doc.content}</pre>
+                  <pre className="text-sm text-zinc-300 whitespace-pre-wrap font-sans leading-relaxed">{doc.content}</pre>
                 </div>
               </details>
             ))}
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            SOUND TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'sound' && (
+          <div className="space-y-6">
+            <SectionCard title="🎵 Sound Design">
+              <p className="text-zinc-400 text-sm">Upload MP3 sounds for each game event. Sounds are stored in config.sounds and served via CDN.</p>
+            </SectionCard>
+
+            {Object.entries(SOUND_SCHEMA).map(([category, sounds]) => (
+              <SectionCard key={category} title={'🔊 ' + category}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {sounds.map((sound) => {
+                    const uploaded = config.sounds?.[sound.id];
+                    return (
+                      <div key={sound.id} className={`rounded-xl border p-4 space-y-2 transition-colors ${uploaded ? 'border-emerald-700/50 bg-emerald-900/10' : 'border-zinc-700 bg-zinc-800/40'}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="font-medium text-sm text-zinc-100">{sound.name}</div>
+                            <div className="text-xs text-zinc-500 mt-0.5">{sound.desc}</div>
+                          </div>
+                          {uploaded && (
+                            <span className="text-emerald-400 text-lg shrink-0" title="Uploaded">✅</span>
+                          )}
+                        </div>
+                        <div className="flex gap-3 text-xs text-zinc-500">
+                          <span>Max: <span className="text-zinc-400">{sound.maxKB >= 1000 ? (sound.maxKB / 1000) + 'MB' : sound.maxKB + 'KB'}</span></span>
+                          <span>Ideal: <span className="text-zinc-400">{sound.idealKB >= 1000 ? (sound.idealKB / 1000) + 'MB' : sound.idealKB + 'KB'}</span></span>
+                          <span>MP3</span>
+                        </div>
+                        {uploaded ? (
+                          <div className="flex items-center gap-2">
+                            <audio controls src={uploaded} className="flex-1 h-8 [&::-webkit-media-controls]:scale-90" style={{ height: '32px' }} />
+                            <button onClick={() => setConfig(p => ({ ...p, sounds: { ...p.sounds, [sound.id]: '' } }))} className="text-xs text-rose-400 hover:text-rose-300 shrink-0">Remove</button>
+                          </div>
+                        ) : (
+                          <label className="block w-full cursor-pointer">
+                            <div className="border-2 border-dashed border-zinc-600 hover:border-amber-500/50 rounded-lg px-3 py-3 text-center text-xs text-zinc-500 hover:text-amber-400 transition-colors">
+                              📂 Click or drag MP3 to upload
+                            </div>
+                            <input
+                              type="file"
+                              accept=".mp3,audio/mpeg"
+                              className="hidden"
+                              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadSound(sound.id, f); e.target.value = ''; }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </SectionCard>
+            ))}
+
+            <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Sound Config</AmberBtn>
+          </div>
+        )}
+
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            BRAND KIT TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'brand' && (
+          <div className="space-y-6">
+            {/* Brand Colors */}
+            <SectionCard title="🎨 Brand Colors">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {BRAND_COLORS.map((color) => (
+                  <div key={color.hex} className="rounded-xl border border-zinc-700 bg-zinc-800/60 p-3 space-y-2">
+                    <div className="w-full h-16 rounded-lg border border-zinc-600" style={{ backgroundColor: color.hex }} />
+                    <div className="text-sm font-medium text-zinc-200">{color.name}</div>
+                    <div className="flex items-center gap-2">
+                      <code className="text-xs font-mono text-amber-400 flex-1">{color.hex}</code>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(color.hex); setToast('Copied ' + color.hex); }}
+                        className="text-xs text-zinc-500 hover:text-amber-400 px-1.5 py-0.5 rounded border border-zinc-700 hover:border-amber-500/50"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            {/* Typography */}
+            <SectionCard title="🔤 Typography">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  { role: 'Titles / Display', name: 'Serif Display', sample: 'Die In The Jungle' },
+                  { role: 'Code / Stats', name: 'Mono', sample: 'ATK: 24 · DEF: 12' },
+                  { role: 'Body / UI', name: 'Sans', sample: 'The jungle claims all who enter.' },
+                ].map((font) => (
+                  <div key={font.role} className="rounded-xl border border-zinc-700 bg-zinc-800/60 p-4 space-y-2">
+                    <div className="text-xs text-zinc-500 uppercase tracking-wider">{font.role}</div>
+                    <div className="text-lg font-bold text-zinc-100">{font.name}</div>
+                    <div className="text-sm text-zinc-400 italic">{font.sample}</div>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            {/* Logo Assets */}
+            <SectionCard title="🖼️ Logo Assets">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  { key: 'main', label: 'Main Logo', hint: 'PNG with transparent background', ratio: 'Any' },
+                  { key: 'icon', label: 'Icon / Avatar', hint: '1:1 square ratio', ratio: '1:1' },
+                  { key: 'horizontal', label: 'Horizontal Logo', hint: 'Wide format for headers', ratio: '~4:1' },
+                ].map((logo) => (
+                  <div key={logo.key} className="rounded-xl border border-zinc-700 bg-zinc-800/60 p-4 space-y-3">
+                    <div>
+                      <div className="font-medium text-zinc-200 text-sm">{logo.label}</div>
+                      <div className="text-xs text-zinc-500">{logo.hint} · Ratio: {logo.ratio}</div>
+                    </div>
+                    {brandLogos[logo.key] ? (
+                      <div className="space-y-2">
+                        <img src={brandLogos[logo.key]} alt={logo.label} className="w-full h-20 object-contain rounded border border-zinc-600 bg-zinc-900" />
+                        <div className="flex gap-2">
+                          <a href={brandLogos[logo.key]} download className="text-xs text-amber-400 hover:text-amber-300 px-2 py-1 rounded border border-amber-500/40">
+                            ⬇️ Download
+                          </a>
+                          <button onClick={() => setBrandLogos(p => ({ ...p, [logo.key]: '' }))} className="text-xs text-rose-400 hover:text-rose-300">Remove</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="block cursor-pointer">
+                        <div className="border-2 border-dashed border-zinc-600 hover:border-amber-500/50 rounded-lg px-3 py-4 text-center text-xs text-zinc-500 hover:text-amber-400 transition-colors">
+                          📂 Click to upload PNG
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/png,image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+                            const dataUrl = await toDataUrl(f);
+                            setBrandLogos(p => ({ ...p, [logo.key]: dataUrl }));
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            {/* Social Media Templates */}
+            <SectionCard title="📱 Social Media Post Templates">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { name: 'Twitter/X Post', size: '1200×675px' },
+                  { name: 'Twitter/X Square', size: '1080×1080px' },
+                  { name: 'Telegram Post', size: 'Standard' },
+                  { name: 'Story', size: '1080×1920px' },
+                ].map((tmpl) => (
+                  <div key={tmpl.name} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-700 bg-zinc-800/40 px-4 py-3">
+                    <div>
+                      <div className="text-sm font-medium text-zinc-200">{tmpl.name}</div>
+                      <div className="text-xs text-zinc-500">{tmpl.size}</div>
+                    </div>
+                    <a
+                      href="#"
+                      onClick={(e) => { e.preventDefault(); setToast('Template not yet uploaded — contact admin'); }}
+                      className="text-xs px-3 py-1.5 rounded border border-zinc-600 text-zinc-400 hover:border-amber-500/50 hover:text-amber-400 transition-colors whitespace-nowrap"
+                    >
+                      📥 Download PSD
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            {/* Brand Voice */}
+            <SectionCard title="🗣️ Brand Voice">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-sm text-zinc-400">Tagline</label>
+                  <input
+                    value={config.brandKit?.tagline || ''}
+                    onChange={(e) => setConfig(p => ({ ...p, brandKit: { ...(p.brandKit || {}), tagline: e.target.value } }))}
+                    placeholder="Roll. Fight. Die. Rise."
+                    className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm text-zinc-400">Elevator Pitch</label>
+                  <textarea
+                    value={config.brandKit?.elevatorPitch || ''}
+                    onChange={(e) => setConfig(p => ({ ...p, brandKit: { ...(p.brandKit || {}), elevatorPitch: e.target.value } }))}
+                    rows={3}
+                    placeholder="A roguelite dice combat game set in a deadly jungle, where every roll could be your last..."
+                    className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-zinc-400">Key Messages</label>
+                  {[0, 1, 2].map((i) => (
+                    <input
+                      key={i}
+                      value={config.brandKit?.keyMessages?.[i] || ''}
+                      onChange={(e) => {
+                        const msgs = [...(config.brandKit?.keyMessages || ['', '', ''])];
+                        msgs[i] = e.target.value;
+                        setConfig(p => ({ ...p, brandKit: { ...(p.brandKit || {}), keyMessages: msgs } }));
+                      }}
+                      placeholder={'Key message ' + (i + 1)}
+                      className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                    />
+                  ))}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm text-zinc-400">Hashtags</label>
+                  <input
+                    value={config.brandKit?.hashtags || ''}
+                    onChange={(e) => setConfig(p => ({ ...p, brandKit: { ...(p.brandKit || {}), hashtags: e.target.value } }))}
+                    placeholder="#DieInTheJungle #JungleKabal #Roguelite #Telegram"
+                    className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+                  />
+                </div>
+              </div>
+              <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Brand Voice</AmberBtn>
+            </SectionCard>
+
+            {/* CSS Variables */}
+            <SectionCard title="🖥️ CSS Color Variables">
+              <div className="rounded-lg bg-zinc-950 border border-zinc-800 p-4 relative">
+                <button
+                  onClick={() => {
+                    const css = BRAND_COLORS.map(c => `  --color-${c.name.toLowerCase().replace(/\s+/g, '-')}: ${c.hex};`).join('\n');
+                    navigator.clipboard.writeText(':root {\n' + css + '\n}');
+                    setToast('CSS variables copied!');
+                  }}
+                  className="absolute top-3 right-3 text-xs text-zinc-500 hover:text-amber-400 px-2 py-1 rounded border border-zinc-700"
+                >
+                  Copy
+                </button>
+                <pre className="text-xs font-mono text-zinc-300 leading-relaxed">
+{`:root {\n${BRAND_COLORS.map(c => `  --color-${c.name.toLowerCase().replace(/\s+/g, '-')}: ${c.hex};`).join('\n')}\n}`}
+                </pre>
+              </div>
+            </SectionCard>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            ADVANCED TAB
+        ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'advanced' && (
+          <div className="space-y-6">
+            <SectionCard title="🔬 Advanced — Raw JSON Editors">
+              <p className="text-zinc-400 text-sm">Edit raw game data. Invalid JSON will be rejected on save.</p>
+            </SectionCard>
+            <SectionCard>
+              <JsonEditor
+                label="monsters.traitsCatalog"
+                value={config.monsters.traitsCatalog}
+                onSave={(value) => setConfig((p) => ({ ...p, monsters: { ...p.monsters, traitsCatalog: value } }))}
+                rows={10}
+              />
+            </SectionCard>
+            <SectionCard>
+              <JsonEditor
+                label="monsters.customMonsters"
+                value={config.monsters.customMonsters}
+                onSave={(value) => setConfig((p) => ({ ...p, monsters: { ...p.monsters, customMonsters: value } }))}
+                rows={12}
+              />
+            </SectionCard>
+            <SectionCard>
+              <JsonEditor
+                label="artifacts.customArtifacts"
+                value={config.artifacts.customArtifacts}
+                onSave={(value) => setConfig((p) => ({ ...p, artifacts: { ...p.artifacts, customArtifacts: value } }))}
+                rows={12}
+              />
+            </SectionCard>
+            <SectionCard>
+              <JsonEditor
+                label="randomEvents"
+                value={config.randomEvents}
+                onSave={(value) => setConfig((p) => ({ ...p, randomEvents: value }))}
+                rows={12}
+              />
+            </SectionCard>
           </div>
         )}
 
