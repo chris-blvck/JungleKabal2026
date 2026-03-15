@@ -52,6 +52,21 @@ import {
   pickNextBiome,
   ENEMY_BIOME_MAP,
 } from "@/game/biomeSystem";
+import {
+  type Weapon,
+  type Rarity,
+  RARITY_COLORS,
+  STARTER_WEAPONS,
+  buildWeapon,
+  applyWeaponPassives,
+  activateWeaponSpecial,
+  tickWeaponCooldowns,
+  tickEnemyDot,
+  onKillLegendaryTrigger,
+  getWeaponDisplayInfo,
+  shouldPersistShield,
+  getStaffLegendaryHealBonus,
+} from "@/game/weapons";
 
 const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
 
@@ -1262,6 +1277,7 @@ function makeInitialPlayer(characterId = "kabalian") {
     companion: null as Companion | null,
     _fortressShield: 0,
     companionHypnosisActive: false,
+    weaponSlots: [null, null] as (Weapon | null)[],
   };
 }
 
@@ -1362,6 +1378,7 @@ function hydrateGameState(rawState) {
   if (safe.player.companion === undefined) safe.player.companion = null;
   if (!safe.player._fortressShield) safe.player._fortressShield = 0;
   if (!safe.player.companionHypnosisActive) safe.player.companionHypnosisActive = false;
+  if (!safe.player.weaponSlots) safe.player.weaponSlots = [null, null];
   return safe;
 }
 
@@ -1624,8 +1641,15 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
   function shareRun() {
     const characterName = game.player.characterId === "kkm" ? "KKM" : "Kabalian";
-    const text = `Reached Zone ${game.floor} in DIE JUNGLE%0AScore: ${game.score}%0ACharacter: ${characterName}%0ASeed: ${game.runSeed}%0A%23KabalBlessing`;
-    window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank", "noopener,noreferrer");
+    const text = `I reached Zone ${game.floor} in DIE JUNGLE 🌴\nScore: ${game.score} | ${characterName}\nSeed: ${game.runSeed}\n#KabalBlessing\ndiejungle.fun`;
+    const tg = (window as any).Telegram?.WebApp;
+    if (tg?.shareUrl) {
+      tg.shareUrl(`https://diejungle.fun`, text);
+    } else if (tg?.openTelegramLink) {
+      tg.openTelegramLink(`https://t.me/share/url?url=https://diejungle.fun&text=${encodeURIComponent(text)}`);
+    } else {
+      window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+    }
   }
 
   function pushLog(lines) {
@@ -1793,15 +1817,74 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     resolveTurn(currentGrid, currentCooldowns);
   }
 
+  function useWeaponSpecial(slotIndex: number) {
+    setGame((g) => {
+      const weapons: (Weapon | null)[] = g.player.weaponSlots || [null, null];
+      const weapon = weapons[slotIndex];
+      if (!weapon || weapon.cooldownRemaining > 0) return g;
+      if (g.phase !== 'place' && g.phase !== 'roll') return g;
+
+      const { newCombatState, log: wLog, sideEffects } = activateWeaponSpecial(weapon, {
+        player: g.player,
+        enemy: g.enemy,
+        grid: g.grid,
+        turn: g.turn,
+        weapons,
+        doubleStrikeActive: g.doubleStrikeActive,
+        overloadActive: g.overloadActive,
+        overloadValue: g.overloadValue,
+      });
+
+      haptic('impact', 'medium');
+
+      let nextCooldowns = g.cooldowns;
+      if (sideEffects.some(e => e.type === 'reset_slot_cooldowns')) {
+        nextCooldowns = emptyCooldowns();
+      }
+
+      return {
+        ...g,
+        player: { ...g.player, ...newCombatState.player, weaponSlots: newCombatState.weapons || weapons },
+        enemy: newCombatState.enemy,
+        cooldowns: nextCooldowns,
+        doubleStrikeActive: newCombatState.doubleStrikeActive || false,
+        overloadActive: newCombatState.overloadActive || false,
+        overloadValue: newCombatState.overloadValue || 1,
+        log: [wLog, ...g.log].slice(0, 40),
+        actionFlash: { id: Date.now(), text: wLog, tone: 'violet' },
+      };
+    });
+  }
+
   function resolveTurn(gridRef, cooldownRef) {
     setGame((g) => {
-      const playerResult = resolvePlayerGrid({ ...g, grid: gridRef, enemy: g.enemy, player: g.player });
+      // Weapon: apply double strike flag before resolving (doubles total attack)
+      const doubleStrike = g.doubleStrikeActive || false;
+      const overloadActive = g.overloadActive || false;
+      const overloadValue = g.overloadValue || 1;
+
+      const playerResult = resolvePlayerGrid({
+        ...g,
+        grid: gridRef,
+        enemy: g.enemy,
+        player: g.player,
+        doubleStrike,
+        overloadActive,
+        overloadValue,
+      });
       let enemy = playerResult.enemy;
       let player = playerResult.player;
-      const preRetaliationShield = player.shield;
-      const preRetaliationHp = player.hp;
       const totals = playerResult.totals;
       let log = [...playerResult.log];
+
+      // Weapon DoT tick
+      const dotResult = tickEnemyDot(enemy);
+      if (dotResult.damage > 0) {
+        enemy = dotResult.newEnemy;
+        log.unshift(`☠️ DoT: -${dotResult.damage} HP ennemi`);
+      }
+      const preRetaliationShield = player.shield;
+      const preRetaliationHp = player.hp;
       const enemyDied = enemy.hp <= 0;
       let nextCooldowns = cooldownRef;
       const saturated = boardIsSaturated(gridRef, cooldownRef);
@@ -2005,6 +2088,17 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         }
       }
 
+      // Weapon: tick cooldowns + legendary kill trigger
+      let weaponSlots = player.weaponSlots as (Weapon | null)[] || [null, null];
+      if (enemyDied) {
+        weaponSlots = onKillLegendaryTrigger(weaponSlots);
+      }
+      weaponSlots = tickWeaponCooldowns(weaponSlots, player);
+      player.weaponSlots = weaponSlots;
+
+      // Reset weapon flags for next turn
+      player = { ...player, weaponSlots };
+
       // Track boss floor for meta achievement (boss kill on this floor)
       const lastBossFloor = (enemyDied && g.enemy.tier === "boss") ? g.floor : (g.lastBossFloor ?? null);
 
@@ -2044,6 +2138,9 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         lastOutcome,
         lastBossFloor,
         currentBiome,
+        doubleStrikeActive: false,
+        overloadActive: false,
+        overloadValue: 1,
       };
     });
 
@@ -2186,7 +2283,14 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           currentMapNodeId: nodeId,
           enemy: base,
           phase: "roll",
-          player: { ...g.player, shield: g.player.combatStartShield, rerollsLeft: g.player.rerollsPerTurn },
+          player: (() => {
+            const base = { ...g.player, shield: g.player.combatStartShield, rerollsLeft: g.player.rerollsPerTurn };
+            // Re-apply weapon passives (non-cumulative) at combat start
+            // (they are already baked in from equip; only shield persists here)
+            const wpSlots: (Weapon | null)[] = base.weaponSlots || [null, null];
+            const shieldBonus = wpSlots.reduce((acc, w) => acc + (w?.passive?.combatStartShield || 0), 0);
+            return { ...base, shield: base.shield + shieldBonus };
+          })(),
           cooldowns: emptyCooldowns(),
           grid: emptyGrid(),
           dice: [],
