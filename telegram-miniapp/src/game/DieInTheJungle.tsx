@@ -17,6 +17,32 @@ import {
   REST_OPTIONS,
   createRng,
 } from "./mapSystem";
+import {
+  type Companion,
+  type CompanionId,
+  COMPANIONS,
+  getCompanion,
+  tickCompanionCooldown,
+  startCompanionCooldown,
+} from "./companions";
+import {
+  type MetaProgressionState,
+  type UnlockId,
+  type RunReward,
+  UNLOCKS,
+  loadMeta,
+  saveMeta,
+  recordRunEnd,
+  tryUnlockWithGems,
+  computeLevel,
+  xpToNextLevel,
+  canPlayKKM,
+  hasWeaponSlot,
+  hasCompanionSlot,
+  hasDiceSpecials,
+  hasLaneBonuses,
+  getUnlockedCompanions,
+} from "../lib/metaProgression";
 
 const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
 
@@ -681,12 +707,28 @@ function dieStyleByKind(kind) {
   return { shell: "from-zinc-100/30 to-white/35 border-white/60", tag: "bg-white/35 text-white" };
 }
 
-function rollDice(count) {
-  return Array.from({ length: count }, (_, i) => ({
-    id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}`,
-    kind: DIE_KIND_ORDER[i % DIE_KIND_ORDER.length],
-    value: Math.floor(Math.random() * 6) + 1,
-  }));
+function rollDice(count, specialFacesEnabled = false, attackDieBonus = 0) {
+  return Array.from({ length: count }, (_, i) => {
+    const kind = DIE_KIND_ORDER[i % DIE_KIND_ORDER.length];
+    const value = Math.floor(Math.random() * 6) + 1;
+    let special = null;
+    if (specialFacesEnabled) {
+      if (kind === 'attack' && value === 6) special = 'pierce';   // ignore shield
+      else if (kind === 'attack' && value === 5) special = 'echo'; // +3 if in top row
+      else if (kind === 'heal' && value === 6) special = 'nurture'; // also heals shield
+      else if (kind === 'shield' && value === 6) special = 'fortress'; // persists next turn
+    }
+    // Gecko companion: +attackDieBonus to attack dice
+    const finalValue = kind === 'attack' && attackDieBonus > 0
+      ? Math.min(6, value + attackDieBonus)
+      : value;
+    return {
+      id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}`,
+      kind,
+      value: finalValue,
+      special,
+    };
+  });
 }
 
 function nextAvailableDieIndex(dice) {
@@ -980,31 +1022,70 @@ function resolvePlayerGrid(state) {
   let totalAttack = 0;
   let totalShield = 0;
   let totalHeal = 0;
-  let attackDiceCount = 0;
+  let pierceAttack = 0;  // Pierce dice bypass shield
+  let fortressActive = false;  // Shield persists next turn
   const rowBreakdown = [];
+
+  // Count dice per type across entire grid (for SURGE)
+  const allDice = state.grid.flat().filter(Boolean);
+  const atkCount = allDice.filter(d => getDieMeta(d).kind === 'attack').length;
+  const healCount = allDice.filter(d => getDieMeta(d).kind === 'heal').length;
+  const shieldCount = allDice.filter(d => getDieMeta(d).kind === 'shield').length;
 
   state.grid.forEach((row, rowIndex) => {
     let rowAttack = 0;
     let rowShield = 0;
     let rowHeal = 0;
     const mult = rowMultiplier(player, rowIndex);
+
+    // Mid row: count dice per type for combo bonus (+5 if 2 same type)
+    const midRowKinds = rowIndex === 1
+      ? { attack: row.filter(d => d && getDieMeta(d).kind === 'attack').length,
+          heal:   row.filter(d => d && getDieMeta(d).kind === 'heal').length,
+          shield: row.filter(d => d && getDieMeta(d).kind === 'shield').length }
+      : null;
+
     row.forEach((die) => {
       if (die === null) return;
       const meta = getDieMeta(die);
       if (meta.kind === "shield") {
+        if (die.special === 'fortress') fortressActive = true;
         rowShield += die.value * mult;
       } else if (meta.kind === "heal") {
-        rowHeal += (die.value + player.healBonus) * mult;
+        const healAmt = (die.value + player.healBonus) * mult;
+        rowHeal += healAmt;
+        // Nurture (face 6 heal): also grants +shield equal to half heal
+        if (die.special === 'nurture') {
+          rowShield += Math.round(healAmt * 0.5);
+          rowBreakdown.push(`☀️ Nurture: heal also grants +${Math.round(healAmt * 0.5)} shield`);
+        }
       } else {
         const attackValue = (die.value + player.attackDieValueBonus + player.attackBonus) * mult;
-        rowAttack += attackValue;
-        attackDiceCount += 1;
+        if (die.special === 'pierce') {
+          // Pierce bypasses enemy shield — tracked separately
+          pierceAttack += attackValue;
+          rowBreakdown.push(`⚡ Pierce die: ${attackValue} dmg ignores shield`);
+        } else {
+          rowAttack += attackValue;
+          // Echo face 5 attack: +3 if placed in top row
+          if (die.special === 'echo' && rowIndex === 0) {
+            rowAttack += 3;
+            rowBreakdown.push(`🌟 Echo: +3 bonus in top row`);
+          }
+        }
       }
     });
 
     if (rowAttack > 0) rowAttack += ROW_INFO[rowIndex].laneBonus.attack;
     if (rowShield > 0) rowShield += ROW_INFO[rowIndex].laneBonus.shield;
     if (rowHeal > 0) rowHeal += ROW_INFO[rowIndex].laneBonus.heal;
+
+    // Mid row combo: 2+ of same type → +5 bonus
+    if (midRowKinds) {
+      if (midRowKinds.attack >= 2) { rowAttack += 5; rowBreakdown.push('✨ Mid combo: 2 attack → +5 dmg'); }
+      if (midRowKinds.heal >= 2) { rowHeal += 5; rowBreakdown.push('✨ Mid combo: 2 heal → +5 HP'); }
+      if (midRowKinds.shield >= 2) { rowShield += 5; rowBreakdown.push('✨ Mid combo: 2 shield → +5 shield'); }
+    }
 
     totalAttack += rowAttack;
     totalShield += rowShield;
@@ -1014,9 +1095,22 @@ function resolvePlayerGrid(state) {
 
   totalShield *= player.shieldMultiplier;
 
-  if (attackDiceCount >= 3) {
-    totalAttack += 5;
-    rowBreakdown.unshift(`🔥 Combo: 3 attack dice = +5 damage`);
+  // SURGE: 3 dice of same type in one turn → big bonus
+  if (atkCount >= 3) {
+    totalAttack += 10;
+    rowBreakdown.unshift(`⚡ SURGE Attack! +10 damage`);
+  } else if (healCount >= 3) {
+    totalHeal += 8;
+    rowBreakdown.unshift(`⚡ SURGE Heal! +8 HP`);
+  } else if (shieldCount >= 3) {
+    totalShield += 8;
+    rowBreakdown.unshift(`⚡ SURGE Shield! +8 shield`);
+  }
+
+  // Apply pierce damage first (bypasses shield)
+  if (pierceAttack > 0) {
+    enemy.hp -= pierceAttack;
+    rowBreakdown.unshift(`⚡ Pierce: ${pierceAttack} dmg bypassed shield`);
   }
 
   if (enemy.firstHitIgnored && totalAttack > 0) {
@@ -1032,7 +1126,7 @@ function resolvePlayerGrid(state) {
     rowBreakdown.unshift(`🛡️ Enemy shield blocked ${blocked}`);
   }
 
-  if (enemy.modifier === "thorns" && totalAttack > 0) {
+  if (enemy.modifier === "thorns" && (totalAttack + pierceAttack) > 0) {
     player.hp -= 1;
     rowBreakdown.unshift(`🌵 Thorns recoil: lose 1 HP`);
   }
@@ -1041,7 +1135,12 @@ function resolvePlayerGrid(state) {
   player.shield += totalShield;
   player.hp = Math.min(player.maxHp, player.hp + totalHeal);
 
-  const overkillBreak = totalAttack >= 15;
+  // Fortress: mark shield for persistence
+  if (fortressActive) {
+    player._fortressShield = (player._fortressShield || 0) + Math.round(totalShield);
+  }
+
+  const overkillBreak = (totalAttack + pierceAttack) >= 15;
   if (overkillBreak && enemy.hp > 0) {
     enemy.charge = 0;
     rowBreakdown.unshift(`💥 Overkill broke enemy charge`);
@@ -1051,16 +1150,19 @@ function resolvePlayerGrid(state) {
     player,
     enemy,
     totals: {
-      attack: Math.max(0, totalAttack),
+      attack: Math.max(0, totalAttack + pierceAttack),
       shield: Math.max(0, totalShield),
       heal: Math.max(0, totalHeal),
     },
     log: [
       ...rowBreakdown,
-      `⚔️ Total Attack ${Math.max(0, totalAttack)}`,
+      `⚔️ Total Attack ${Math.max(0, totalAttack + pierceAttack)}`,
       `🛡️ Total Shield +${Math.max(0, totalShield)}`,
       `❤️ Total Heal +${Math.max(0, totalHeal)}`,
     ],
+    topRowHasHeal: state.grid[0].some(d => d && getDieMeta(d).kind === 'heal'),
+    botRowDiceCount: state.grid[2].filter(Boolean).length,
+    surgeType: atkCount >= 3 ? 'attack' : healCount >= 3 ? 'heal' : shieldCount >= 3 ? 'shield' : null,
   };
 }
 
@@ -1134,6 +1236,9 @@ function makeInitialPlayer(characterId = "kabalian") {
     artifacts: [],
     reviveOnce: false,
     coins: 0,
+    companion: null as Companion | null,
+    _fortressShield: 0,
+    companionHypnosisActive: false,
   };
 }
 
@@ -1223,6 +1328,9 @@ function hydrateGameState(rawState) {
   safe.pendingEvent = safe.pendingEvent ?? null;
   safe.shopInventory = safe.shopInventory ?? null;
   if (!safe.player.coins) safe.player.coins = 0;
+  if (safe.player.companion === undefined) safe.player.companion = null;
+  if (!safe.player._fortressShield) safe.player._fortressShield = 0;
+  if (!safe.player.companionHypnosisActive) safe.player.companionHypnosisActive = false;
   return safe;
 }
 
@@ -1508,7 +1616,10 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
     window.setTimeout(() => {
       setGame((g) => {
-        const dice = rollDice(g.player.dicePerTurn);
+        const meta = loadMeta();
+        const specialFaces = hasDiceSpecials(meta);
+        const geckoBonus = g.player.companion?.passive?.attackDieBonus ?? 0;
+        const dice = rollDice(g.player.dicePerTurn, specialFaces, geckoBonus);
         return {
           ...g,
           dice,
@@ -1517,8 +1628,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           rolling: false,
           selectedDieIndex: 0,
           avatarMood: "focus",
-          actionFlash: { id: Date.now(), text: `🎲 ${dice.map((d) => `${getDieMeta(d).emoji}${d.value}`).join(" · ")}`, tone: "amber" },
-          log: [`🎲 Rolled: ${dice.map((d) => `${getDieMeta(d).label} ${d.value}`).join(" - ")}`, ...g.log].slice(0, 40),
+          actionFlash: { id: Date.now(), text: `🎲 ${dice.map((d) => `${getDieMeta(d).emoji}${d.value}${d.special ? '✦' : ''}`).join(" · ")}`, tone: "amber" },
+          log: [`🎲 Rolled: ${dice.map((d) => `${getDieMeta(d).label} ${d.value}${d.special ? ` (${d.special})` : ''}`).join(" - ")}`, ...g.log].slice(0, 40),
         };
       });
     }, 700);
@@ -1614,22 +1725,35 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
       }
 
       if (!enemyDied) {
-        const intentNow = getIntentPreview(enemy);
-        const retaliation = resolveEnemyIntent(enemy, player, log);
-        enemy = retaliation.enemy;
-        player = retaliation.player;
-        if (intentNow.type === "attack") {
-          enemyAttackPulse = Date.now();
-          const hpLoss = Math.max(0, preRetaliationHp - player.hp);
-          hpDamageTaken = hpLoss;
-          const shieldBlocked = Math.max(0, preRetaliationShield - player.shield - hpLoss);
-          if (hpLoss > 0) {
-            damagePopups.push({ id: `${Date.now()}-player-hit`, target: "player", tone: "damage", text: `-${hpLoss}`, ...getPopupPosition("player") });
-          }
-          if (shieldBlocked > 0) {
-            damagePopups.push({ id: `${Date.now()}-player-block`, target: "player", tone: "shield", text: `🛡️ ${shieldBlocked}`, ...getPopupPosition("player") });
+        // Companion hypnosis: skip enemy intent this turn
+        if (player.companionHypnosisActive) {
+          player.companionHypnosisActive = false;
+          log.unshift(`🦎 Hypnose — enemy intent skipped!`);
+        } else {
+          const intentNow = getIntentPreview(enemy);
+          const retaliation = resolveEnemyIntent(enemy, player, log);
+          enemy = retaliation.enemy;
+          player = retaliation.player;
+          if (intentNow.type === "attack") {
+            enemyAttackPulse = Date.now();
+            const hpLoss = Math.max(0, preRetaliationHp - player.hp);
+            hpDamageTaken = hpLoss;
+            const shieldBlocked = Math.max(0, preRetaliationShield - player.shield - hpLoss);
+            if (hpLoss > 0) {
+              damagePopups.push({ id: `${Date.now()}-player-hit`, target: "player", tone: "damage", text: `-${hpLoss}`, ...getPopupPosition("player") });
+            }
+            if (shieldBlocked > 0) {
+              damagePopups.push({ id: `${Date.now()}-player-block`, target: "player", tone: "shield", text: `🛡️ ${shieldBlocked}`, ...getPopupPosition("player") });
+            }
           }
         }
+      }
+
+      // Bot row: each die placed there gives +1 coin (using lane bonuses feature)
+      const meta = loadMeta();
+      if (hasLaneBonuses(meta) && playerResult.botRowDiceCount > 0) {
+        player.coins = (player.coins || 0) + playerResult.botRowDiceCount;
+        log.unshift(`🪨 Bot row sacrifice: +${playerResult.botRowDiceCount} coin${playerResult.botRowDiceCount > 1 ? 's' : ''}`);
       }
 
       if (player.timedResetEvery > 0 && nextTurn % player.timedResetEvery === 0) {
@@ -1640,6 +1764,32 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         log.unshift(`♻️ Board full: all cooldowns reset`);
       } else {
         nextCooldowns = tickCooldowns(cooldownRef, player.cooldownTick);
+      }
+
+      // Top row heal: reset one blocked cooldown slot
+      if (hasLaneBonuses(meta) && playerResult.topRowHasHeal) {
+        let freed = false;
+        outer: for (let y = 0; y < 3; y++) {
+          for (let x = 0; x < 3; x++) {
+            if (nextCooldowns[y][x] > 0) {
+              nextCooldowns = nextCooldowns.map((row, ry) => row.map((v, rx) => ry === y && rx === x ? 0 : v));
+              log.unshift(`🔄 Heal in top row — slot (${y},${x}) cooldown freed!`);
+              freed = true;
+              break outer;
+            }
+          }
+        }
+        if (!freed) log.unshift(`🔄 Heal in top row — no blocked slots`);
+      }
+
+      // Surge flash
+      if (playerResult.surgeType) {
+        log.unshift(`⚡ SURGE ${playerResult.surgeType.toUpperCase()}!`);
+      }
+
+      // Tick companion cooldown
+      if (player.companion) {
+        player.companion = tickCompanionCooldown(player.companion);
       }
 
       if (player.hp <= 0 && player.reviveOnce) {
@@ -2051,6 +2201,51 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     });
   }
 
+  function activateCompanionActive() {
+    setGame((g) => {
+      const companion = g.player.companion;
+      if (!companion || companion.cooldownRemaining > 0) return g;
+      let player = { ...g.player };
+      let enemy = { ...g.enemy };
+      const log = [];
+
+      if (companion.active.type === 'skip_intent') {
+        player.companionHypnosisActive = true;
+        log.unshift(`🦎 Hypnose — enemy will skip their next intent!`);
+      } else if (companion.active.type === 'flat_damage') {
+        const dmg = companion.active.value ?? 8;
+        enemy.hp -= dmg;
+        log.unshift(`🐊 Leap — ${dmg} flat damage, ignores shield!`);
+      } else if (companion.active.type === 'free_reroll_choice') {
+        // Free reroll all current dice
+        const meta = loadMeta();
+        const geckoBonus = player.companion?.passive?.attackDieBonus ?? 0;
+        const specialFaces = hasDiceSpecials(meta);
+        const newDice = rollDice(g.player.dicePerTurn, specialFaces, geckoBonus);
+        player.companion = startCompanionCooldown(companion);
+        log.unshift(`👁️ Vision — free reroll! Pick the best dice.`);
+        return {
+          ...g,
+          player,
+          enemy,
+          dice: newDice,
+          selectedDieIndex: 0,
+          log: [...log, ...g.log].slice(0, 40),
+          actionFlash: { id: Date.now(), text: `👁️ Vision — free reroll!`, tone: 'sky' },
+        };
+      }
+
+      player.companion = startCompanionCooldown(companion);
+      return {
+        ...g,
+        player,
+        enemy,
+        log: [...log, ...g.log].slice(0, 40),
+        actionFlash: { id: Date.now(), text: log[0] || `Companion ability used`, tone: 'emerald' },
+      };
+    });
+  }
+
   function restart() {
     if (onBeforeRestart && !onBeforeRestart()) {
       setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "🚫 No run tickets left", tone: "rose" } }));
@@ -2062,17 +2257,31 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const notifiedRunRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!game.runEnded || !onRunEnded) return;
+    if (!game.runEnded) return;
     const runId = `${game.runSeed}:${game.score}:${game.floor}`;
     if (notifiedRunRef.current === runId) return;
     notifiedRunRef.current = runId;
-    onRunEnded({
+
+    // Award XP/gems and update unlock tree
+    const meta = loadMeta();
+    const bossZone = game.phase === 'victory' ? game.floor : undefined;
+    const { next } = recordRunEnd(meta, {
       score: game.score,
       floor: game.floor,
-      runSeed: game.runSeed,
-      characterId: game.player.characterId,
+      kills: game.winStreak,
+      bossZone,
     });
-  }, [game.runEnded, game.runSeed, game.score, game.floor, game.player.characterId, onRunEnded]);
+    saveMeta(next);
+
+    if (onRunEnded) {
+      onRunEnded({
+        score: game.score,
+        floor: game.floor,
+        runSeed: game.runSeed,
+        characterId: game.player.characterId,
+      });
+    }
+  }, [game.runEnded, game.runSeed, game.score, game.floor, game.player.characterId, game.winStreak, game.phase, onRunEnded]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -2274,6 +2483,17 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 </div>
                 <CompactStat label="🛡️ Shield" value={`${game.player.shield}`} accent="text-cyan-200" />
                 <CompactStat label="Reroll" value={`${game.player.rerollsLeft}`} accent="text-amber-300" />
+                {game.player.companion ? (
+                  <div className="col-span-2 rounded-[12px] border border-emerald-400/25 bg-emerald-900/20 p-2">
+                    <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300">Companion</div>
+                    <div className="flex items-center justify-between gap-1 text-[10px]">
+                      <span>{game.player.companion.emoji} {game.player.companion.name}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-black border ${game.player.companion.cooldownRemaining === 0 ? 'bg-emerald-600/40 border-emerald-400/50 text-emerald-200' : 'bg-zinc-800 border-zinc-600 text-zinc-400'}`}>
+                        {game.player.companion.cooldownRemaining === 0 ? 'READY' : `CD ${game.player.companion.cooldownRemaining}`}
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="col-span-2 rounded-[12px] border border-white/10 bg-black/45 p-2">
                   <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">Owned artifacts</div>
                   {game.player.artifacts.length ? (
@@ -2345,6 +2565,16 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
             {game.phase === "place" ? (
               <Button onClick={rerollActiveDie} disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null} className="rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-700/90 to-zinc-900 px-5 py-2.5 text-sm font-black text-white hover:from-zinc-600 hover:to-zinc-800 disabled:opacity-40">
                 🔁 REROLL
+              </Button>
+            ) : null}
+            {game.player.companion && (game.phase === "roll" || game.phase === "place") ? (
+              <Button
+                onClick={activateCompanionActive}
+                disabled={game.player.companion.cooldownRemaining > 0}
+                className={`rounded-2xl border px-3 py-2.5 text-sm font-black transition ${game.player.companion.cooldownRemaining === 0 ? 'border-emerald-400/50 bg-emerald-600/25 text-emerald-100 hover:bg-emerald-600/40' : 'border-zinc-600/40 bg-zinc-800/50 text-zinc-500 cursor-not-allowed opacity-60'}`}
+              >
+                {game.player.companion.emoji} {game.player.companion.active.name}
+                {game.player.companion.cooldownRemaining > 0 ? ` (${game.player.companion.cooldownRemaining})` : ' ✓'}
               </Button>
             ) : null}
             {(game.phase === "gameover" || game.phase === "victory") ? (
@@ -2550,17 +2780,24 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   <div className="text-sm text-zinc-300">Choose your character before first fight. First artifact arrives after the first win.</div>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
-                  {Object.values(PLAYER_CHARACTERS).map((character) => (
-                    <button
-                      key={character.id}
-                      onClick={() => pickCharacter(character.id)}
-                      className="rounded-2xl border border-white/15 bg-black/45 p-3 text-left transition hover:border-amber-300/60 hover:bg-black/70"
-                    >
-                      <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
-                      <div className="font-black text-lg text-amber-200">{character.name}</div>
-                      <div className="text-xs text-zinc-300">{character.subtitle}</div>
-                    </button>
-                  ))}
+                  {Object.values(PLAYER_CHARACTERS).map((character) => {
+                    const isLocked = character.id === 'kkm' && !canPlayKKM(loadMeta());
+                    return (
+                      <button
+                        key={character.id}
+                        onClick={() => !isLocked && pickCharacter(character.id)}
+                        disabled={isLocked}
+                        className={`rounded-2xl border p-3 text-left transition ${isLocked ? 'border-zinc-700/50 bg-black/30 opacity-60 cursor-not-allowed' : 'border-white/15 bg-black/45 hover:border-amber-300/60 hover:bg-black/70'}`}
+                      >
+                        <div className="relative">
+                          <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
+                          {isLocked && <div className="absolute inset-0 flex items-center justify-center text-4xl">🔒</div>}
+                        </div>
+                        <div className="font-black text-lg text-amber-200">{character.name} {isLocked ? '(Locked)' : ''}</div>
+                        <div className="text-xs text-zinc-300">{isLocked ? 'Defeat Zone 1 boss or spend 100 gems to unlock' : character.subtitle}</div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </motion.div>
