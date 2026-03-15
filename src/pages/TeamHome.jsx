@@ -293,6 +293,116 @@ function normalizeAgent(raw, index = 0) {
   };
 }
 
+// ─── ROADMAP ────────────────────────────────────────────────
+const ROADMAP = [
+  {
+    status: "SHIPPED",
+    color: JK.green,
+    items: [
+      "Signal Board — trading signals with win-rate stats",
+      "Coin Factory — launch pipeline kanban",
+      "KKM Dashboard — copytrading metrics & epoch tracker",
+      "Ops Board — Asana-style 5-column kanban",
+      "Weekly/Daily Report — aggregated team performance",
+      "Price Alerts — CoinGecko polling + HQ inbox + sound",
+      "Auth Gate — password protection",
+      "WarRoom, CRMAngel, SprintBoard — UX overhaul",
+    ],
+  },
+  {
+    status: "NEXT UP",
+    color: JK.gold,
+    items: [
+      "Wallet tracker — Solana address → live balances (Birdeye)",
+      "KabalAcademy — migrate to JKShell design system",
+      "Monthly P&L auto-export (PDF or image)",
+      "NarrativeBoard — price chart embed per token",
+      "TrackRecord — connect to live Birdeye/GMGN data",
+    ],
+  },
+  {
+    status: "BACKLOG",
+    color: JK.muted,
+    items: [
+      "Mobile-first responsive pass (all pages)",
+      "Team Feed — daily standup & announcements page",
+      "KKM leaderboard — follower PNL ranking",
+      "Angel referral tracker — who brought who",
+      "Telegram bot — auto-post signals & weekly report",
+    ],
+  },
+];
+
+function RoadmapSection() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginTop: 8 }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          width: "100%",
+          background: open ? "rgba(245,166,35,0.08)" : "rgba(245,166,35,0.04)",
+          border: `1px solid ${open ? JK.border2 : JK.border}`,
+          borderRadius: 14,
+          padding: "16px 24px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          cursor: "pointer", transition: "all 0.2s",
+          color: "#fff",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 16 }}>🗺</span>
+          <span style={{ fontFamily: "'Cinzel', serif", fontSize: 11, fontWeight: 700, letterSpacing: 2, color: JK.gold }}>
+            KABAL HQ ROADMAP
+          </span>
+          <span style={{ fontSize: 10, color: JK.muted, letterSpacing: 1 }}>
+            {ROADMAP[0].items.length} shipped · {ROADMAP[1].items.length} next
+          </span>
+        </div>
+        <span style={{ color: JK.gold, fontSize: 11, transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▼</span>
+      </button>
+
+      {open && (
+        <div style={{
+          background: "rgba(20,20,20,0.85)",
+          border: `1px solid ${JK.border}`,
+          borderRadius: "0 0 14px 14px",
+          borderTop: "none",
+          padding: "20px 24px 24px",
+          backdropFilter: "blur(10px)",
+        }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 20 }}>
+            {ROADMAP.map(({ status, color, items }) => (
+              <div key={status}>
+                <div style={{
+                  fontSize: 9, fontFamily: "'Cinzel', serif", letterSpacing: 2,
+                  color, background: `${color}18`, border: `1px solid ${color}33`,
+                  borderRadius: 6, padding: "4px 10px", display: "inline-block",
+                  marginBottom: 12, fontWeight: 700,
+                }}>
+                  {status === "SHIPPED" ? "✓ " : status === "NEXT UP" ? "⚡ " : "· "}{status}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {items.map((item, i) => (
+                    <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                      <span style={{ color, fontSize: 10, marginTop: 2, flexShrink: 0 }}>
+                        {status === "SHIPPED" ? "✓" : status === "NEXT UP" ? "→" : "○"}
+                      </span>
+                      <span style={{ fontSize: 12, color: status === "SHIPPED" ? "#666" : status === "NEXT UP" ? "#ccc" : "#444", lineHeight: 1.5, textDecoration: status === "SHIPPED" ? "line-through" : "none" }}>
+                        {item}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TeamHome() {
   const { notifications, unreadCount, markAllRead } = usePriceAlerts();
   const unreadNotifications = notifications.filter((n) => !n.read);
@@ -669,6 +779,9 @@ export default function TeamHome() {
           <Badge color={JK.gold}>Execution Mode</Badge>
         </div>
       </Card>
+
+      {/* ── ROADMAP ─────────────────────────────────────────── */}
+      <RoadmapSection />
     </Shell>
   );
 }
