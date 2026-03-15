@@ -44,6 +44,115 @@ const PLAYER_CHARACTERS = {
   },
 };
 
+// ── Starter weapons ──────────────────────────────────────────────────────────
+const STARTER_WEAPONS = [
+  {
+    id: "jungle-blade", name: "Jungle Blade", type: "blade", rarity: "Common",
+    image: "https://i.postimg.cc/bwdH2hxw/Chat-GPT-Image-Mar-15-2026-01-07-26-AM.png",
+    ability: "Double Strike", abilityDesc: "Attack die value +1",
+    effectText: "⚔️ Attack die value +1.",
+    apply: (player) => ({ ...player, attackDieValueBonus: player.attackDieValueBonus + 1 }),
+  },
+  {
+    id: "amber-staff", name: "Amber Staff", type: "staff", rarity: "Common",
+    image: "https://i.postimg.cc/XYhKfzLq/Chat-GPT-Image-Mar-15-2026-01-07-27-AM.png",
+    ability: "Mend", abilityDesc: "Heal dice restore +2 extra",
+    effectText: "❤️ Heal dice restore +2 extra.",
+    apply: (player) => ({ ...player, healBonus: player.healBonus + 2 }),
+  },
+  {
+    id: "stone-shield", name: "Stone Shield", type: "shield", rarity: "Common",
+    image: "https://i.postimg.cc/C1CjVLg4/Chat-GPT-Image-Mar-15-2026-01-07-30-AM.png",
+    ability: "Fortress", abilityDesc: "+3 combat start shield",
+    effectText: "🛡️ +3 combat start shield.",
+    apply: (player) => ({ ...player, combatStartShield: player.combatStartShield + 3 }),
+  },
+  {
+    id: "ka-totem-weapon", name: "Ka Totem", type: "totem", rarity: "Common",
+    image: "https://i.postimg.cc/Fz90F5rp/Chat-GPT-Image-Mar-15-2026-01-07-35-AM.png",
+    ability: "Reset", abilityDesc: "Cooldown tick +1",
+    effectText: "♻️ Cooldown tick +1.",
+    apply: (player) => ({ ...player, cooldownTick: player.cooldownTick + 1 }),
+  },
+  {
+    id: "chrome-cannon", name: "Chrome Cannon", type: "cannon", rarity: "Common",
+    image: "https://i.postimg.cc/fywYWnzv/Chat-GPT-Image-Mar-15-2026-01-17-23-AM.png",
+    ability: "Overload", abilityDesc: "Top row multiplier +1",
+    effectText: "🔥 Top row bonus +1.",
+    apply: (player) => ({ ...player, topRowBonus: player.topRowBonus + 1 }),
+  },
+  {
+    id: "venom-fang", name: "Venom Fang", type: "fang", rarity: "Common",
+    image: "https://i.postimg.cc/ZRvMPNpM/golden-venom-serpent.png",
+    ability: "Inject", abilityDesc: "+2 attack bonus",
+    effectText: "⚔️ +2 attack bonus.",
+    apply: (player) => ({ ...player, attackBonus: player.attackBonus + 2 }),
+  },
+];
+
+// ── Companions ────────────────────────────────────────────────────────────────
+const COMPANIONS = [
+  {
+    id: "gecko", name: "Gecko Mystique", emoji: "🦎",
+    image: "https://i.postimg.cc/mkGFXx1g/chartreuse-swamp-sprite.png",
+    passiveDesc: "+1 attack die value",
+    applyPassive: (player) => ({ ...player, attackDieValueBonus: player.attackDieValueBonus + 1 }),
+    abilityEmoji: "😴", abilityName: "Hypnose", abilityDesc: "Enemy skips next intent", abilityCooldown: 3,
+  },
+  {
+    id: "croak", name: "Croak Jr.", emoji: "🐸",
+    image: "https://i.postimg.cc/MTYWSgrx/jade-toxic-hydra.png",
+    passiveDesc: "+2 attack bonus",
+    applyPassive: (player) => ({ ...player, attackBonus: player.attackBonus + 2 }),
+    abilityEmoji: "💥", abilityName: "Leap", abilityDesc: "Deal 8 flat damage", abilityCooldown: 3,
+  },
+  {
+    id: "oeil", name: "L'Œil", emoji: "👁️",
+    image: "https://i.postimg.cc/kXvWH5yw/olive-toxic-gazer.png",
+    passiveDesc: "+1 reroll per turn",
+    applyPassive: (player) => ({ ...player, rerollsPerTurn: player.rerollsPerTurn + 1, rerollsLeft: player.rerollsLeft + 1 }),
+    abilityEmoji: "🔮", abilityName: "Vision", abilityDesc: "Free reroll (no cost)", abilityCooldown: 3,
+  },
+  {
+    id: "shaman", name: "Coral Shaman", emoji: "🧙",
+    image: "https://i.postimg.cc/rp344R8S/coral-jungle-shaman.png",
+    passiveDesc: "+2 heal bonus",
+    applyPassive: (player) => ({ ...player, healBonus: player.healBonus + 2 }),
+    abilityEmoji: "🌿", abilityName: "Totem", abilityDesc: "Heal 8 HP", abilityCooldown: 3,
+  },
+  {
+    id: "sprout", name: "Grove Sproutling", emoji: "🌱",
+    image: "https://i.postimg.cc/5Ns6vQgw/amber-grove-sproutling.png",
+    passiveDesc: "+3 combat start shield",
+    applyPassive: (player) => ({ ...player, combatStartShield: player.combatStartShield + 3 }),
+    abilityEmoji: "🛡️", abilityName: "Barrier", abilityDesc: "+6 shield now", abilityCooldown: 3,
+  },
+  {
+    id: "hoarder", name: "Spirit Hoarder", emoji: "👻",
+    image: "https://i.postimg.cc/nrswkD7p/jade-spirit-hoarder.png",
+    passiveDesc: "+1 reroll per turn",
+    applyPassive: (player) => ({ ...player, rerollsPerTurn: player.rerollsPerTurn + 1, rerollsLeft: player.rerollsLeft + 1 }),
+    abilityEmoji: "👻", abilityName: "Soul Hoard", abilityDesc: "+1 reroll + heal 4", abilityCooldown: 2,
+  },
+  {
+    id: "imp", name: "Toxic Imp", emoji: "😈",
+    image: "https://i.postimg.cc/gjftB2qh/jade-toxic-imp.png",
+    passiveDesc: "+1 attack die value",
+    applyPassive: (player) => ({ ...player, attackDieValueBonus: player.attackDieValueBonus + 1 }),
+    abilityEmoji: "☠️", abilityName: "Venom", abilityDesc: "Deal 5 flat damage", abilityCooldown: 2,
+  },
+];
+
+// ── Starter relics ────────────────────────────────────────────────────────────
+const STARTER_RELICS = [
+  {
+    id: "ka-totem-relic", name: "Ka Totem", slotIndex: 0,
+    image: "https://i.postimg.cc/jSvmRtRF/golden-toxic-totem.png",
+    effectText: "♻️ Cooldown tick +1.",
+    apply: (player) => ({ ...player, cooldownTick: player.cooldownTick + 1 }),
+  },
+];
+
 const DEFAULT_REMOTE_ADMIN_CONFIG = {
   visuals: { backgroundUrl: "", logoUrl: "", storyFragmentImageUrl: "" },
   characters: { playable: {}, emotionUrls: {} },
@@ -1231,6 +1340,8 @@ function makeInitialPlayer(characterId = "kabalian") {
     curseNextTurn: 0,
     artifacts: [],
     reviveOnce: false,
+    companionId: null,
+    companionCooldown: 0,
   };
 }
 
@@ -1485,6 +1596,12 @@ export default function DieInTheJungleUpgraded() {
   const [leaderboard, setLeaderboard] = useState(loadLeaderboard);
   const [mobilePanel, setMobilePanel] = useState("enemy");
   const [hoveredSlot, setHoveredSlot] = useState(null);
+  // Loadout state (used during character selection)
+  const [pendingCharId, setPendingCharId] = useState(null);
+  const [loadout, setLoadout] = useState({ weapon1: null, weapon2: null, companion: null, relic1: null });
+  const [wRarityFilter, setWRarityFilter] = useState("All");
+  const [wTypeFilter, setWTypeFilter] = useState("All");
+  const [loadoutWeaponSlot, setLoadoutWeaponSlot] = useState(1); // which weapon slot is being filled
   const [ownedCosmetics, setOwnedCosmetics] = useState([]);
   const [cosmeticsLoading, setCosmeticsLoading] = useState(false);
   const [selectedCosmeticId, setSelectedCosmeticId] = useState(() => (typeof window === "undefined" ? "" : localStorage.getItem(SELECTED_COSMETIC_STORAGE_KEY) || ""));
@@ -1608,29 +1725,100 @@ export default function DieInTheJungleUpgraded() {
     setGame((g) => ({ ...g, log: [...lines, ...g.log].slice(0, 40) }));
   }
 
-  function pickCharacter(characterId) {
+  function pickCharacter(characterId, currentLoadout) {
     const selected = runtimeCharacters[characterId] || runtimeCharacters.kabalian || PLAYER_CHARACTERS.kabalian;
+    const lout = currentLoadout || loadout;
     setGame((g) => {
-      const nextPlayer = {
+      let nextPlayer = {
         ...g.player,
         characterId: selected.id,
         avatar: selected.avatar,
         maxHp: selected.stats.maxHp,
-        hp: Math.min(selected.stats.maxHp, g.player.hp),
+        hp: selected.stats.maxHp,
         attackBonus: selected.stats.attackBonus,
+        attackDieValueBonus: 0,
+        healBonus: 0,
         combatStartShield: selected.stats.combatStartShield || 0,
         shield: selected.stats.combatStartShield || 0,
         rerollsPerTurn: selected.stats.rerollsPerTurn,
         rerollsLeft: selected.stats.rerollsPerTurn,
+        topRowBonus: 0,
+        cooldownTick: 1,
+        companionId: lout.companion || null,
+        companionCooldown: 0,
       };
+      const logLines = [`🧭 ${selected.name} selected`];
+      // Apply weapon 1
+      if (lout.weapon1) {
+        const w = STARTER_WEAPONS.find((ww) => ww.id === lout.weapon1);
+        if (w) { nextPlayer = w.apply(nextPlayer); logLines.push(`⚔️ Weapon: ${w.name}`); }
+      }
+      // Apply weapon 2
+      if (lout.weapon2) {
+        const w = STARTER_WEAPONS.find((ww) => ww.id === lout.weapon2);
+        if (w) { nextPlayer = w.apply(nextPlayer); logLines.push(`⚔️ Weapon 2: ${w.name}`); }
+      }
+      // Apply companion passive
+      if (lout.companion) {
+        const comp = COMPANIONS.find((c) => c.id === lout.companion);
+        if (comp) { nextPlayer = comp.applyPassive(nextPlayer); logLines.push(`${comp.abilityEmoji} Companion: ${comp.name}`); }
+      }
+      // Apply relic 1
+      if (lout.relic1) {
+        const relic = STARTER_RELICS.find((r) => r.id === lout.relic1);
+        if (relic) { nextPlayer = relic.apply(nextPlayer); logLines.push(`🗿 Relic: ${relic.name}`); }
+      }
+      nextPlayer.shield = nextPlayer.combatStartShield;
       return {
         ...g,
         player: nextPlayer,
         characterSelectPending: false,
         avatarMood: "focus",
-        actionFlash: { id: Date.now(), text: `🧭 ${selected.name} selected`, tone: "sky" },
-        log: [`🧭 Character selected: ${selected.name}`, ...g.log].slice(0, 40),
+        actionFlash: { id: Date.now(), text: `🧭 ${selected.name} · Run started`, tone: "sky" },
+        log: [...logLines, ...g.log].slice(0, 40),
       };
+    });
+    // Reset loadout state
+    setPendingCharId(null);
+    setLoadout({ weapon1: null, weapon2: null, companion: null, relic1: null });
+  }
+
+  function useCompanionAbility() {
+    setGame((g) => {
+      const comp = COMPANIONS.find((c) => c.id === g.player.companionId);
+      if (!comp || g.player.companionCooldown > 0) return g;
+      let player = { ...g.player, companionCooldown: comp.abilityCooldown };
+      let enemy = { ...g.enemy };
+      const logLines = [];
+      switch (comp.id) {
+        case "gecko":
+          enemy.hypnosedTurns = (enemy.hypnosedTurns || 0) + 1;
+          logLines.push(`😴 Hypnose: enemy skips next intent!`);
+          break;
+        case "croak":
+          { const dmg = Math.max(0, 8 - (enemy.shield || 0)); enemy.shield = Math.max(0, (enemy.shield || 0) - 8); enemy.hp = Math.max(0, enemy.hp - dmg); logLines.push(`💥 Leap: ${dmg} damage!`); break; }
+        case "oeil":
+          player.rerollsLeft = player.rerollsLeft + 1;
+          logLines.push(`🔮 Vision: +1 free reroll!`);
+          break;
+        case "shaman":
+          player.hp = Math.min(player.maxHp, player.hp + 8);
+          logLines.push(`🌿 Totem: +8 HP!`);
+          break;
+        case "sprout":
+          player.shield = player.shield + 6;
+          logLines.push(`🛡️ Barrier: +6 shield!`);
+          break;
+        case "hoarder":
+          player.rerollsLeft = player.rerollsLeft + 1;
+          player.hp = Math.min(player.maxHp, player.hp + 4);
+          logLines.push(`👻 Soul Hoard: +1 reroll + heal 4!`);
+          break;
+        case "imp":
+          { const dmg2 = Math.max(0, 5 - (enemy.shield || 0)); enemy.shield = Math.max(0, (enemy.shield || 0) - 5); enemy.hp = Math.max(0, enemy.hp - dmg2); logLines.push(`☠️ Venom: ${dmg2} damage!`); break; }
+        default: break;
+      }
+      return { ...g, player, enemy, log: [...logLines, ...g.log].slice(0, 40) };
     });
   }
 
@@ -1649,6 +1837,7 @@ export default function DieInTheJungleUpgraded() {
         lines.push(`☠️ Cursed turn: reroll disabled`);
         player.curseNextTurn = 0;
       }
+      if (player.companionCooldown > 0) player.companionCooldown -= 1;
       return {
         ...g,
         player,
@@ -2434,6 +2623,14 @@ export default function DieInTheJungleUpgraded() {
                 <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Seed</div>
                 <div className="text-xs font-black text-cyan-200 md:text-sm">#{game.runSeed}</div>
               </div>
+              <div className="rounded-xl border border-amber-300/30 bg-black/40 px-2 py-1.5 text-right">
+                <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Coins</div>
+                <div className="text-xs font-black text-amber-300 md:text-sm">🪙 {game.coins}</div>
+              </div>
+              <div className="rounded-xl border border-cyan-300/25 bg-black/40 px-2 py-1.5 text-right">
+                <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Gems</div>
+                <div className="text-xs font-black text-cyan-200 md:text-sm">💎 {game.gems}</div>
+              </div>
               <div className="rounded-xl border border-sky-300/30 bg-sky-500/20 px-2.5 py-1.5 text-right">
                 <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-200">Player</div>
                 <div className="max-w-[130px] truncate text-xs font-black text-sky-100 md:max-w-[190px] md:text-sm">{telegramUserLabel}</div>
@@ -2526,6 +2723,20 @@ export default function DieInTheJungleUpgraded() {
                 🔁 REROLL
               </Button>
             ) : null}
+            {game.player.companionId && (game.phase === "place" || game.phase === "roll") ? (() => {
+              const comp = COMPANIONS.find((c) => c.id === game.player.companionId);
+              if (!comp) return null;
+              const ready = game.player.companionCooldown === 0;
+              return (
+                <Button
+                  onClick={useCompanionAbility}
+                  disabled={!ready}
+                  className={`rounded-2xl border px-4 py-2.5 text-sm font-black transition ${ready ? "border-emerald-300/50 bg-emerald-700/30 text-emerald-100 hover:bg-emerald-700/45 shadow-[0_0_0_4px_rgba(110,231,183,0.12)]" : "border-white/15 bg-black/35 text-zinc-500 disabled:opacity-40"}`}
+                >
+                  {comp.abilityEmoji} {comp.abilityName} {ready ? "READY" : `CD ${game.player.companionCooldown}`}
+                </Button>
+              );
+            })() : null}
             {(game.phase === "gameover" || game.phase === "victory") ? (
               <>
                 <div className="text-lg font-black md:text-xl">{game.phase === "victory" ? "🏆 YOU WIN" : "💀 YOU DIED"}</div>
@@ -2612,19 +2823,24 @@ export default function DieInTheJungleUpgraded() {
                 </div>
                 <CompactStat label="🛡️ Shield" value={`${game.player.shield}`} accent="text-cyan-200" />
                 <CompactStat label="Reroll" value={`${game.player.rerollsLeft}`} accent="text-amber-300" />
-                <div className="col-span-2 rounded-[12px] border border-white/10 bg-black/45 p-2">
-                  <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">Owned artifacts</div>
-                  {game.player.artifacts.length ? (
-                    <div className="flex max-h-20 flex-wrap gap-1 overflow-auto pr-1">
-                      {game.player.artifacts.map((artifact) => (
-                        <div key={`owned-${artifact.id}`} className="flex items-center gap-1 rounded-full border border-white/20 bg-black/40 px-2 py-1 text-[9px]">
-                          {artifact.image ? <img src={artifact.image} alt={artifact.name} className="h-4 w-4 rounded-full object-cover" /> : <span>✨</span>}
-                          <span title={artifactLoreLine(artifact)}>{artifact.name}</span>
+                {game.player.companionId ? (() => {
+                  const comp = COMPANIONS.find((c) => c.id === game.player.companionId);
+                  if (!comp) return null;
+                  const ready = game.player.companionCooldown === 0;
+                  return (
+                    <div className="col-span-2 rounded-[12px] border border-emerald-400/25 bg-emerald-900/15 p-2">
+                      <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300">Companion</div>
+                      <div className="flex items-center gap-2">
+                        <img src={comp.image} alt={comp.name} className="h-10 w-10 rounded-xl object-contain" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-black text-zinc-100">{comp.emoji} {comp.name}</div>
+                          <div className="text-[9px] text-zinc-400">{comp.passiveDesc}</div>
+                          <div className={`mt-0.5 text-[9px] font-black ${ready ? "text-emerald-300" : "text-zinc-500"}`}>{comp.abilityEmoji} {comp.abilityName} · {ready ? "READY" : `CD ${game.player.companionCooldown}`}</div>
                         </div>
-                      ))}
+                      </div>
                     </div>
-                  ) : <div className="text-[10px] text-zinc-300">No artifacts yet.</div>}
-                </div>
+                  );
+                })() : null}
               </div>
             </div>
           </SectionCard>
@@ -2815,29 +3031,181 @@ export default function DieInTheJungleUpgraded() {
         </AnimatePresence>
 
         <AnimatePresence>
-          {game.characterSelectPending ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-              <div className="w-full max-w-3xl rounded-[28px] border border-cyan-300/25 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
+          {game.characterSelectPending ? (() => {
+            const activePendingId = pendingCharId;
+            const filteredWeapons = STARTER_WEAPONS.filter((w) => {
+              if (wRarityFilter !== "All" && w.rarity !== wRarityFilter) return false;
+              if (wTypeFilter !== "All" && w.type !== wTypeFilter) return false;
+              return true;
+            });
+            const rarities = ["All", "Common", "Rare", "Epic", "Legendary"];
+            const types = ["All", ...Array.from(new Set(STARTER_WEAPONS.map((w) => w.type)))];
+            return (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-3 backdrop-blur-sm">
+              <div className="mx-auto w-full max-w-3xl rounded-[28px] border border-cyan-300/20 bg-zinc-950/98 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.65)] my-4">
+                {/* Header */}
                 <div className="mb-4 text-center">
                   <div className="font-serif text-2xl italic text-amber-300">Choose your character</div>
-                  <div className="text-sm text-zinc-300">Choose your character before first fight. First artifact arrives after the first win.</div>
+                  <div className="text-xs text-zinc-400">Select a character then configure your loadout</div>
                 </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {Object.values(runtimeCharacters).map((character) => (
+
+                {/* Character cards */}
+                <div className="grid gap-3 md:grid-cols-3 mb-5">
+                  {Object.values(runtimeCharacters).map((character) => {
+                    const isSelected = activePendingId === character.id;
+                    const isLocked = character.id === "krex";
+                    return (
+                      <button
+                        key={character.id}
+                        onClick={() => !isLocked && setPendingCharId(character.id)}
+                        disabled={isLocked}
+                        className={`relative rounded-2xl border p-3 text-left transition ${isSelected ? "border-amber-300/80 bg-amber-900/20 shadow-[0_0_0_3px_rgba(252,211,77,0.18)]" : isLocked ? "border-zinc-700/40 bg-black/30 opacity-55 cursor-not-allowed" : "border-white/15 bg-black/45 hover:border-amber-300/50 hover:bg-black/60"}`}
+                      >
+                        {isSelected && <div className="absolute -top-2 -right-2 rounded-full bg-amber-300 px-2 py-0.5 text-[10px] font-black text-black">✓</div>}
+                        {isLocked && <div className="absolute inset-0 flex items-center justify-center rounded-2xl text-3xl">🔒</div>}
+                        <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" style={{ transform: "scaleX(-1)" }} />
+                        <div className="font-black text-amber-200">{character.name} {isLocked ? "🔒" : ""}</div>
+                        <div className="text-[11px] text-zinc-300">{isLocked ? "Unlock at Level 8" : character.subtitle}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* LOADOUT section — only shown once a character is picked */}
+                {activePendingId ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px] font-black uppercase tracking-[0.18em] text-zinc-200">⚙️ Loadout</span>
+                      <div className="flex-1 border-t border-white/10" />
+                    </div>
+
+                    {/* COMPANION */}
+                    <div>
+                      <div className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-emerald-300">🐾 Companion</div>
+                      <div className="grid grid-cols-3 gap-2 md:grid-cols-4 lg:grid-cols-7">
+                        {COMPANIONS.map((comp) => {
+                          const sel = loadout.companion === comp.id;
+                          return (
+                            <button
+                              key={comp.id}
+                              onClick={() => setLoadout((l) => ({ ...l, companion: sel ? null : comp.id }))}
+                              className={`rounded-2xl border p-2 text-center transition ${sel ? "border-emerald-300/70 bg-emerald-900/25 shadow-[0_0_0_2px_rgba(110,231,183,0.18)]" : "border-white/15 bg-black/40 hover:border-emerald-300/40 hover:bg-black/60"}`}
+                            >
+                              <img src={comp.image} alt={comp.name} className="mx-auto mb-1 h-14 w-full rounded-xl object-contain" />
+                              <div className="text-[9px] font-black text-zinc-100 leading-tight">{comp.name}</div>
+                              <div className="mt-0.5 text-[9px] text-zinc-400">{comp.passiveDesc}</div>
+                              <div className={`mt-1 rounded-full px-1 py-0.5 text-[9px] font-black ${sel ? "bg-emerald-600/30 text-emerald-200" : "bg-black/30 text-zinc-300"}`}>{comp.abilityEmoji} {comp.abilityName}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* STARTER WEAPONS */}
+                    <div>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-300">✕ Starter Weapon <span className="font-normal text-zinc-400">(Optional)</span></div>
+                        <div className="flex items-center gap-1.5 text-[10px] text-zinc-400">
+                          Slot:
+                          <button onClick={() => setLoadoutWeaponSlot(1)} className={`rounded-lg border px-2 py-0.5 ${loadoutWeaponSlot === 1 ? "border-amber-300/60 text-amber-300" : "border-white/15 text-zinc-400"}`}>1</button>
+                          <button onClick={() => setLoadoutWeaponSlot(2)} className={`rounded-lg border px-2 py-0.5 ${loadoutWeaponSlot === 2 ? "border-amber-300/60 text-amber-300" : "border-white/15 text-zinc-400"}`}>2</button>
+                        </div>
+                      </div>
+                      {/* Filters */}
+                      <div className="mb-2 flex flex-wrap gap-1">
+                        {rarities.map((r) => (
+                          <button key={r} onClick={() => setWRarityFilter(r)} className={`rounded-full border px-2 py-0.5 text-[10px] font-black transition ${wRarityFilter === r ? "border-amber-300/70 bg-amber-400/20 text-amber-200" : "border-white/15 bg-black/30 text-zinc-400 hover:border-white/30"}`}>{r}</button>
+                        ))}
+                      </div>
+                      <div className="mb-2 flex flex-wrap gap-1">
+                        {types.map((t) => (
+                          <button key={t} onClick={() => setWTypeFilter(t)} className={`rounded-full border px-2 py-0.5 text-[10px] font-black transition ${wTypeFilter === t ? "border-sky-300/70 bg-sky-400/15 text-sky-200" : "border-white/15 bg-black/30 text-zinc-400 hover:border-white/30"}`}>
+                            {t === "blade" ? "✕ blade" : t === "staff" ? "✏️ staff" : t === "shield" ? "🛡 shield" : t === "totem" ? "🗿 totem" : t === "cannon" ? "💥 cannon" : t === "fang" ? "🐍 fang" : t}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Weapon grid */}
+                      <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                        {filteredWeapons.map((w) => {
+                          const slot1 = loadout.weapon1 === w.id;
+                          const slot2 = loadout.weapon2 === w.id;
+                          const sel = slot1 || slot2;
+                          return (
+                            <button
+                              key={w.id}
+                              onClick={() => {
+                                if (loadoutWeaponSlot === 1) setLoadout((l) => ({ ...l, weapon1: l.weapon1 === w.id ? null : w.id }));
+                                else setLoadout((l) => ({ ...l, weapon2: l.weapon2 === w.id ? null : w.id }));
+                              }}
+                              className={`rounded-2xl border p-2.5 text-left transition ${sel ? "border-amber-300/70 bg-amber-900/20" : "border-white/15 bg-black/40 hover:border-amber-300/40"}`}
+                            >
+                              <div className="mb-1 flex items-center gap-1.5">
+                                <img src={w.image} alt={w.name} className="h-8 w-8 rounded-lg object-contain" />
+                                <div>
+                                  <div className="text-[11px] font-black text-zinc-100">{w.name}</div>
+                                  <div className="text-[9px] text-zinc-400">{w.type} · {w.rarity}</div>
+                                </div>
+                              </div>
+                              <div className="text-[10px] text-zinc-300">{w.ability}</div>
+                              {sel && <div className="mt-1 text-[9px] font-black text-amber-300">✓ Slot {slot1 ? "1" : "2"}</div>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {/* Active weapon selection recap */}
+                      <div className="mt-2 flex gap-2 text-[10px] text-zinc-400">
+                        <span className={`rounded-lg border px-2 py-1 ${loadout.weapon1 ? "border-amber-300/40 text-amber-200" : "border-white/10"}`}>Slot 1: {loadout.weapon1 ? STARTER_WEAPONS.find(w=>w.id===loadout.weapon1)?.name || "—" : "Empty"}</span>
+                        <span className={`rounded-lg border px-2 py-1 ${loadout.weapon2 ? "border-amber-300/40 text-amber-200" : "border-white/10"}`}>Slot 2: {loadout.weapon2 ? STARTER_WEAPONS.find(w=>w.id===loadout.weapon2)?.name || "—" : "Empty"}</span>
+                      </div>
+                    </div>
+
+                    {/* RELICS */}
+                    <div>
+                      <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-violet-300">🗿 Relics</div>
+                      <div className="flex gap-2">
+                        {/* Slot 1 — unlocked */}
+                        {STARTER_RELICS.map((relic) => {
+                          const sel = loadout.relic1 === relic.id;
+                          return (
+                            <button
+                              key={relic.id}
+                              onClick={() => setLoadout((l) => ({ ...l, relic1: sel ? null : relic.id }))}
+                              className={`flex flex-col items-center rounded-2xl border p-2.5 transition w-28 ${sel ? "border-violet-300/60 bg-violet-900/20" : "border-white/20 bg-black/40 hover:border-violet-300/40"}`}
+                            >
+                              <img src={relic.image} alt={relic.name} className="h-12 w-12 rounded-xl object-contain mb-1" />
+                              <div className="text-[10px] font-black text-zinc-100">{relic.name}</div>
+                              <div className="text-[9px] text-zinc-400 text-center">{relic.effectText}</div>
+                              {sel && <div className="mt-1 text-[9px] font-black text-violet-300">✓ Equipped</div>}
+                            </button>
+                          );
+                        })}
+                        {/* Locked slots */}
+                        {[2, 3].map((n) => (
+                          <div key={n} className="flex flex-col items-center rounded-2xl border border-white/10 bg-black/25 p-2.5 w-28 opacity-40">
+                            <div className="mb-1 text-3xl">🔒</div>
+                            <div className="text-[10px] text-zinc-400">Relic slot {n}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Start button */}
                     <button
-                      key={character.id}
-                      onClick={() => pickCharacter(character.id)}
-                      className="rounded-2xl border border-white/15 bg-black/45 p-3 text-left transition hover:border-amber-300/60 hover:bg-black/70"
+                      onClick={() => pickCharacter(activePendingId, loadout)}
+                      className="w-full rounded-2xl border border-amber-300/40 bg-gradient-to-r from-amber-500/30 to-amber-600/20 py-3.5 text-center font-black text-amber-200 text-lg transition hover:from-amber-500/45 hover:to-amber-600/35 hover:border-amber-300/60 active:scale-[0.98]"
                     >
-                      <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" style={{ transform: "scaleX(-1)" }} />
-                      <div className="font-black text-lg text-amber-200">{character.name}</div>
-                      <div className="text-xs text-zinc-300">{character.subtitle}</div>
+                      Start as {runtimeCharacters[activePendingId]?.name || activePendingId} →
                     </button>
-                  ))}
-                </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-white/10 bg-black/30 py-6 text-center text-sm text-zinc-400">
+                    ☝️ Select a character above to configure your loadout
+                  </div>
+                )}
               </div>
             </motion.div>
-          ) : null}
+            );
+          })() : null}
         </AnimatePresence>
 
         <AnimatePresence>
