@@ -294,6 +294,9 @@ function normalizeAgent(raw, index = 0) {
 
 export default function TeamHome() {
   const [solPrice, setSolPrice] = useState(null);
+  const [sprintGoals, setSprintGoals] = useState([]);
+  const [crmPipeline, setCrmPipeline] = useState(0);
+  const [crmClosed, setCrmClosed] = useState(0);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [pinnedIds, setPinnedIds] = useState(() => {
@@ -383,6 +386,21 @@ export default function TeamHome() {
     };
   }, []);
 
+  // Load sprint goals + CRM pipeline for financial ticker
+  useEffect(() => {
+    const API_BASE = import.meta.env.VITE_API_BASE || "";
+    fetch(`${API_BASE}/api/sprint/goals`).then(r => r.json()).then(data => {
+      if (data.ok && Array.isArray(data.goals)) setSprintGoals(data.goals);
+    }).catch(() => {});
+    fetch(`${API_BASE}/api/crm/deals`).then(r => r.json()).then(data => {
+      if (data.ok && Array.isArray(data.deals)) {
+        const active = data.deals.filter(d => !["closed", "dead"].includes(d.stage));
+        setCrmPipeline(active.reduce((s, d) => s + (parseFloat(d.amount) || 0), 0));
+        setCrmClosed(data.deals.filter(d => d.stage === "closed").reduce((s, d) => s + (parseFloat(d.amount) || 0), 0));
+      }
+    }).catch(() => {});
+  }, []);
+
   const togglePin = (toolId) => {
     setPinnedIds((prev) => (prev.includes(toolId) ? prev.filter((id) => id !== toolId) : [...prev, toolId]));
   };
@@ -430,13 +448,29 @@ export default function TeamHome() {
 
   return (
     <Shell title={<>KABAL <span style={{ color: JK.gold }}>HQ</span></>} subtitle="Private Syndicate · Internal Operations Base" maxWidth={940}>
-      <Card style={{ marginBottom: 14, padding: "10px 14px", background: "rgba(245,166,35,0.08)", border: `1px solid ${JK.border2}` }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <div style={{ fontSize: 11, color: "#FDE68A", letterSpacing: 1 }}>SOL REALTIME</div>
-          <div style={{ fontFamily: "'Cinzel', serif", color: "#FFD037", fontSize: 15 }}>{solPrice ? `$${solPrice.toFixed(2)}` : "--"}</div>
-          <div style={{ fontSize: 10, color: "#D1D5DB" }}>refresh 60s</div>
+      {/* ── Financial Health Ticker ────────────────────────────────────── */}
+      <div style={{ overflow: "hidden", background: "rgba(245,166,35,0.06)", border: `1px solid ${JK.border2}`, borderRadius: 10, marginBottom: 14, padding: "8px 0" }}>
+        <div style={{ display: "flex", gap: 0, animation: "marqueeScroll 28s linear infinite", width: "max-content" }}>
+          {[1, 2].map(pass => (
+            <div key={pass} style={{ display: "flex", gap: 0 }}>
+              {[
+                { label: "SOL", value: solPrice ? `$${solPrice.toFixed(2)}` : "--", color: "#FFD037" },
+                { label: "PIPELINE", value: crmPipeline ? `$${(crmPipeline / 1000).toFixed(0)}K` : "--", color: JK.gold },
+                { label: "CLOSED", value: crmClosed ? `$${(crmClosed / 1000).toFixed(0)}K` : "$0", color: JK.green },
+                { label: "SPRINT", value: sprintGoals.length ? `${Math.round(sprintGoals.filter(g => (g.current / g.target) >= 1).length / sprintGoals.length * 100)}%` : "--", color: "#A855F7" },
+                { label: "GOALS", value: sprintGoals.length ? `${sprintGoals.filter(g => (g.current / g.target) >= 1).length}/${sprintGoals.length}` : "--", color: JK.gold },
+                { label: "TEAM ONLINE", value: `${MEMBERS.filter((m) => m.online).length}/${MEMBERS.length}`, color: JK.green },
+                { label: "TOOLS LIVE", value: String(allTools.filter((tool) => tool.status === "LIVE").length), color: "#3B82F6" },
+              ].map(({ label, value, color }) => (
+                <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "0 24px", borderRight: "1px solid rgba(255,255,255,0.06)", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: 8, color: "#555", letterSpacing: 2, fontFamily: "'Cinzel',serif" }}>{label}</span>
+                  <span style={{ fontFamily: "'Cinzel Decorative',serif", fontSize: 13, fontWeight: 700, color }}>{value}</span>
+                </span>
+              ))}
+            </div>
+          ))}
         </div>
-      </Card>
+      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 16 }}>
         <StatBox value="100K$" label="Sprint target / month" color="green" />
