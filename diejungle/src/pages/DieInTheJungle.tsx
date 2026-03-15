@@ -4087,47 +4087,15 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   label="RESOLVE"
                   onClick={manualResolve}
                 />
-                <div className="min-w-0">
-                  <div className="font-black">{game.player.characterId === "kkm" ? "KKM" : "Kabalian"}</div>
-                  <div className="text-[10px] text-zinc-300">CD {game.player.cooldownBase} · Tick {game.player.cooldownTick} · Artifacts {totalArtifacts}</div>
-                  {selectedCosmetic && <div className="text-[10px] text-fuchsia-200">Equipped: {selectedCosmetic.product?.name || selectedCosmetic.productId}</div>}
-                </div>
-                <img src={runtimeLogoUrl} alt="Kabal logo" className="h-7 w-7 object-contain opacity-90" />
-              </div>
-                <div className="col-span-2">
-                  <LifeBar label="Player HP" current={game.player.hp} max={game.player.maxHp} tone="player" />
-                </div>
-                <CompactStat label="🛡️ Shield" value={`${game.player.shield}`} accent="text-cyan-200" />
-                <CompactStat label="Reroll" value={`${game.player.rerollsLeft}`} accent="text-amber-300" />
-                {game.player.companionId ? (() => {
-                  const comp = COMPANIONS.find((c) => c.id === game.player.companionId);
-                  if (!comp) return null;
-                  const ready = game.player.companionCooldown === 0;
-                  return (
-                    <div className="col-span-2 rounded-[12px] border border-emerald-400/25 bg-emerald-900/15 p-2">
-                      <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300">Companion</div>
-                      <div className="flex items-center gap-2">
-                        <img src={comp.image} alt={comp.name} className="h-10 w-10 rounded-xl object-contain" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[11px] font-black text-zinc-100">{comp.emoji} {comp.name}</div>
-                          <div className="text-[9px] text-zinc-400">{comp.passiveDesc}</div>
-                          <div className={`mt-0.5 text-[9px] font-black ${ready ? "text-emerald-300" : "text-zinc-500"}`}>{comp.abilityEmoji} {comp.abilityName} · {ready ? "READY" : `CD ${game.player.companionCooldown}`}</div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })() : null}
-              </div>
-            </div>
-          </SectionCard>
-        </div>
+              ) : (
+                <Button onClick={manualResolve} className="rounded-2xl border border-emerald-400/40 bg-gradient-to-b from-emerald-700/70 to-emerald-900/80 py-2.5 text-sm font-black text-white hover:from-emerald-600/80 hover:to-emerald-800">
+                  ✅ RESOLVE
+                </Button>
+              )
+            ) : null}
+          </div>
 
-        <SectionCard
-          title="Board"
-          className="order-3 md:order-none"
-          right={boardRightContent}
-        >
-                    {activeDieMeta && game.phase === "place" ? (
+          {activeDieMeta && game.phase === "place" ? (
             <div className="mb-2 flex items-center gap-2 rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-2 py-1.5 text-[11px] text-white">
               <span className="text-lg">{activeDieMeta.emoji}</span>
               <div>
