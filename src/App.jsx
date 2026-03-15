@@ -11,6 +11,7 @@ import CRMAngel from './pages/CRMAngel';
 import SprintBoard from './pages/SprintBoard';
 import Arsenal from './pages/Arsenal';
 import DieInTheJungle from './pages/DieInTheJungle';
+import DieInTheJungleVisualGuide from './pages/DieInTheJungleVisualGuide';
 import KabalAcademyMVP from './pages/KabalAcademyMVP';
 import KabalAcademyAdmin from './pages/KabalAcademyAdmin';
 import TrackRecord from './pages/TrackRecord';
@@ -58,6 +59,12 @@ export default function App() {
           {/* ACADEMY */}
           <Route path="/academy"                  element={<KabalAcademyMVP />} />
           <Route path="/academy/admin"            element={<KabalAcademyAdmin />} />
+          <Route path="/academy/checkout"         element={<KabalCheckout />} />
+          <Route path="/telegram-miniapp"          element={<TelegramMiniApp />} />
+
+          {/* GAME MIRROR (available on team.* too) */}
+          <Route path="/diejungle"                element={<DieInTheJungle />} />
+          <Route path="/diejungle/admin"          element={<DieInTheJungleAdmin />} />
 
           {/* Fallback */}
           <Route path="*"                         element={<TeamHome />} />
@@ -70,7 +77,9 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/diejungle" element={<DieInTheJungle />} />
+        <Route path="/diejungle-visual-guide" element={<DieInTheJungleVisualGuide />} />
         <Route path="/trophy-room" element={<TrophyRoom />} />
+        <Route path="/telegram-miniapp" element={<TelegramMiniApp />} />
         <Route path="*"          element={<LandingPage />} />
       </Routes>
     </BrowserRouter>

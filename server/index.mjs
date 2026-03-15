@@ -36,9 +36,9 @@ function parseCompactCourse(raw) {
       duration: '7 min',
       content,
       bullets: bullets.length ? bullets : [
-        "Lire la leçon complète.",
+        'Lire la leçon complète.',
         "Appliquer l'exercice recommandé.",
-        "Valider la progression.",
+        'Valider la progression.',
       ],
       blocks: [],
     });
