@@ -362,11 +362,11 @@ const SPRINT_PLAN = [
     status: 'active',
     color: 'amber',
     items: [
-      { done: false, label: 'Ka Power System: fragments (◆◆◆◆), Kabalian=Ka Rage ⚡, KKM=Ka Fortress 🛡️, K-REX=Ka Stomp 🦶' },
-      { done: false, label: 'Kill Rewards: mob=auto random, elite=2/3 choix, boss=4/6 choix' },
-      { done: false, label: 'Dynamic Lanes: bonus/malus aléatoires après chaque resolve (20% malus, garantie ATK+/HEAL+)' },
-      { done: false, label: 'Player GAUCHE / Enemy DROITE (swap arena)' },
-      { done: false, label: 'Karnivor rename (Carnivor Plant → Karnivor)' },
+      { done: true,  label: 'Ka Power System: fragments (◆◆◆◆), Kabalian=Ka Rage ⚡, KKM=Ka Fortress 🛡️, K-REX=Ka Stomp 🦶' },
+      { done: true,  label: 'Kill Rewards: mob=1 reward auto-random (pool pondéré), elite=2/3, boss=4/6 avec skip' },
+      { done: true,  label: 'Dynamic Lanes: bonus/malus aléatoires après chaque resolve (20% malus, garantie ATK+/HEAL+)' },
+      { done: true,  label: 'Player GAUCHE / Enemy DROITE (swap arena)' },
+      { done: true,  label: 'Karnivor rename (Carnivor Plant → Karnivor)' },
     ],
   },
   {
@@ -415,8 +415,10 @@ const SPRINT_PLAN = [
     color: 'violet',
     items: [
       { done: false, label: 'Share card post-run: canvas (score, titre, zone, artifacts) → Twitter + Telegram Story, +1 gem/24h' },
-      { done: false, label: 'Gem Store items: cosmetics + armes permanentes (pas pay-to-win)' },
-      { done: false, label: 'Token bridge placeholder: $KABAL TON bridge UI (smart contract = hors scope)' },
+      { done: false, label: 'Gem Store: cosmetics + armes permanentes (1 gem = 0.1 SOL | $DIE token -65% + burn)' },
+      { done: false, label: 'Tokenomics: gems in-game (mob 1%, boss +1 garanti, fin zone +5/10/15, daily top3 50/30/15, referral +50 max×20)' },
+      { done: false, label: 'Anti-farm: cap 30 gems/jour, boss gems validés zone 2+, 1 TG ID = 1 wallet, referral plafonné' },
+      { done: false, label: 'Bridge MVP → V1: achat SOL direct sur site web → gems API | V2: bridge $DIE Solana→TON (Allbridge)' },
     ],
   },
   {
@@ -1621,6 +1623,76 @@ export default function DieInTheJungleAdmin() {
                 </div>
               );
             })}
+
+            {/* Kill Rewards Pool reference */}
+            <div className="rounded-xl border border-amber-800/40 bg-amber-950/20 p-4 space-y-2">
+              <h3 className="font-bold text-amber-300 text-sm">💎 Kill Reward Pool — Taux de drop (mob auto, elite/boss = choix)</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                {[
+                  { icon: '❤️', label: '+10 HP', pct: '28%', rarity: 'common' },
+                  { icon: '🧬', label: '+1 HP max', pct: '20%', rarity: 'common' },
+                  { icon: '🪙', label: '+10 Coins', pct: '20%', rarity: 'common' },
+                  { icon: '◆',  label: 'Ka Fragment', pct: '15%', rarity: 'common' },
+                  { icon: '🛡️', label: '+5 Shield', pct: '12%', rarity: 'common' },
+                  { icon: '🎲', label: '+1 Dé bonus', pct: '8%', rarity: 'rare' },
+                  { icon: '🎯', label: '+0.5% Crit', pct: '5%', rarity: 'rare' },
+                  { icon: '✨', label: 'Artifact gray/gold', pct: '3%', rarity: 'epic' },
+                  { icon: '💎', label: '1 Gem', pct: '1%', rarity: 'rare' },
+                  { icon: '⚔️', label: 'Arme (run+unlock)', pct: '1%', rarity: 'legendary' },
+                  { icon: '💎💎', label: '5 Gems', pct: '0.1%', rarity: 'epic' },
+                ].map(r => (
+                  <div key={r.label} className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 ${
+                    r.rarity === 'legendary' ? 'border-orange-600/40 bg-orange-950/20 text-orange-300' :
+                    r.rarity === 'epic' ? 'border-violet-600/40 bg-violet-950/20 text-violet-300' :
+                    r.rarity === 'rare' ? 'border-amber-600/40 bg-amber-950/20 text-amber-300' :
+                    'border-zinc-700 bg-zinc-800/40 text-zinc-300'
+                  }`}>
+                    <span>{r.icon}</span>
+                    <span className="font-medium">{r.label}</span>
+                    <span className="ml-auto text-zinc-500">{r.pct}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tokenomics reference */}
+            <div className="rounded-xl border border-violet-800/40 bg-violet-950/20 p-4 space-y-3">
+              <h3 className="font-bold text-violet-300 text-sm">💎 Tokenomics — Sources de gems & Gem Store</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-zinc-300">
+                <div className="space-y-1.5">
+                  <div className="font-black text-violet-200 uppercase tracking-wider text-[10px]">Sources de gems (in-game)</div>
+                  {[
+                    ['Kill mob', '1% → 1 gem, 0.1% → 5 gems'],
+                    ['Kill boss', '+1 gem garanti (zone 2+ uniquement)'],
+                    ['Fin de run', 'Zone 1: +5 · Zone 2: +10 · Zone 3+: +15'],
+                    ['Daily seed top 3', '50 / 30 / 15 gems'],
+                    ['Referral', '+50 gems/ami, max 20 refs = 1 000 gems max'],
+                    ['Share card', '+1 gem/jour max'],
+                    ['Cap quotidien', '30 gems/jour via gameplay (reset minuit UTC)'],
+                  ].map(([k, v]) => (
+                    <div key={k} className="flex gap-2"><span className="text-violet-300 shrink-0 font-medium">{k}:</span><span className="text-zinc-400">{v}</span></div>
+                  ))}
+                </div>
+                <div className="space-y-1.5">
+                  <div className="font-black text-violet-200 uppercase tracking-wider text-[10px]">Gem Store pricing</div>
+                  {[
+                    ['SOL', '1 gem = 0.1 SOL (prix ancre stable)'],
+                    ['$DIE token', '-65% vs SOL, prix en USDC temps réel, token brûlé'],
+                    ['Arme rare', '~150 gems'],
+                    ['Cosmetic', 'TBD'],
+                  ].map(([k, v]) => (
+                    <div key={k} className="flex gap-2"><span className="text-amber-300 shrink-0 font-medium">{k}:</span><span className="text-zinc-400">{v}</span></div>
+                  ))}
+                  <div className="mt-2 font-black text-violet-200 uppercase tracking-wider text-[10px]">Bridge</div>
+                  {[
+                    ['V1 MVP', 'Achat SOL direct site web → gems API'],
+                    ['V2', 'Bridge $DIE Solana → TON (Allbridge) → wallet → mini app'],
+                  ].map(([k, v]) => (
+                    <div key={k} className="flex gap-2"><span className="text-emerald-300 shrink-0 font-medium">{k}:</span><span className="text-zinc-400">{v}</span></div>
+                  ))}
+                </div>
+              </div>
+            </div>
 
             {/* Progress bar */}
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">

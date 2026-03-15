@@ -38,11 +38,21 @@ import {
   xpToNextLevel,
   canPlayKKM,
   hasWeaponSlot,
+  hasDualWeaponSlot,
   hasCompanionSlot,
   hasDiceSpecials,
   hasLaneBonuses,
   getUnlockedCompanions,
 } from "../lib/metaProgression";
+import {
+  type Weapon,
+  buildWeapon,
+  buildAllWeapons,
+  applyWeaponPassives,
+  getWeaponArchetypeEmoji,
+  getWeaponRarityColor,
+  getWeaponRarityBorder,
+} from "./weaponSystem";
 
 const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
 
@@ -78,17 +88,50 @@ const PLAYER_CHARACTERS = {
     id: "kabalian",
     name: "Kabalian",
     avatar: PLAYER_AVATAR_URL,
-    subtitle: "Aggro · 24 HP · +1 ATK · 2 rerolls",
-    stats: { maxHp: 24, attackBonus: 1, rerollsPerTurn: 2, combatStartShield: 0 },
+    subtitle: "Aggro · 20 HP · +1 ATK · 2 rerolls",
+    stats: { maxHp: 20, attackBonus: 1, rerollsPerTurn: 2, combatStartShield: 0 },
   },
   kkm: {
     id: "kkm",
     name: "KKM",
     avatar: KKM_AVATAR_URL,
-    subtitle: "Tank · 34 HP · +4 start shield",
-    stats: { maxHp: 34, attackBonus: 0, rerollsPerTurn: 1, combatStartShield: 4 },
+    subtitle: "Tank · 28 HP · +4 start shield",
+    stats: { maxHp: 28, attackBonus: 0, rerollsPerTurn: 1, combatStartShield: 4 },
   },
 };
+
+// ── Character powers (unique per character, not shared) ──────────────────────
+const CHARACTER_POWERS: Record<string, { id: string; name: string; desc: string }> = {
+  kabalian: {
+    id: 'ka_rage',
+    name: 'Ka Rage ⚡',
+    desc: 'When HP drops below 50%, permanently gain +3 ATK for the rest of the run.',
+  },
+  kkm: {
+    id: 'ka_fortress',
+    name: 'Ka Fortress 🛡️',
+    desc: 'Shield carries over between rooms (persists up to 8). Never start a fight at 0.',
+  },
+};
+
+// ── Build persistence ────────────────────────────────────────────────────────
+const BUILD_KEY = 'jk_last_build_v1';
+function loadBuild(): { characterId: string; weaponIds: string[] } | null {
+  try { return JSON.parse(localStorage.getItem(BUILD_KEY) || 'null'); } catch { return null; }
+}
+function saveBuild(characterId: string, weaponIds: string[]): void {
+  localStorage.setItem(BUILD_KEY, JSON.stringify({ characterId, weaponIds }));
+}
+
+// ── Pre-run weapon offer (1 common per archetype) ────────────────────────────
+const STARTER_WEAPON_OFFER: Weapon[] = [
+  buildWeapon('blade-short', 'common'),
+  buildWeapon('staff-bone', 'common'),
+  buildWeapon('shield-bark', 'common'),
+  buildWeapon('totem-bone', 'common'),
+  buildWeapon('cannon-small', 'common'),
+  buildWeapon('fang-snake', 'common'),
+];
 
 const DICE_IMAGES = {
   1: "https://i.postimg.cc/mk4Rdw2K/Dice-1.png",
@@ -644,6 +687,9 @@ function getTierLabel(enemy) {
   return "Mob";
 }
 
+// Module-level difficulty multiplier — updated from server config on startup
+let _difficultyMult = 1.0;
+
 function buildRoute(floor = 1) {
   const mobA = pickUnique(ENEMY_POOLS.mob, 2);
   const eliteA = pickUnique(ENEMY_POOLS.medium, 2);
@@ -659,8 +705,15 @@ function buildRoute(floor = 1) {
     const source = enemyBuckets[type][used[type]++];
     const base = cloneEnemy(source);
     const scale = floor - 1;
-    const hpScale = type === "boss" ? 8 : type === "elite" ? 5 : 3;
-    const dmgScale = type === "boss" ? 2 : 1;
+    const hpScale = type === "boss" ? 12 : type === "elite" ? 7 : 5;
+    const dmgScale = type === "boss" ? 3 : 2;
+    // Base difficulty boost: 1.35× HP + difficultyMult, 1.25× intent damage
+    const hpMult = 1.35 * _difficultyMult;
+    const dmgMult = 1.25 * _difficultyMult;
+    base.hp = Math.round(base.hp * hpMult);
+    base.intents = base.intents.map((i) => ({
+      ...i, value: i.type === 'attack' ? Math.round(i.value * dmgMult) : i.value,
+    }));
     base.hp += scale * hpScale;
     base.maxHp = base.hp;
     base.damage += scale * dmgScale;
@@ -1216,24 +1269,34 @@ function applyArtifactToPlayer(player, artifact) {
   };
 }
 
-function makeInitialPlayer(characterId = "kabalian") {
+function makeInitialPlayer(characterId = "kabalian", equippedWeapons: Weapon[] = []) {
   const selected = PLAYER_CHARACTERS[characterId] || PLAYER_CHARACTERS.kabalian;
-  return {
-    hp: selected.stats.maxHp,
+  const base = {
+    attackBonus: selected.stats.attackBonus,
+    healBonus: 0,
+    shieldMultiplier: 1,
+    rerollsPerTurn: selected.stats.rerollsPerTurn,
+    cooldownTick: 1,
     maxHp: selected.stats.maxHp,
+    topRowBonus: 0,
+  };
+  const boosted = applyWeaponPassives(base, equippedWeapons);
+  return {
+    hp: boosted.maxHp,
+    maxHp: boosted.maxHp,
     shield: 0,
     avatar: selected.avatar,
     characterId: selected.id,
     cooldownBase: 3,
-    cooldownTick: 1,
+    cooldownTick: boosted.cooldownTick,
     dicePerTurn: 3,
-    rerollsPerTurn: selected.stats.rerollsPerTurn,
-    rerollsLeft: selected.stats.rerollsPerTurn,
-    attackBonus: selected.stats.attackBonus,
+    rerollsPerTurn: boosted.rerollsPerTurn,
+    rerollsLeft: boosted.rerollsPerTurn,
+    attackBonus: boosted.attackBonus,
     attackDieValueBonus: 0,
-    healBonus: 0,
-    shieldMultiplier: 1,
-    topRowBonus: 0,
+    healBonus: boosted.healBonus,
+    shieldMultiplier: boosted.shieldMultiplier,
+    topRowBonus: boosted.topRowBonus,
     timedResetEvery: 0,
     combatStartShield: selected.stats.combatStartShield || 0,
     selfBleed: 0,
@@ -1244,13 +1307,18 @@ function makeInitialPlayer(characterId = "kabalian") {
     companion: null as Companion | null,
     _fortressShield: 0,
     companionHypnosisActive: false,
+    weapons: equippedWeapons,
+    kaRageActive: false,
+    speed: 5,
   };
 }
 
-function makeInitialState() {
+function makeInitialState(preBuild?: { characterId: string; weapons: Weapon[] }) {
   const floor = 1;
   const route = buildRoute(floor);
-  const player = makeInitialPlayer();
+  const player = preBuild
+    ? makeInitialPlayer(preBuild.characterId, preBuild.weapons)
+    : makeInitialPlayer();
   player.shield = player.combatStartShield;
   const runSeed = generateRunSeed();
   return {
@@ -1274,7 +1342,8 @@ function makeInitialState() {
     artifactsOffered: [],
     combatRewardPending: false,
     startRewardPending: true,
-    characterSelectPending: true,
+    characterSelectPending: !preBuild,
+    weaponSelectPending: false,
     score: 0,
     noHitTurns: 0,
     runSeed,
@@ -1283,6 +1352,7 @@ function makeInitialState() {
     actionFlash: null,
     enemyAttackPulse: 0,
     enemyHitPulse: 0,
+    playerDamageFlash: 0,
     damagePopups: [],
     scorePopups: [],
     comboPopup: null,
@@ -1303,6 +1373,7 @@ function serializeGameState(game) {
     player: {
       ...game.player,
       artifacts: game.player.artifacts.map((artifact) => artifact.id),
+      weapons: (game.player.weapons || []).map((w: Weapon) => w.id),
     },
     artifactsOffered: game.artifactsOffered.map((artifact) => artifact.id),
   };
@@ -1312,15 +1383,21 @@ function hydrateGameState(rawState) {
   if (!rawState || typeof rawState !== "object") return null;
   const safe = { ...rawState };
   const byId = new Map(ARTIFACT_POOL.map((artifact) => [artifact.id, artifact]));
+  const allWeapons = buildAllWeapons();
+  const weaponById = new Map(allWeapons.map((w) => [w.id, w]));
   safe.player = {
     ...safe.player,
     characterId: safe.player?.characterId || "kabalian",
     avatar: safe.player?.avatar || PLAYER_CHARACTERS.kabalian.avatar,
     artifacts: (safe.player?.artifacts || []).map((id) => byId.get(id)).filter(Boolean),
+    weapons: (safe.player?.weapons || []).map((id) => weaponById.get(id)).filter(Boolean),
+    kaRageActive: safe.player?.kaRageActive ?? false,
+    speed: safe.player?.speed ?? 5,
   };
   safe.artifactsOffered = (safe.artifactsOffered || []).map((id) => byId.get(id)).filter(Boolean);
   safe.enemyAttackPulse = 0;
   safe.enemyHitPulse = 0;
+  safe.playerDamageFlash = 0;
   safe.damagePopups = [];
   safe.scorePopups = [];
   safe.comboPopup = null;
@@ -1330,6 +1407,7 @@ function hydrateGameState(rawState) {
   safe.noHitTurns = Number.isFinite(safe.noHitTurns) ? safe.noHitTurns : 0;
   safe.runSeed = safe.runSeed || generateRunSeed();
   safe.characterSelectPending = Boolean(safe.characterSelectPending);
+  safe.weaponSelectPending = Boolean(safe.weaponSelectPending);
   safe.mapLayers = safe.mapLayers ?? null;
   safe.currentMapNodeId = safe.currentMapNodeId ?? null;
   safe.pendingEvent = safe.pendingEvent ?? null;
@@ -1365,7 +1443,7 @@ function loadLeaderboard() {
 
 function SectionCard({ title, children, right, className = "" }) {
   return (
-    <div className={`rounded-[20px] border border-white/15 bg-black/45 p-1.5 shadow-[0_14px_30px_rgba(0,0,0,0.28)] backdrop-blur-md md:p-2.5 ${className}`}>
+    <div className={`rounded-[20px] border border-white/15 bg-black/65 p-1.5 shadow-[0_14px_30px_rgba(0,0,0,0.55)] backdrop-blur-md md:p-2.5 ${className}`}>
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="font-serif text-[11px] italic uppercase tracking-[0.22em] text-amber-300">{title}</div>
         {right ? <div>{right}</div> : null}
@@ -1485,6 +1563,13 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     try { return localStorage.getItem('jk_auto_resolve') === 'true'; } catch { return false; }
   });
   const [showAdvancedGuide, setShowAdvancedGuide] = useState(false);
+  const [showScoringGuide, setShowScoringGuide] = useState(false);
+  const [showHudGuide, setShowHudGuide] = useState(false);
+  // Build selection state (2-step modal: character → weapons)
+  const [buildStep, setBuildStep] = useState<'character' | 'weapons'>('character');
+  const [pendingCharId, setPendingCharId] = useState('kabalian');
+  const [pendingWeaponIds, setPendingWeaponIds] = useState<string[]>([]);
+  const [pendingSlotPicking, setPendingSlotPicking] = useState<number | null>(null);
 
   const activeDieIndex = useMemo(() => {
     if (game.selectedDieIndex !== null && game.dice[game.selectedDieIndex] !== null) return game.selectedDieIndex;
@@ -1574,35 +1659,56 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     setGame((g) => ({ ...g, log: [...lines, ...g.log].slice(0, 40) }));
   }
 
-  function pickCharacter(characterId) {
+  function pickCharacter(characterId: string) {
+    // Step 1: store chosen character, move to weapon select step
+    setPendingCharId(characterId);
+    setPendingWeaponIds([]);
+    setBuildStep('weapons');
+  }
+
+  function confirmBuild(characterId: string, weaponIds: string[]) {
+    // Reconstruct weapon objects from IDs
+    const allW = buildAllWeapons();
+    const wById = new Map(allW.map((w) => [w.id, w]));
+    const weapons = weaponIds.map((id) => wById.get(id)).filter(Boolean) as Weapon[];
+    // Persist build
+    saveBuild(characterId, weaponIds);
+    // Build player with weapons applied
     const selected = PLAYER_CHARACTERS[characterId] || PLAYER_CHARACTERS.kabalian;
     setGame((g) => {
-      const nextPlayer = {
-        ...g.player,
-        characterId: selected.id,
-        avatar: selected.avatar,
-        maxHp: selected.stats.maxHp,
-        hp: selected.stats.maxHp,
-        attackBonus: selected.stats.attackBonus,
-        combatStartShield: selected.stats.combatStartShield || 0,
-        shield: selected.stats.combatStartShield || 0,
-        rerollsPerTurn: selected.stats.rerollsPerTurn,
-        rerollsLeft: selected.stats.rerollsPerTurn,
-        coins: 0,
-      };
+      const nextPlayer = makeInitialPlayer(characterId, weapons);
+      nextPlayer.shield = nextPlayer.combatStartShield;
       const mapLayers = generateZoneMap(g.floor, g.runSeed);
       return {
         ...g,
         player: nextPlayer,
         characterSelectPending: false,
+        weaponSelectPending: false,
         phase: "map",
         mapLayers,
         currentMapNodeId: null,
         avatarMood: "focus",
         actionFlash: { id: Date.now(), text: `🧭 ${selected.name} — choose your path`, tone: "sky" },
-        log: [`🧭 Character selected: ${selected.name}`, `🗺️ Zone ${g.floor} map generated`, ...g.log].slice(0, 40),
+        log: [`🧭 ${selected.name} + ${weapons.length} weapon${weapons.length !== 1 ? 's' : ''} equipped`, `🗺️ Zone ${g.floor} map generated`, ...g.log].slice(0, 40),
       };
     });
+    setBuildStep('character');
+  }
+
+  function quickRestart() {
+    if (onBeforeRestart && !onBeforeRestart()) {
+      setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "🚫 No run tickets left", tone: "rose" } }));
+      return;
+    }
+    const saved = loadBuild();
+    if (saved) {
+      const allW = buildAllWeapons();
+      const wById = new Map(allW.map((w) => [w.id, w]));
+      const weapons = saved.weaponIds.map((id) => wById.get(id)).filter(Boolean) as Weapon[];
+      setGame(makeInitialState({ characterId: saved.characterId, weapons }));
+    } else {
+      setGame(makeInitialState());
+    }
   }
 
   function startRoll() {
@@ -1764,7 +1870,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         // Companion hypnosis: skip enemy intent this turn
         if (player.companionHypnosisActive) {
           player.companionHypnosisActive = false;
-          log.unshift(`🦎 Hypnose — enemy intent skipped!`);
+          log.unshift(`🦎 Hypnosis — enemy intent skipped!`);
         } else {
           const intentNow = getIntentPreview(enemy);
           const retaliation = resolveEnemyIntent(enemy, player, log);
@@ -1781,6 +1887,13 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
             if (shieldBlocked > 0) {
               damagePopups.push({ id: `${Date.now()}-player-block`, target: "player", tone: "shield", text: `🛡️ ${shieldBlocked}`, ...getPopupPosition("player") });
             }
+          }
+          // Ka Rage: Kabalian gains +3 ATK when HP first drops below 50%
+          if (player.characterId === 'kabalian' && !player.kaRageActive && player.hp > 0 && player.hp < player.maxHp / 2) {
+            player.kaRageActive = true;
+            player.attackBonus = (player.attackBonus || 0) + 3;
+            log.unshift(`⚡ Ka Rage activated! +3 ATK for the rest of the run.`);
+            damagePopups.push({ id: `${Date.now()}-ka-rage`, target: "player", tone: "heal", text: `⚡ Ka Rage!`, ...getPopupPosition("player") });
           }
         }
       }
@@ -1966,6 +2079,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         actionFlash,
         enemyAttackPulse,
         enemyHitPulse,
+        playerDamageFlash: hpDamageTaken > 0 ? Date.now() : g.playerDamageFlash,
         damagePopups,
         scorePopups,
         comboPopup,
@@ -2112,7 +2226,14 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           currentMapNodeId: nodeId,
           enemy: base,
           phase: "roll",
-          player: { ...g.player, shield: g.player.combatStartShield, rerollsLeft: g.player.rerollsPerTurn },
+          player: {
+            ...g.player,
+            // Ka Fortress: KKM keeps shield between rooms (capped at 8), others reset to combatStartShield
+            shield: g.player.characterId === 'kkm'
+              ? Math.min(g.player.shield, 8)
+              : g.player.combatStartShield,
+            rerollsLeft: g.player.rerollsPerTurn,
+          },
           cooldowns: emptyCooldowns(),
           grid: emptyGrid(),
           dice: [],
@@ -2253,7 +2374,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
       if (companion.active.type === 'skip_intent') {
         player.companionHypnosisActive = true;
-        log.unshift(`🦎 Hypnose — enemy will skip their next intent!`);
+        log.unshift(`🦎 Hypnosis — enemy will skip their next intent!`);
       } else if (companion.active.type === 'flat_damage') {
         const dmg = companion.active.value ?? 8;
         enemy.hp -= dmg;
@@ -2293,6 +2414,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
       setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "🚫 No run tickets left", tone: "rose" } }));
       return;
     }
+    setBuildStep('character');
+    setPendingWeaponIds([]);
     setGame(makeInitialState());
   }
 
@@ -2324,6 +2447,19 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
       });
     }
   }, [game.runEnded, game.runSeed, game.score, game.floor, game.player.characterId, game.winStreak, game.phase, onRunEnded]);
+
+  // Fetch server config for difficulty multiplier (fire-and-forget on mount)
+  useEffect(() => {
+    fetch('/api/miniapp/config')
+      .then((r) => r.ok ? r.json() : null)
+      .then((payload) => {
+        const mult = payload?.config?.gameLogic?.difficultyMultiplier;
+        if (typeof mult === 'number' && mult > 0) {
+          _difficultyMult = mult;
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -2419,9 +2555,15 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     })()
     : null;
 
+  // Damage flash: show red overlay for 500ms after taking damage
+  const isDamageFlashActive = game.playerDamageFlash > 0 && Date.now() - game.playerDamageFlash < 500;
+
   return (
-    <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.78)), url(${BG_URL})` }}>
-      <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-1.5 pb-3 md:gap-2">
+    <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.84), rgba(0,0,0,.94)), url(${BG_URL})` }}>
+      {isDamageFlashActive && (
+        <div className="pointer-events-none fixed inset-0 z-[60] bg-red-600/30 animate-pulse" style={{ animationDuration: '0.25s' }} />
+      )}
+      <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-1.5 pb-3 md:gap-2 bg-black/30 rounded-[28px]">
         <div className="rounded-[22px] border border-amber-300/20 bg-black/35 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md md:p-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -2581,12 +2723,12 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         </SectionCard>
 
         <SectionCard title="Dice + Action" className="order-2" right={<div className="text-[9px] text-zinc-300">Tap die, then slot</div>}>
-          <div className="mb-1 flex flex-wrap justify-center gap-1 text-[9px] md:text-[10px]">
+          {game.floor === 1 && <div className="mb-1 flex flex-wrap justify-center gap-1 text-[9px] md:text-[10px]">
             <div className="rounded-xl border border-zinc-300/30 bg-zinc-900/70 px-2 py-1">⚔️ Attack die 1-6 (black)</div>
-            <div className="rounded-xl border border-pink-200/35 bg-pink-500/20 px-2 py-1">❤️ Dé Health 1-6</div>
+            <div className="rounded-xl border border-pink-200/35 bg-pink-500/20 px-2 py-1">❤️ Health die 1-6</div>
             <div className="rounded-xl border border-white/50 bg-white/15 px-2 py-1">🛡️ Shield die 1-6 (white)</div>
             <div className="rounded-xl border border-white/10 bg-black/35 px-2 py-1">🔥 Combo = 3 attack dice</div>
-          </div>
+          </div>}
           <div className="mb-1 grid gap-1 rounded-[12px] border border-white/10 bg-black/35 p-2 text-[11px] md:grid-cols-2">
             <div>
               <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-300">Damage forecast</div>
@@ -2600,19 +2742,31 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           <div className="mb-2 flex flex-wrap items-center justify-center gap-2">
             {game.phase === "roll" ? <div className="w-full text-center text-xs font-bold uppercase tracking-[0.18em] text-amber-200">Start turn: press roll, then place dice on board</div> : null}
             {(game.phase === "roll" || game.phase === "rolling") ? (
-              <Button onClick={startRoll} disabled={game.rolling} className={`rounded-2xl bg-amber-400 px-4 py-2.5 text-sm font-black text-black hover:bg-amber-300 disabled:opacity-60 ${game.phase === "roll" && !game.rolling ? "animate-pulse shadow-[0_0_0_6px_rgba(252,211,77,0.20)]" : ""}`}>
-                {game.rolling ? "🎲 Rolling..." : "🎲 ROLL"}
-              </Button>
-            ) : null}
-            {game.phase === "place" ? (
-              <Button onClick={rerollActiveDie} disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null} className="rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-700/90 to-zinc-900 px-5 py-2.5 text-sm font-black text-white hover:from-zinc-600 hover:to-zinc-800 disabled:opacity-40">
-                🔁 REROLL
-              </Button>
+              <div className="relative w-full flex justify-center my-2">
+                {game.rolling && (
+                  <span className="absolute inset-0 mx-auto rounded-3xl bg-amber-400/50 animate-ping" style={{ width: 'fit-content', padding: '0 3.5rem' }} />
+                )}
+                <Button onClick={startRoll} disabled={game.rolling} className="relative rounded-3xl bg-amber-400 px-14 py-6 text-3xl font-black text-black hover:bg-amber-300 shadow-[0_0_30px_rgba(252,211,77,0.45)]">
+                  {game.rolling ? "🎲 Rolling..." : "🎲 ROLL"}
+                </Button>
+              </div>
             ) : null}
             {game.phase === "place" && game.grid.some(row => row.some(cell => cell !== null)) ? (
-              <Button onClick={manualResolve} className="rounded-2xl border border-emerald-400/40 bg-gradient-to-b from-emerald-700/70 to-emerald-900/80 px-5 py-2.5 text-sm font-black text-white hover:from-emerald-600/80 hover:to-emerald-800 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]">
-                ✅ RESOLVE
-              </Button>
+              <div className="relative w-full flex justify-center my-1">
+                <button
+                  onClick={manualResolve}
+                  className="relative focus:outline-none"
+                  style={{ background: 'none', border: 'none', padding: 0 }}
+                >
+                  <img
+                    src="https://i.postimg.cc/6pJ0GSpm/Chat-GPT-Image-15-mars-2026-23-07-03.png"
+                    alt="RESOLVE"
+                    className="h-16 w-auto object-contain drop-shadow-[0_0_18px_rgba(52,211,153,0.5)] hover:scale-105 active:scale-95 transition-transform"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display='none'; (e.target as HTMLImageElement).nextElementSibling?.removeAttribute('hidden'); }}
+                  />
+                  <span hidden className="rounded-2xl border border-emerald-400/40 bg-gradient-to-b from-emerald-700/70 to-emerald-900/80 px-5 py-2.5 text-sm font-black text-white">✅ RESOLVE</span>
+                </button>
+              </div>
             ) : null}
             {game.player.companion && (game.phase === "roll" || game.phase === "place") ? (
               <Button
@@ -2634,27 +2788,34 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           </div>
 
           <div className="flex min-h-[56px] items-center justify-center gap-2">
-            {game.phase === "place" ? (
-              <Button onClick={() => shiftSelectedDie(-1)} className="h-10 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-4 text-white hover:from-zinc-700 hover:to-zinc-800">⬅️</Button>
-            ) : null}
             <div className="flex min-h-[56px] flex-wrap items-start justify-center gap-1.5">
             {game.dice.some((d) => d !== null) ? (
-              game.dice.map((die, i) => die !== null ? (
-                <DiceFace
-                  key={`${die.id}-${i}-${game.rolling}`}
-                  value={die}
-                  selected={i === activeDieIndex && game.phase === "place"}
-                  rolling={game.rolling}
-                  onClick={game.phase === "place" ? () => setGame((g) => ({ ...g, selectedDieIndex: i })) : undefined}
-                />
-              ) : null)
+              <>
+                {game.dice.map((die, i) => die !== null ? (
+                  <DiceFace
+                    key={`${die.id}-${i}-${game.rolling}`}
+                    value={die}
+                    selected={i === activeDieIndex && game.phase === "place"}
+                    rolling={game.rolling}
+                    onClick={game.phase === "place" ? () => setGame((g) => ({ ...g, selectedDieIndex: i })) : undefined}
+                  />
+                ) : null)}
+                {game.phase === "place" && (
+                  <button
+                    onClick={rerollActiveDie}
+                    disabled={game.player.rerollsLeft <= 0 || activeDieIndex === null}
+                    title={`Reroll selected die (${game.player.rerollsLeft} left)`}
+                    className="flex h-[56px] w-[42px] flex-col items-center justify-center rounded-xl border border-white/20 bg-black/40 text-lg transition hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <span>🔁</span>
+                    <span className="text-[9px] font-black text-amber-300">{game.player.rerollsLeft}</span>
+                  </button>
+                )}
+              </>
             ) : (
               <div className="text-[11px] text-zinc-100">🎲 No dice yet. Press <span className="font-black text-amber-300">ROLL</span>.</div>
             )}
             </div>
-            {game.phase === "place" ? (
-              <Button onClick={() => shiftSelectedDie(1)} className="h-10 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-4 text-white hover:from-zinc-700 hover:to-zinc-800">➡️</Button>
-            ) : null}
           </div>
           <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 text-[11px] text-zinc-400 select-none">
             <input
@@ -2675,7 +2836,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
 
         <SectionCard title="Board" className="order-3 md:order-3" right={<div className="text-[9px] text-zinc-300">Place dice on available slots</div>}>
-          {activeDieMeta && game.phase === "place" ? (
+          {activeDieMeta && game.phase === "place" && game.floor === 1 ? (
             <div className="mb-2 flex items-center gap-2 rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-2 py-1.5 text-[11px] text-white">
               <span className="text-lg">{activeDieMeta.emoji}</span>
               <div>
@@ -2704,9 +2865,10 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                       onClick={() => activeDieIndex !== null && placeDie(activeDieIndex, x, y)}
                       onMouseEnter={() => setHoveredSlot({ x, y })}
                       onMouseLeave={() => setHoveredSlot(null)}
-                      className={`relative h-[72px] w-[72px] overflow-hidden rounded-[10px] border text-white transition md:h-[84px] md:w-[84px] ${canPlace ? "border-amber-300/60 ring-2 ring-amber-300/20" : "border-white/20"}`}
+                      className={`relative h-[72px] w-[72px] overflow-hidden rounded-[10px] border text-white transition md:h-[84px] md:w-[84px] ${canPlace ? "border-amber-300/80 ring-2 ring-amber-300/30" : "border-white/20"}`}
                     >
-                      <img src={LANE_IMAGES[y]} className="absolute inset-0 h-full w-full object-contain" />
+                      {canPlace && <span className="pointer-events-none absolute inset-0 rounded-[10px] border-2 border-amber-300/70 animate-ping" />}
+                      <img src={LANE_IMAGES[y]} className="absolute inset-0 h-full w-full object-contain opacity-30" />
                       {cell !== null ? (
                         <>
                           <div className="absolute inset-0 bg-black/10" />
@@ -2832,32 +2994,198 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
         <AnimatePresence>
           {game.characterSelectPending ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm">
               <div className="w-full max-w-3xl rounded-[28px] border border-cyan-300/25 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
-                <div className="mb-4 text-center">
-                  <div className="font-serif text-2xl italic text-amber-300">Choose your character</div>
-                  <div className="text-sm text-zinc-300">Choose your character before first fight. First artifact arrives after the first win.</div>
+                {/* Step indicator */}
+                <div className="mb-4 flex items-center justify-center gap-3">
+                  <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-black ${buildStep === 'character' ? 'bg-amber-400 text-black' : 'bg-emerald-500 text-white'}`}>
+                    {buildStep === 'character' ? '1' : '✓'}
+                  </div>
+                  <div className="h-px w-8 bg-white/20" />
+                  <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-black ${buildStep === 'weapons' ? 'bg-amber-400 text-black' : 'bg-white/15 text-zinc-400'}`}>2</div>
+                  <div className="ml-2 text-xs text-zinc-400">{buildStep === 'character' ? 'Choose character' : 'Equip weapons'}</div>
                 </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {Object.values(PLAYER_CHARACTERS).map((character) => {
-                    const isLocked = character.id === 'kkm' && !canPlayKKM(loadMeta());
-                    return (
-                      <button
-                        key={character.id}
-                        onClick={() => !isLocked && pickCharacter(character.id)}
-                        disabled={isLocked}
-                        className={`rounded-2xl border p-3 text-left transition ${isLocked ? 'border-zinc-700/50 bg-black/30 opacity-60 cursor-not-allowed' : 'border-white/15 bg-black/45 hover:border-amber-300/60 hover:bg-black/70'}`}
-                      >
-                        <div className="relative">
-                          <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
-                          {isLocked && <div className="absolute inset-0 flex items-center justify-center text-4xl">🔒</div>}
+
+                {buildStep === 'character' ? (
+                  <>
+                    <div className="mb-4 text-center">
+                      <div className="font-serif text-2xl italic text-amber-300">Choose Your Character</div>
+                      <div className="text-sm text-zinc-400">Each character has a unique power · weapons next</div>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {Object.values(PLAYER_CHARACTERS).map((character) => {
+                        const isLocked = character.id === 'kkm' && !canPlayKKM(loadMeta());
+                        const power = CHARACTER_POWERS[character.id];
+                        return (
+                          <button
+                            key={character.id}
+                            onClick={() => !isLocked && pickCharacter(character.id)}
+                            disabled={isLocked}
+                            className={`rounded-2xl border p-3 text-left transition ${isLocked ? 'border-zinc-700/50 bg-black/30 opacity-60 cursor-not-allowed' : 'border-white/15 bg-black/45 hover:border-amber-300/60 hover:bg-black/70'}`}
+                          >
+                            <div className="relative">
+                              <img src={character.avatar} alt={character.name} className="mb-2 h-32 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
+                              {isLocked && <div className="absolute inset-0 flex items-center justify-center text-4xl">🔒</div>}
+                            </div>
+                            <div className="font-black text-lg text-amber-200">{character.name} {isLocked ? '(Locked)' : ''}</div>
+                            <div className="text-xs text-zinc-300 mb-1">{isLocked ? 'Reach Level 3 · Defeat Zone 1 boss or spend 100 gems' : character.subtitle}</div>
+                            {power && !isLocked && (
+                              <div className="mt-1 rounded-lg border border-violet-400/30 bg-violet-500/10 px-2 py-1 text-[10px]">
+                                <span className="font-black text-violet-300">{power.name}</span>
+                                <span className="ml-1 text-zinc-300">{power.desc}</span>
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Header */}
+                    <div className="mb-3 flex items-center justify-between">
+                      <div className="font-serif text-xl italic text-amber-300">Your Loadout</div>
+                      <button onClick={() => { setBuildStep('character'); setPendingSlotPicking(null); }} className="text-xs text-zinc-400 hover:text-white">← Back</button>
+                    </div>
+
+                    {pendingSlotPicking !== null ? (
+                      /* Weapon picker for a specific slot */
+                      <>
+                        <div className="mb-3 flex items-center justify-between">
+                          <div className="text-sm font-black text-amber-200">Choose weapon for Slot {pendingSlotPicking + 1}</div>
+                          <button onClick={() => setPendingSlotPicking(null)} className="text-xs text-zinc-400 hover:text-white">✕ Cancel</button>
                         </div>
-                        <div className="font-black text-lg text-amber-200">{character.name} {isLocked ? '(Locked)' : ''}</div>
-                        <div className="text-xs text-zinc-300">{isLocked ? 'Defeat Zone 1 boss or spend 100 gems to unlock' : character.subtitle}</div>
-                      </button>
-                    );
-                  })}
-                </div>
+                        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                          {/* Empty slot option */}
+                          <button
+                            onClick={() => {
+                              setPendingWeaponIds((ids) => {
+                                const next = [...ids];
+                                next[pendingSlotPicking] = undefined;
+                                return next.filter(Boolean);
+                              });
+                              setPendingSlotPicking(null);
+                            }}
+                            className="rounded-xl border border-zinc-600/40 bg-black/25 p-2.5 text-left text-xs text-zinc-400 hover:border-white/30"
+                          >
+                            ✕ No weapon in this slot
+                          </button>
+                          {STARTER_WEAPON_OFFER.map((weapon) => {
+                            const isInOtherSlot = pendingWeaponIds.some((id, idx) => id === weapon.id && idx !== pendingSlotPicking);
+                            return (
+                              <button
+                                key={weapon.id}
+                                disabled={isInOtherSlot}
+                                onClick={() => {
+                                  if (isInOtherSlot) return;
+                                  setPendingWeaponIds((ids) => {
+                                    const next = [...ids];
+                                    next[pendingSlotPicking] = weapon.id;
+                                    return next;
+                                  });
+                                  setPendingSlotPicking(null);
+                                }}
+                                className={`rounded-xl border p-2.5 text-left transition ${isInOtherSlot ? 'border-zinc-700/30 bg-black/20 opacity-40 cursor-not-allowed' : 'border-white/15 bg-black/35 hover:border-amber-300/50 hover:bg-amber-400/10'}`}
+                              >
+                                <div className="mb-1 flex items-center gap-1.5">
+                                  <span className="text-lg">{getWeaponArchetypeEmoji(weapon.archetype)}</span>
+                                  <span className={`text-sm font-black ${getWeaponRarityColor(weapon.rarity)}`}>{weapon.name}</span>
+                                </div>
+                                <div className="text-[10px] text-zinc-300">{weapon.passive.description}</div>
+                                <div className="mt-1 text-[10px] text-cyan-300">⚡ {weapon.special.description} (CD {weapon.special.cooldown}t)</div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      /* Loadout overview: map + slots + power + ready */
+                      (() => {
+                        const meta = loadMeta();
+                        const maxSlots = hasDualWeaponSlot(meta) ? 2 : hasWeaponSlot(meta) ? 1 : 0;
+                        const allW = buildAllWeapons();
+                        const wById = new Map(allW.map((w) => [w.id, w]));
+                        const charPower = CHARACTER_POWERS[pendingCharId];
+                        const pendingChar = Object.values(PLAYER_CHARACTERS).find((c) => c.id === pendingCharId);
+                        return (
+                          <>
+                            {/* Map preview strip */}
+                            <div className="mb-3 flex items-center gap-2 rounded-2xl border border-amber-300/20 bg-black/40 px-3 py-2">
+                              <span className="text-2xl">🗺️</span>
+                              <div className="flex-1">
+                                <div className="text-xs font-black text-amber-300">Zone 1 — Jungle</div>
+                                <div className="text-[10px] text-zinc-400">Your path: Combat · Event · Boss · …</div>
+                              </div>
+                              <div className="flex gap-1.5 text-lg">
+                                <span title="Combat">⚔️</span>
+                                <span title="Event">❓</span>
+                                <span title="Boss">💀</span>
+                              </div>
+                            </div>
+
+                            {/* Weapon slots */}
+                            <div className="mb-2 space-y-2">
+                              {[0, 1].map((slotIdx) => {
+                                const equippedId = pendingWeaponIds[slotIdx];
+                                const equipped = equippedId ? wById.get(equippedId) : null;
+                                const isLocked = slotIdx >= maxSlots;
+                                return (
+                                  <button
+                                    key={slotIdx}
+                                    disabled={isLocked}
+                                    onClick={() => !isLocked && setPendingSlotPicking(slotIdx)}
+                                    className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${isLocked ? 'border-zinc-700/40 bg-black/20 opacity-50 cursor-not-allowed' : equipped ? 'border-amber-300/50 bg-amber-400/10 hover:bg-amber-400/15' : 'border-white/20 bg-black/35 hover:border-amber-300/40 hover:bg-black/50'}`}
+                                  >
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-black/40 text-2xl">
+                                      {isLocked ? '🔒' : equipped ? getWeaponArchetypeEmoji(equipped.archetype) : '⚔️'}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">Slot {slotIdx + 1}</span>
+                                        {isLocked && <span className="text-[9px] text-zinc-500">Unlock at Level 7</span>}
+                                      </div>
+                                      {equipped ? (
+                                        <>
+                                          <div className={`text-sm font-black ${getWeaponRarityColor(equipped.rarity)}`}>{equipped.name}</div>
+                                          <div className="text-[10px] text-zinc-300 truncate">{equipped.passive.description}</div>
+                                        </>
+                                      ) : isLocked ? (
+                                        <div className="text-xs text-zinc-500">Reach Level 7 to unlock</div>
+                                      ) : (
+                                        <div className="text-xs text-zinc-400">Tap to pick a weapon →</div>
+                                      )}
+                                    </div>
+                                    {!isLocked && <span className="text-zinc-500 text-lg">{equipped ? '✏️' : '+'}</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Power button */}
+                            {charPower && (
+                              <div className="mb-3 flex items-center gap-3 rounded-2xl border border-violet-400/30 bg-violet-500/10 p-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-violet-400/30 bg-violet-900/40 text-2xl">💥</div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-300">Character Power</div>
+                                  <div className="text-sm font-black text-violet-200">{charPower.name}</div>
+                                  <div className="text-[10px] text-zinc-300">{charPower.desc}</div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Start Run */}
+                            <Button
+                              onClick={() => confirmBuild(pendingCharId, pendingWeaponIds.filter(Boolean))}
+                              className="w-full rounded-2xl bg-amber-400 py-4 text-lg font-black text-black hover:bg-amber-300 shadow-[0_0_24px_rgba(252,211,77,0.35)]"
+                            >
+                              ⚔️ READY — Start Run
+                            </Button>
+                          </>
+                        );
+                      })()
+                    )}
+                  </>
+                )}
               </div>
             </motion.div>
           ) : null}
@@ -3057,12 +3385,18 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">Zone: <span className="font-black">{game.floor}</span></div>
                   <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">Score: <span className="font-black">{game.score}</span></div>
                   <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">No-hit: <span className="font-black">{game.noHitTurns}T</span></div>
+                  {game.player.weapons?.length > 0 && (
+                    <div className="col-span-2 rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-xs">
+                      Weapons: <span className="font-black text-amber-200">{game.player.weapons.map((w: Weapon) => `${getWeaponArchetypeEmoji(w.archetype)} ${w.name}`).join(' · ')}</span>
+                    </div>
+                  )}
                   <div className="col-span-2 rounded-xl border border-white/10 bg-black/35 px-3 py-2">Seed: <span className="font-black text-cyan-200">#{game.runSeed}</span></div>
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                   <Button onClick={submitScoreToLeaderboard} className="rounded-xl bg-violet-500/30 px-4 py-2 text-white hover:bg-violet-500/45">Submit score</Button>
                   <Button onClick={shareRun} className="rounded-xl bg-sky-500/35 px-4 py-2 text-white hover:bg-sky-500/50">Share run</Button>
-                  <Button onClick={restart} className="rounded-xl bg-white px-4 py-2 text-black hover:bg-zinc-200">Play again</Button>
+                  <Button onClick={quickRestart} className="rounded-xl bg-amber-400 px-4 py-2 font-black text-black hover:bg-amber-300">🔁 Quick Restart</Button>
+                  <Button onClick={restart} className="rounded-xl bg-white/15 border border-white/25 px-4 py-2 text-white hover:bg-white/25">🔧 Change Build</Button>
                 </div>
               </div>
             </motion.div>
@@ -3126,7 +3460,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   </div>
                   <Button onClick={() => setGame((g) => ({ ...g, showHowToPlay: false }))} className="rounded-xl bg-white/10 px-4 py-2 text-white hover:bg-white/20">✕</Button>
                 </div>
-                {/* Quick tutorial */}
+                {/* Quick tutorial — always visible */}
                 <div className="mb-3 space-y-1.5 text-sm text-white">
                   <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-300">Quick start</div>
                   <div>1️⃣ Press <span className="font-black text-amber-300">ROLL</span> to get your dice for the turn</div>
@@ -3136,17 +3470,51 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   <div>5️⃣ Kill all enemies in a zone to advance to the next one</div>
                 </div>
 
-                {/* HUD guide */}
-                <div className="mb-3 rounded-xl border border-cyan-300/20 bg-cyan-950/30 p-3 space-y-1.5 text-[12px] text-zinc-100">
-                  <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">HUD — what's on screen</div>
-                  <div>⚔️ <span className="font-black">Attack die</span> — black dice, deals damage (row multiplier applies)</div>
-                  <div>🛡️ <span className="font-black">Shield die</span> — white dice, adds shield this turn</div>
-                  <div>❤️ <span className="font-black">Heal die</span> — pink dice, restores HP</div>
-                  <div>🔥 <span className="font-black">Top row ×3</span> · ✨ <span className="font-black">Mid ×2</span> · 🪨 <span className="font-black">Bot ×1</span> — multipliers per row</div>
-                  <div>⏳ <span className="font-black">Cooldown</span> — used slots are locked for N turns; board saturates if all slots locked</div>
-                  <div>💀 <span className="font-black">Enemy intent</span> — shown above enemy; predicts next action</div>
-                  <div>⚡ <span className="font-black">Enemy charge</span> — bar fills each turn; at max = SURGE (heavy attack)</div>
-                </div>
+                {/* How to Score — collapsible */}
+                <button
+                  onClick={() => setShowScoringGuide((v) => !v)}
+                  className="flex w-full items-center justify-between rounded-xl border border-amber-300/20 bg-amber-950/20 px-3 py-2 text-[12px] font-black text-amber-300 hover:bg-amber-950/35 mb-2"
+                >
+                  <span>📊 How to score more</span>
+                  <span>{showScoringGuide ? '▲' : '▼'}</span>
+                </button>
+                {showScoringGuide && (
+                  <div className="mb-2 rounded-xl border border-amber-300/15 bg-black/40 p-3 text-[12px] space-y-1.5 text-zinc-100">
+                    <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-amber-300">Score sources</div>
+                    <div>⚔️ <span className="font-black text-amber-200">Kill +120</span> — base score per enemy killed</div>
+                    <div>💥 <span className="font-black text-rose-300">Overkill</span> — excess damage × 5 bonus points</div>
+                    <div>⚡ <span className="font-black text-violet-300">One Shot +100</span> — kill enemy on their first intent</div>
+                    <div>🎯 <span className="font-black text-lime-300">No-hit streak</span> — multiplier grows every turn you don't take HP damage</div>
+                    <div>🌿 <span className="font-black text-emerald-300">Zone mult</span> — deeper zones multiply all score (Zone 2 = ×1.2, Zone 3 = ×1.4…)</div>
+                    <div>✨ <span className="font-black text-cyan-300">Perfect +150</span> — kill enemy without taking any HP damage this fight</div>
+                    <div>👑 <span className="font-black text-amber-300">Boss +500</span> — flat bonus on boss kill</div>
+                    <div className="mt-2 border-t border-white/10 pt-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-400">Top tips</div>
+                    <div>🎯 <span className="font-black">Don't get hit.</span> The no-hit streak multiplier is your biggest score lever.</div>
+                    <div>🔱 <span className="font-black">Pierce + Top row.</span> Top row ×3 + pierce ignores shield = massive overkill combos.</div>
+                    <div>⚡ <span className="font-black">One Shot on first intent.</span> Plan your board so enemy dies before they even act.</div>
+                    <div>🌿 <span className="font-black">Survive deep.</span> Zone 5 = ×1.8 multiplier on every kill.</div>
+                  </div>
+                )}
+
+                {/* HUD guide — collapsible */}
+                <button
+                  onClick={() => setShowHudGuide((v) => !v)}
+                  className="flex w-full items-center justify-between rounded-xl border border-cyan-300/20 bg-cyan-950/20 px-3 py-2 text-[12px] font-black text-cyan-300 hover:bg-cyan-950/35 mb-2"
+                >
+                  <span>🖥️ HUD guide</span>
+                  <span>{showHudGuide ? '▲' : '▼'}</span>
+                </button>
+                {showHudGuide && (
+                  <div className="mb-2 rounded-xl border border-cyan-300/15 bg-black/40 p-3 space-y-1.5 text-[12px] text-zinc-100">
+                    <div>⚔️ <span className="font-black">Attack die</span> — black dice, deals damage (row multiplier applies)</div>
+                    <div>🛡️ <span className="font-black">Shield die</span> — white dice, adds shield this turn</div>
+                    <div>❤️ <span className="font-black">Heal die</span> — pink dice, restores HP</div>
+                    <div>🔥 <span className="font-black">Top row ×3</span> · ✨ <span className="font-black">Mid ×2</span> · 🪨 <span className="font-black">Bot ×1</span> — multipliers per row</div>
+                    <div>⏳ <span className="font-black">Cooldown</span> — used slots are locked for N turns; board saturates if all slots locked</div>
+                    <div>💀 <span className="font-black">Enemy intent</span> — shown above enemy; predicts next action</div>
+                    <div>⚡ <span className="font-black">Enemy charge</span> — bar fills each turn; at max = SURGE (heavy attack)</div>
+                  </div>
+                )}
 
                 {/* Advanced guide toggle */}
                 <button
