@@ -23,6 +23,14 @@ const runsFile = path.join(__dirname, 'data', 'runs.json');
 const referralsFile = path.join(__dirname, 'data', 'referrals.json');
 const miniappTelemetryFile = path.join(__dirname, 'data', 'miniapp-telemetry.json');
 const miniappConfigFile = path.join(__dirname, 'data', 'miniapp-config.json');
+const sprintFile = path.join(__dirname, 'data', 'sprint.json');
+const crmFile = path.join(__dirname, 'data', 'crm.json');
+const academyProgressFile = path.join(__dirname, 'data', 'academy-progress.json');
+const narrativeFile  = path.join(__dirname, 'data', 'narrative.json');
+const signalsFile    = path.join(__dirname, 'data', 'signals.json');
+const coinFactoryFile = path.join(__dirname, 'data', 'coin-factory.json');
+const kkmFile        = path.join(__dirname, 'data', 'kkm.json');
+const opsBoardFile   = path.join(__dirname, 'data', 'ops-board.json');
 
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -1161,7 +1169,173 @@ const server = createServer(async (req, res) => {
     }
   }
 
+  // ── Sprint Board ──────────────────────────────────────────────────────────
+  if (pathname === '/api/sprint/goals' && req.method === 'GET') {
+    try {
+      let data = { goals: [] };
+      try { data = JSON.parse(await readFile(sprintFile, 'utf8')); } catch {}
+      return send(res, 200, { ok: true, goals: data.goals || [] });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathname === '/api/sprint/goals' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      if (!Array.isArray(body.goals)) return send(res, 400, { ok: false, error: 'goals must be an array' });
+      await writeFile(sprintFile, JSON.stringify({ goals: body.goals, updatedAt: new Date().toISOString() }, null, 2));
+      return send(res, 200, { ok: true });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  // ── CRM Angel ─────────────────────────────────────────────────────────────
+  if (pathname === '/api/crm/deals' && req.method === 'GET') {
+    try {
+      let data = { deals: [] };
+      try { data = JSON.parse(await readFile(crmFile, 'utf8')); } catch {}
+      return send(res, 200, { ok: true, deals: data.deals || [] });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathname === '/api/crm/deals' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      if (!Array.isArray(body.deals)) return send(res, 400, { ok: false, error: 'deals must be an array' });
+      await writeFile(crmFile, JSON.stringify({ deals: body.deals, updatedAt: new Date().toISOString() }, null, 2));
+      return send(res, 200, { ok: true });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  // ── Academy Progress (linked to Telegram ID) ─────────────────────────────
+  if (pathname === '/api/academy/progress' && req.method === 'GET') {
+    try {
+      const telegramId = requestUrl.searchParams.get('telegramId') || '';
+      if (!telegramId) return send(res, 400, { ok: false, error: 'telegramId required' });
+      let data = { progress: {} };
+      try { data = JSON.parse(await readFile(academyProgressFile, 'utf8')); } catch {}
+      const userProgress = data.progress[telegramId] || { doneByLesson: {}, lastLessonByPack: {} };
+      return send(res, 200, { ok: true, progress: userProgress });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathname === '/api/academy/progress' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      const { telegramId, doneByLesson, lastLessonByPack } = body;
+      if (!telegramId) return send(res, 400, { ok: false, error: 'telegramId required' });
+      let data = { progress: {} };
+      try { data = JSON.parse(await readFile(academyProgressFile, 'utf8')); } catch {}
+      data.progress[telegramId] = {
+        doneByLesson: doneByLesson || {},
+        lastLessonByPack: lastLessonByPack || {},
+        updatedAt: new Date().toISOString(),
+      };
+      await writeFile(academyProgressFile, JSON.stringify(data, null, 2));
+      return send(res, 200, { ok: true });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
   // ── Health ────────────────────────────────────────────────────────────────
+  // ── Narrative Board ───────────────────────────────────────────────────────
+  if (pathname === '/api/narrative/cards' && req.method === 'GET') {
+    try {
+      let data = { cards: [] };
+      try { data = JSON.parse(await readFile(narrativeFile, 'utf8')); } catch {}
+      return send(res, 200, { ok: true, cards: data.cards || [] });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathname === '/api/narrative/cards' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      if (!Array.isArray(body.cards)) return send(res, 400, { ok: false, error: 'cards must be an array' });
+      await writeFile(narrativeFile, JSON.stringify({ cards: body.cards, updatedAt: new Date().toISOString() }, null, 2));
+      return send(res, 200, { ok: true });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  // ── Signal Board ──────────────────────────────────────────────────────────
+  if (pathname === '/api/signals' && req.method === 'GET') {
+    try {
+      let data = { signals: [] };
+      try { data = JSON.parse(await readFile(signalsFile, 'utf8')); } catch {}
+      return send(res, 200, { ok: true, signals: data.signals || [] });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+  if (pathname === '/api/signals' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      if (!Array.isArray(body.signals)) return send(res, 400, { ok: false, error: 'signals must be array' });
+      await writeFile(signalsFile, JSON.stringify({ signals: body.signals, updatedAt: new Date().toISOString() }, null, 2));
+      return send(res, 200, { ok: true });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+
+  // ── Coin Factory ──────────────────────────────────────────────────────────
+  if (pathname === '/api/coin-factory' && req.method === 'GET') {
+    try {
+      let data = { coins: [] };
+      try { data = JSON.parse(await readFile(coinFactoryFile, 'utf8')); } catch {}
+      return send(res, 200, { ok: true, coins: data.coins || [] });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+  if (pathname === '/api/coin-factory' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      if (!Array.isArray(body.coins)) return send(res, 400, { ok: false, error: 'coins must be array' });
+      await writeFile(coinFactoryFile, JSON.stringify({ coins: body.coins, updatedAt: new Date().toISOString() }, null, 2));
+      return send(res, 200, { ok: true });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+
+  // ── KKM Dashboard ─────────────────────────────────────────────────────────
+  if (pathname === '/api/kkm' && req.method === 'GET') {
+    try {
+      let data = { metrics: {}, signals: [] };
+      try { data = JSON.parse(await readFile(kkmFile, 'utf8')); } catch {}
+      return send(res, 200, { ok: true, metrics: data.metrics || {}, signals: data.signals || [] });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+  if (pathname === '/api/kkm' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      await writeFile(kkmFile, JSON.stringify({ metrics: body.metrics || {}, signals: body.signals || [], updatedAt: new Date().toISOString() }, null, 2));
+      return send(res, 200, { ok: true });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+
+  // ── Ops Board ──────────────────────────────────────────────────────────────
+  if (pathname === '/api/ops-board' && req.method === 'GET') {
+    try {
+      let data = { cards: [] };
+      try { data = JSON.parse(await readFile(opsBoardFile, 'utf8')); } catch {}
+      return send(res, 200, { ok: true, cards: data.cards || [] });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+  if (pathname === '/api/ops-board' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      if (!Array.isArray(body.cards)) return send(res, 400, { ok: false, error: 'cards must be array' });
+      await writeFile(opsBoardFile, JSON.stringify({ cards: body.cards, updatedAt: new Date().toISOString() }, null, 2));
+      return send(res, 200, { ok: true });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+
   if (req.url === '/health') return send(res, 200, { ok: true });
   return send(res, 404, { ok: false, error: 'Not found' });
 });

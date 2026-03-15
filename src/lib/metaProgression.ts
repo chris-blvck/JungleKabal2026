@@ -29,7 +29,41 @@ export interface MetaProgressionState {
   totalRuns: number;
   totalKills: number;
   bestScore: number;
+  badges: string[];         // e.g. 'veteran', 'elite', 'jungle_king'
 }
+
+// ── Battle Pass ───────────────────────────────────────────────────────────────
+
+export interface LevelReward {
+  level: number;
+  type: 'gems' | 'unlock' | 'badge';
+  value: number | string;
+  label: string;
+  emoji: string;
+}
+
+export const LEVEL_REWARDS: LevelReward[] = [
+  { level: 1,  type: 'gems',   value: 50,                label: '+50 Gems',            emoji: '💎' },
+  { level: 2,  type: 'gems',   value: 75,                label: '+75 Gems',            emoji: '💎' },
+  { level: 3,  type: 'unlock', value: 'dice_specials',   label: 'Special Dice Faces',  emoji: '✦' },
+  { level: 4,  type: 'gems',   value: 100,               label: '+100 Gems',           emoji: '💎' },
+  { level: 5,  type: 'unlock', value: 'lane_bonuses',    label: 'Lane Conditionals',   emoji: '🎯' },
+  { level: 6,  type: 'gems',   value: 150,               label: '+150 Gems',           emoji: '💎' },
+  { level: 7,  type: 'unlock', value: 'companion_gecko', label: 'Gecko Mystique 🦎',   emoji: '🦎' },
+  { level: 8,  type: 'gems',   value: 200,               label: '+200 Gems',           emoji: '💎' },
+  { level: 9,  type: 'unlock', value: 'character_kkm',   label: 'KKM Playable',        emoji: '🤖' },
+  { level: 10, type: 'badge',  value: 'veteran',         label: 'Veteran Badge',       emoji: '🏅' },
+  { level: 11, type: 'gems',   value: 250,               label: '+250 Gems',           emoji: '💎' },
+  { level: 12, type: 'unlock', value: 'companion_croak', label: 'Croak Jr. 🐊',        emoji: '🐊' },
+  { level: 13, type: 'gems',   value: 300,               label: '+300 Gems',           emoji: '💎' },
+  { level: 14, type: 'unlock', value: 'weapon_slot_1',   label: 'Weapon Slot',         emoji: '⚔️' },
+  { level: 15, type: 'badge',  value: 'elite',           label: 'Elite Badge',         emoji: '⭐' },
+  { level: 16, type: 'gems',   value: 400,               label: '+400 Gems',           emoji: '💎' },
+  { level: 17, type: 'unlock', value: 'companion_oeil',  label: "L'Œil 👁️",           emoji: '👁️' },
+  { level: 18, type: 'gems',   value: 500,               label: '+500 Gems',           emoji: '💎' },
+  { level: 19, type: 'unlock', value: 'weapon_slot_2',   label: '2nd Weapon Slot',     emoji: '🗡️' },
+  { level: 20, type: 'badge',  value: 'jungle_king',     label: 'Jungle King 👑',      emoji: '👑' },
+];
 
 // ── Unlock definitions ────────────────────────────────────────────────────────
 
@@ -116,7 +150,29 @@ export const UNLOCKS: MetaUnlock[] = [
 
 // ── XP levels ─────────────────────────────────────────────────────────────────
 
-const XP_PER_LEVEL = [0, 100, 250, 500, 900, 1500, 2500, 4000];
+const XP_PER_LEVEL = [
+  0,      // Lvl 0
+  100,    // Lvl 1
+  250,    // Lvl 2
+  500,    // Lvl 3
+  900,    // Lvl 4
+  1500,   // Lvl 5
+  2500,   // Lvl 6
+  4000,   // Lvl 7
+  6000,   // Lvl 8
+  8500,   // Lvl 9
+  12000,  // Lvl 10 — PRESTIGE milestone
+  16000,  // Lvl 11
+  21000,  // Lvl 12
+  27000,  // Lvl 13
+  34000,  // Lvl 14
+  42000,  // Lvl 15 — PRESTIGE milestone
+  52000,  // Lvl 16
+  64000,  // Lvl 17
+  78000,  // Lvl 18
+  95000,  // Lvl 19
+  115000, // Lvl 20 — JUNGLE KING
+];
 
 export function computeLevel(xp: number): number {
   for (let i = XP_PER_LEVEL.length - 1; i >= 0; i--) {
@@ -146,6 +202,7 @@ const DEFAULT_STATE: MetaProgressionState = {
   totalRuns: 0,
   totalKills: 0,
   bestScore: 0,
+  badges: [],
 };
 
 export function loadMeta(): MetaProgressionState {
@@ -161,6 +218,7 @@ export function loadMeta(): MetaProgressionState {
       totalRuns: parsed.totalRuns ?? 0,
       totalKills: parsed.totalKills ?? 0,
       bestScore: parsed.bestScore ?? 0,
+      badges: Array.isArray(parsed.badges) ? parsed.badges : [],
     };
   } catch {
     return { ...DEFAULT_STATE };
@@ -220,6 +278,9 @@ export interface RunReward {
   gemsGained: number;
   newAchievements: string[];
   newUnlocks: UnlockId[];
+  oldLevel: number;
+  newLevel: number;
+  levelUpRewards: LevelReward[];
 }
 
 export function recordRunEnd(
@@ -235,6 +296,8 @@ export function recordRunEnd(
     if (!meta.achievements.includes(key)) newAchievements.push(key);
   }
 
+  const oldLevel = computeLevel(meta.xp);
+
   let next: MetaProgressionState = {
     ...meta,
     xp: meta.xp + xpGained,
@@ -244,13 +307,47 @@ export function recordRunEnd(
     bestScore: Math.max(meta.bestScore, run.score),
   };
 
-  const prevUnlocks = new Set(next.unlockedIds);
+  // Apply level-up rewards from battle pass
+  const newLevel = computeLevel(next.xp);
+  const levelUpRewards = LEVEL_REWARDS.filter(r => r.level > oldLevel && r.level <= newLevel);
+  let bonusGemsFromLevels = 0;
+  for (const r of levelUpRewards) {
+    if (r.type === 'gems') {
+      bonusGemsFromLevels += r.value as number;
+    } else if (r.type === 'unlock') {
+      const id = r.value as UnlockId;
+      if (!next.unlockedIds.includes(id)) {
+        next = { ...next, unlockedIds: [...next.unlockedIds, id] };
+      }
+    } else if (r.type === 'badge') {
+      const badge = r.value as string;
+      if (!next.badges.includes(badge)) {
+        next = { ...next, badges: [...next.badges, badge] };
+      }
+    }
+  }
+  if (bonusGemsFromLevels > 0) {
+    next = { ...next, gems: next.gems + bonusGemsFromLevels };
+  }
+
+  const prevUnlocks = new Set(meta.unlockedIds);
   for (const ach of newAchievements) {
     next = recordAchievement(next, ach);
   }
   const newUnlocks = next.unlockedIds.filter(id => !prevUnlocks.has(id)) as UnlockId[];
 
-  return { next, reward: { xpGained, gemsGained, newAchievements, newUnlocks } };
+  return {
+    next,
+    reward: {
+      xpGained,
+      gemsGained: gemsGained + bonusGemsFromLevels,
+      newAchievements,
+      newUnlocks,
+      oldLevel,
+      newLevel,
+      levelUpRewards,
+    },
+  };
 }
 
 // ── Feature gating helpers ────────────────────────────────────────────────────

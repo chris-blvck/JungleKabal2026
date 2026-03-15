@@ -1,48 +1,86 @@
 // ============================================================
 // JUNGLE KABAL — CRM ANGEL
-// Deal pipeline & investor tracker
+// Deal pipeline & investor tracker · Persistent via API
 // ============================================================
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Shell, { JK, Card, Badge, Divider, SectionTitle } from "../components/JKShell";
 
 const G = "#F5A623";
+const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 const STAGES = [
-  { id: "new",          label: "NEW",          color: "#3B82F6" },
-  { id: "interested",   label: "INTERESTED",   color: G },
-  { id: "negotiating",  label: "NEGOTIATING",  color: "#A855F7" },
-  { id: "committed",    label: "COMMITTED",    color: "#22C55E" },
-  { id: "closed",       label: "CLOSED ✓",     color: JK.green },
-  { id: "dead",         label: "DEAD",         color: "#555" },
+  { id: "new",         label: "NEW",         color: "#3B82F6" },
+  { id: "interested",  label: "INTERESTED",  color: G },
+  { id: "negotiating", label: "NEGOTIATING", color: "#A855F7" },
+  { id: "committed",   label: "COMMITTED",   color: "#22C55E" },
+  { id: "closed",      label: "CLOSED ✓",    color: JK.green },
+  { id: "dead",        label: "DEAD",        color: "#555" },
 ];
 
 const INITIAL_DEALS = [
-  { id: 1, name: "Alex M.",   stage: "interested",  amount: 50000,  type: "Angel",   notes: "Met at Token2049",        socials: "@alexm",  date: "2026-02-15", followUp: "2026-03-20" },
-  { id: 2, name: "TechVC",    stage: "new",         amount: 150000, type: "VC",      notes: "Warm intro via Marco",    socials: "",        date: "2026-03-01", followUp: "2026-03-15" },
-  { id: 3, name: "Raj S.",    stage: "negotiating", amount: 75000,  type: "Angel",   notes: "Wants 5% equity",         socials: "@rajsolana", date: "2026-01-20", followUp: "2026-03-10" },
+  { id: 1, name: "Alex M.",  stage: "interested",  amount: 50000,  type: "Angel", notes: "Met at Token2049",     socials: "@alexm",     date: "2026-02-15", followUp: "2026-03-20" },
+  { id: 2, name: "TechVC",   stage: "new",         amount: 150000, type: "VC",    notes: "Warm intro via Marco", socials: "",           date: "2026-03-01", followUp: "2026-03-15" },
+  { id: 3, name: "Raj S.",   stage: "negotiating", amount: 75000,  type: "Angel", notes: "Wants 5% equity",      socials: "@rajsolana", date: "2026-01-20", followUp: "2026-03-10" },
 ];
 
-const TYPE_COLORS = {
-  Angel: G,
-  VC:    "#A855F7",
-  KOL:   "#EC4899",
-  LP:    "#22C55E",
-};
-
+const TYPE_COLORS = { Angel: G, VC: "#A855F7", KOL: "#EC4899", LP: "#22C55E" };
 const inp = { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "10px 13px", color: "#fff", fontSize: 13, fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" };
 const lbl = { fontSize: 9, color: "#555", letterSpacing: 2, marginBottom: 6, fontFamily: "'Cinzel',serif", display: "block" };
 
 export default function CRMAngel() {
   const navigate = useNavigate();
   const [deals, setDeals] = useState(INITIAL_DEALS);
-  const [nextId, setNextId] = useState(10);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null);
+  const [nextId, setNextId] = useState(100);
   const [addMode, setAddMode] = useState(false);
   const [editId, setEditId] = useState(null);
   const [filter, setFilter] = useState("all");
-  const [draft, setDraft] = useState({ name: "", stage: "new", amount: "", type: "Angel", notes: "", socials: "", date: new Date().toISOString().slice(0, 10), followUp: "" });
-
   const today = new Date().toISOString().slice(0, 10);
+  const [draft, setDraft] = useState({ name: "", stage: "new", amount: "", type: "Angel", notes: "", socials: "", date: today, followUp: "" });
+  const saveTimer = useRef(null);
+
+  // Load from API on mount
+  useEffect(() => {
+    fetch(`${API_BASE}/api/crm/deals`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && Array.isArray(data.deals) && data.deals.length) {
+          setDeals(data.deals);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+
+  // Auto-save 1.5s after any change
+  useEffect(() => {
+    if (!loaded) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => persistDeals(deals), 1500);
+    return () => clearTimeout(saveTimer.current);
+  }, [deals, loaded]);
+
+  async function persistDeals(nextDeals) {
+    setSaving(true);
+    try {
+      const r = await fetch(`${API_BASE}/api/crm/deals`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deals: nextDeals }),
+      });
+      const data = await r.json();
+      setSaveStatus(data.ok ? "saved" : "error");
+    } catch {
+      setSaveStatus("error");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveStatus(null), 2500);
+    }
+  }
+
   const filtered = filter === "all" ? deals : deals.filter(d => d.stage === filter);
   const activeDeals = deals.filter(d => !["closed", "dead"].includes(d.stage));
   const pipeline = activeDeals.reduce((s, d) => s + (parseFloat(d.amount) || 0), 0);
@@ -52,10 +90,11 @@ export default function CRMAngel() {
   function saveDeal() {
     if (!draft.name.trim()) return;
     if (editId !== null) {
-      setDeals(prev => prev.map(d => d.id === editId ? { ...draft, id: editId } : d));
+      setDeals(prev => prev.map(d => d.id === editId ? { ...draft, id: editId, amount: parseFloat(draft.amount) || 0 } : d));
       setEditId(null);
     } else {
-      setDeals(prev => [...prev, { ...draft, id: nextId, amount: parseFloat(draft.amount) || 0 }]);
+      const newId = nextId;
+      setDeals(prev => [...prev, { ...draft, id: newId, amount: parseFloat(draft.amount) || 0 }]);
       setNextId(n => n + 1);
     }
     setDraft({ name: "", stage: "new", amount: "", type: "Angel", notes: "", socials: "", date: today, followUp: "" });
@@ -73,25 +112,35 @@ export default function CRMAngel() {
   }
 
   function deleteDeal(id) {
+    const deal = deals.find(d => d.id === id);
+    if (!window.confirm(`Supprimer le deal "${deal?.name}" ?`)) return;
     setDeals(prev => prev.filter(d => d.id !== id));
   }
 
   return (
-    <Shell
-      title={<>CRM <span style={{ color: JK.gold }}>ANGEL</span></>}
-      subtitle="Deal pipeline · Investor tracking · Angel round"
-      maxWidth={1000}
-    >
-      <button onClick={() => navigate("/")} style={{ background: "transparent", border: "none", color: JK.muted, cursor: "pointer", fontSize: 12, letterSpacing: 1, marginBottom: 20, padding: 0, fontFamily: "inherit" }}>
-        ← BACK TO HQ
-      </button>
+    <Shell title={<>CRM <span style={{ color: JK.gold }}>ANGEL</span></>} subtitle="Deal pipeline · Investor tracking · Angel round · Partagé avec toute l'équipe" maxWidth={1000}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <button onClick={() => navigate("/")} style={{ background: "transparent", border: "none", color: JK.muted, cursor: "pointer", fontSize: 12, letterSpacing: 1, padding: 0, fontFamily: "inherit" }}>← BACK TO HQ</button>
+        {(saving || saveStatus) && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            background: saving ? "rgba(245,166,35,0.08)" : saveStatus === "saved" ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)",
+            border: `1px solid ${saving ? G + "33" : saveStatus === "saved" ? JK.green + "33" : JK.red + "33"}`,
+            borderRadius: 8, padding: "6px 12px",
+            fontSize: 11, fontWeight: 600, letterSpacing: 0.5,
+            color: saving ? G : saveStatus === "saved" ? JK.green : JK.red,
+          }}>
+            {saving ? "⏳ Sauvegarde…" : saveStatus === "saved" ? "✓ Sauvegardé" : "✕ Erreur de sauvegarde"}
+          </div>
+        )}
+      </div>
 
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 20 }}>
         {[
-          { l: "PIPELINE",       v: `$${(pipeline / 1000).toFixed(0)}K`,      color: G },
-          { l: "CLOSED",         v: `$${(closed / 1000).toFixed(0)}K`,        color: JK.green },
-          { l: "ACTIVE DEALS",   v: activeDeals.length },
+          { l: "PIPELINE",        v: `$${(pipeline / 1000).toFixed(0)}K`, color: G },
+          { l: "CLOSED",          v: `$${(closed / 1000).toFixed(0)}K`,   color: JK.green },
+          { l: "ACTIVE DEALS",    v: activeDeals.length },
           { l: "FOLLOW UP TODAY", v: followUpToday, color: followUpToday > 0 ? JK.red : "#555" },
         ].map(({ l, v, color }) => (
           <Card key={l} style={{ padding: "12px 16px", textAlign: "center" }}>
@@ -101,7 +150,7 @@ export default function CRMAngel() {
         ))}
       </div>
 
-      {/* Pipeline kanban summary */}
+      {/* Pipeline kanban */}
       <Card style={{ marginBottom: 16, padding: "12px 16px" }}>
         <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
           {STAGES.map(s => {
@@ -122,7 +171,7 @@ export default function CRMAngel() {
         </div>
       </Card>
 
-      {/* Add/Edit form */}
+      {/* Add/Edit form button */}
       <div style={{ marginBottom: 16, display: "flex", justifyContent: "flex-end" }}>
         <button onClick={() => { setAddMode(!addMode); setEditId(null); setDraft({ name: "", stage: "new", amount: "", type: "Angel", notes: "", socials: "", date: today, followUp: "" }); }}
           style={{ background: `rgba(245,166,35,0.12)`, border: `1px solid ${G}44`, borderRadius: 8, color: G, fontWeight: 700, fontSize: 11, letterSpacing: 1.5, padding: "9px 18px", cursor: "pointer", fontFamily: "inherit" }}>
@@ -135,12 +184,12 @@ export default function CRMAngel() {
           <SectionTitle>{editId ? "Edit" : "New"} <span style={{ color: JK.gold }}>Deal</span></SectionTitle>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 12, marginBottom: 14 }}>
             {[
-              { k: "name",     l: "CONTACT NAME", ph: "Alex M." },
-              { k: "amount",   l: "AMOUNT ($)",   ph: "50000" },
-              { k: "socials",  l: "TWITTER / SOCIAL", ph: "@handle" },
-              { k: "date",     l: "FIRST CONTACT DATE", ph: today, type: "date" },
-              { k: "followUp", l: "FOLLOW-UP DATE",     ph: today, type: "date" },
-              { k: "notes",    l: "NOTES",         ph: "Context, intro, details…" },
+              { k: "name",     l: "CONTACT NAME",      ph: "Alex M." },
+              { k: "amount",   l: "AMOUNT ($)",        ph: "50000" },
+              { k: "socials",  l: "TWITTER / SOCIAL",  ph: "@handle" },
+              { k: "date",     l: "FIRST CONTACT",     ph: today, type: "date" },
+              { k: "followUp", l: "FOLLOW-UP DATE",    ph: today, type: "date" },
+              { k: "notes",    l: "NOTES",             ph: "Context, intro, details…" },
             ].map(({ k, l, ph, type }) => (
               <div key={k}>
                 <span style={lbl}>{l}</span>
@@ -168,19 +217,25 @@ export default function CRMAngel() {
 
       {/* Deals table */}
       <Card>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 90px 90px 80px 1fr 80px", gap: 8, padding: "8px 12px", fontSize: 8, color: "#333", letterSpacing: 2, fontFamily: "'Cinzel',serif", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+        {filtered.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "40px 24px" }}>
+            <div style={{ fontSize: 32, marginBottom: 10 }}>🤝</div>
+            <div style={{ fontFamily: "'Cinzel',serif", fontSize: 12, color: G, letterSpacing: 2, marginBottom: 6 }}>NO DEALS IN THIS STAGE</div>
+            <div style={{ fontSize: 11, color: JK.muted }}>Click <strong style={{ color: G }}>+ NEW DEAL</strong> to add one</div>
+          </div>
+        ) : (
+        <div style={{ overflowX: "auto" }}>
+        <div style={{ minWidth: 700 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 90px 110px 80px 1fr 72px", gap: 8, padding: "8px 12px", fontSize: 8, color: "#555", letterSpacing: 2, fontFamily: "'Cinzel',serif", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
           <span>CONTACT</span><span>TYPE</span><span>AMOUNT</span><span>STAGE</span><span>FOLLOW-UP</span><span>NOTES</span><span></span>
         </div>
-        {filtered.length === 0 && (
-          <div style={{ textAlign: "center", color: "#2a2a2a", fontSize: 12, padding: "24px 0" }}>No deals in this stage</div>
-        )}
         {filtered.map(d => {
           const stage = STAGES.find(s => s.id === d.stage) || STAGES[0];
           const typeColor = TYPE_COLORS[d.type] || G;
           const isFollowUp = d.followUp === today;
           return (
             <div key={d.id} style={{
-              display: "grid", gridTemplateColumns: "1fr 80px 90px 90px 80px 1fr 80px", gap: 8,
+              display: "grid", gridTemplateColumns: "1fr 80px 90px 110px 80px 1fr 72px", gap: 8,
               padding: "12px 12px", borderBottom: "1px solid rgba(255,255,255,0.03)", alignItems: "center",
               background: isFollowUp ? "rgba(239,68,68,0.04)" : "transparent",
             }}>
@@ -190,7 +245,7 @@ export default function CRMAngel() {
                 <div style={{ fontSize: 9, color: "#333", marginTop: 1 }}>{d.date}</div>
               </div>
               <span style={{ fontSize: 9, color: typeColor, background: `${typeColor}18`, border: `1px solid ${typeColor}33`, borderRadius: 4, padding: "2px 7px", textAlign: "center", fontFamily: "'Cinzel',serif", letterSpacing: 0.5 }}>{d.type}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: G, fontFamily: "'Space Mono',monospace" }}>${(d.amount / 1000).toFixed(0)}K</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: G, fontFamily: "'Space Mono',monospace" }}>${(parseFloat(d.amount) / 1000).toFixed(0)}K</span>
               <div>
                 <select value={d.stage} onChange={e => moveStage(d.id, e.target.value)}
                   style={{ background: `${stage.color}18`, border: `1px solid ${stage.color}33`, borderRadius: 6, padding: "4px 8px", color: stage.color, fontSize: 9, fontFamily: "'Cinzel',serif", letterSpacing: 0.5, cursor: "pointer", outline: "none" }}>
@@ -209,6 +264,9 @@ export default function CRMAngel() {
             </div>
           );
         })}
+        </div>
+        </div>
+        )}
       </Card>
     </Shell>
   );

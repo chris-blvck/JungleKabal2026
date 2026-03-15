@@ -82,6 +82,8 @@ const masterUpdateList = [
   },
 ];
 
+const API_BASE = import.meta.env.VITE_API_BASE || "";
+
 const defaultWeeklyLeaderboard = [
   { rank: 1, name: "Rex", points: 1420, streak: 12 },
   { rank: 2, name: "Mina", points: 1360, streak: 10 },
@@ -156,6 +158,10 @@ export default function KabalAcademyMVP() {
   const [notifChannel, setNotifChannel] = useState("telegram");
   const [notifContact, setNotifContact] = useState("");
   const [notifStatus, setNotifStatus] = useState("");
+  const [accessWallet, setAccessWallet] = useState("");
+  const [accessTelegramId, setAccessTelegramId] = useState("");
+  const [hasAcademyAccess, setHasAcademyAccess] = useState(false);
+  const [accessLoading, setAccessLoading] = useState(false);
 
   useEffect(() => {
     try {
@@ -190,7 +196,14 @@ export default function KabalAcademyMVP() {
 
   useEffect(() => {
     localStorage.setItem(DONE_LESSONS_KEY, JSON.stringify(doneByLesson));
-  }, [doneByLesson]);
+    // Sync to API if telegramId is available
+    if (!accessTelegramId || !API_BASE) return;
+    fetch(`${API_BASE}/api/academy/progress`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId: accessTelegramId, doneByLesson, lastLessonByPack }),
+    }).catch(() => {});
+  }, [doneByLesson, accessTelegramId, lastLessonByPack]);
 
   useEffect(() => {
     loadAcademyContent(seed).then((content) => {
@@ -213,6 +226,24 @@ export default function KabalAcademyMVP() {
       if (Array.isArray(rows) && rows.length) setLeaderboard(rows);
     });
   }, []);
+
+  // Load progress from API when telegramId is available (overrides localStorage)
+  useEffect(() => {
+    if (!accessTelegramId || !API_BASE) return;
+    fetch(`${API_BASE}/api/academy/progress?telegramId=${encodeURIComponent(accessTelegramId)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.ok) return;
+        const { doneByLesson: apiDone, lastLessonByPack: apiLast } = data.progress || {};
+        if (apiDone && typeof apiDone === "object" && Object.keys(apiDone).length) {
+          setDoneByLesson(apiDone);
+        }
+        if (apiLast && typeof apiLast === "object" && Object.keys(apiLast).length) {
+          setLastLessonByPack(apiLast);
+        }
+      })
+      .catch(() => {});
+  }, [accessTelegramId]);
 
   const allPacks = useMemo(() => getPacks(academy), [academy]);
   const packs = useMemo(() => {
