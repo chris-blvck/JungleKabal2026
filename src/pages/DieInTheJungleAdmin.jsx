@@ -302,6 +302,8 @@ const EMPTY_CONFIG = {
     artifactWeights: { gray: 4, gold: 3, chrome: 1 },
     starterWeights: { gray: 6, gold: 3, chrome: 1 },
     shopItemEnabled: {},
+    shopItemCosts: {},
+    shopCustomItems: [],
     mapNodeWeights: { combat: 3, shop: 1, rest: 1, event: 1 },
   },
   featureFlags: {
@@ -404,6 +406,8 @@ function withDefaults(raw = {}) {
       artifactWeights: { ...EMPTY_CONFIG.pools.artifactWeights, ...(raw.pools?.artifactWeights || {}) },
       starterWeights: { ...EMPTY_CONFIG.pools.starterWeights, ...(raw.pools?.starterWeights || {}) },
       shopItemEnabled: raw.pools?.shopItemEnabled && typeof raw.pools.shopItemEnabled === 'object' ? raw.pools.shopItemEnabled : {},
+      shopItemCosts: raw.pools?.shopItemCosts && typeof raw.pools.shopItemCosts === 'object' ? raw.pools.shopItemCosts : {},
+      shopCustomItems: Array.isArray(raw.pools?.shopCustomItems) ? raw.pools.shopCustomItems : [],
       mapNodeWeights: { ...EMPTY_CONFIG.pools.mapNodeWeights, ...(raw.pools?.mapNodeWeights || {}) },
     },
     featureFlags: { ...EMPTY_CONFIG.featureFlags, ...(raw.featureFlags || {}) },
@@ -1616,6 +1620,40 @@ export default function DieInTheJungleAdmin() {
                     <AmberBtn onClick={addRandomEvent}>+ Create Event</AmberBtn>
                   </div>
                 </SectionCard>
+
+                {/* Live Event Preview */}
+                {(newEvent.title || newEvent.description) && (
+                  <SectionCard title="👁️ Event Preview (Player View)">
+                    <p className="text-zinc-500 text-xs mb-4">Live preview of how this event card will appear in-game as the player sees it.</p>
+                    <div className="flex justify-center">
+                      <div className="w-72 rounded-2xl border border-amber-500/30 bg-gradient-to-b from-zinc-800 to-zinc-900 p-5 shadow-xl shadow-black/60 space-y-4">
+                        <div className="text-center space-y-1">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-amber-500/70">⚠️ Event Encountered</div>
+                          <h3 className="text-base font-bold text-amber-300">{newEvent.title || 'Event Title'}</h3>
+                        </div>
+                        <div className="w-full h-28 rounded-xl bg-zinc-700/50 border border-zinc-600/50 flex items-center justify-center text-zinc-500 text-xs">
+                          🌿 Event Image
+                        </div>
+                        {newEvent.description && (
+                          <p className="text-xs text-zinc-300 text-center leading-relaxed">{newEvent.description}</p>
+                        )}
+                        <div className="space-y-2 pt-1">
+                          {newEvent.choices.filter(c => c.trim()).length > 0 ? (
+                            newEvent.choices.filter(c => c.trim()).map((choice, i) => (
+                              <div key={i} className="w-full px-3 py-2 rounded-xl text-xs font-medium bg-amber-500/10 border border-amber-500/30 text-amber-200 text-left">
+                                <span className="font-bold text-amber-400 mr-2">{String.fromCharCode(65 + i)}.</span>{choice}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="w-full px-3 py-2 rounded-xl text-xs font-medium bg-zinc-700 border border-zinc-600 text-zinc-300 text-center">
+                              Continue →
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </SectionCard>
+                )}
               </div>
             )}
 
@@ -1845,6 +1883,74 @@ export default function DieInTheJungleAdmin() {
               </div>
 
               <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Character</AmberBtn>
+            </SectionCard>
+
+            {/* Character Comparison Table */}
+            <SectionCard title="📊 Character Comparison">
+              <p className="text-zinc-400 text-sm mb-4">Side-by-side stat comparison. Values from config or game defaults.</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-700 text-zinc-400 text-xs">
+                      <th className="text-left py-2 pr-4">Stat</th>
+                      {[
+                        { id: 'kabalian', name: '🐍 Kabalian', defaults: { hp: 30, atk: 3, def: 1, speed: 1, cost: 0 } },
+                        { id: 'kkm', name: '⚡ KKM', defaults: { hp: 24, atk: 2, def: 0, speed: 2, cost: 0 } },
+                        { id: 'nomade_ka', name: '🌀 Nomade Ka', defaults: { hp: 28, atk: 0, def: 0, speed: 1, cost: 0 } },
+                      ].map(char => (
+                        <th key={char.id} className="text-center py-2 px-4 text-amber-300 font-bold">{char.name}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { stat: 'HP', key: 'hp', max: 50, color: 'emerald' },
+                      { stat: 'ATK', key: 'atk', max: 10, color: 'rose' },
+                      { stat: 'DEF', key: 'def', max: 5, color: 'blue' },
+                      { stat: 'Speed', key: 'speed', max: 5, color: 'amber' },
+                    ].map(({ stat, key, max, color }) => {
+                      const chars = [
+                        { id: 'kabalian', defaults: { hp: 30, atk: 3, def: 1, speed: 1 } },
+                        { id: 'kkm', defaults: { hp: 24, atk: 2, def: 0, speed: 2 } },
+                        { id: 'nomade_ka', defaults: { hp: 28, atk: 0, def: 0, speed: 1 } },
+                      ];
+                      return (
+                        <tr key={stat} className="border-b border-zinc-800/60">
+                          <td className="py-2 pr-4 font-medium text-zinc-300 text-xs uppercase">{stat}</td>
+                          {chars.map(({ id, defaults }) => {
+                            const val = config.characters?.playable?.[id]?.[key] ?? defaults[key];
+                            const pct = Math.round((val / max) * 100);
+                            const barColor = color === 'emerald' ? 'bg-emerald-500' : color === 'rose' ? 'bg-rose-500' : color === 'blue' ? 'bg-blue-500' : 'bg-amber-500';
+                            return (
+                              <td key={id} className="py-2 px-4 text-center">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
+                                    <div className={`h-full ${barColor} transition-all`} style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <span className="text-xs font-mono text-zinc-300 w-5 text-right">{val}</span>
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-3">
+                {[
+                  { id: 'kabalian', name: '🐍 Kabalian', passive: 'Balanced. No special passive. Good all-rounder.', lock: 'Unlocked by default' },
+                  { id: 'kkm', name: '⚡ KKM', passive: 'Speed build. Lower HP but faster. Special: cost reduction.', lock: 'Requires: character_kkm unlock' },
+                  { id: 'nomade_ka', name: '🌀 Nomade Ka', passive: 'Adaptation: adjusts to biome for bonus. +1 reroll per turn.', lock: 'WIP — not yet in game' },
+                ].map(({ id, name, passive, lock }) => (
+                  <div key={id} className="rounded-lg border border-zinc-700 bg-zinc-800/40 p-3 text-xs space-y-1">
+                    <div className="font-bold text-zinc-200">{name}</div>
+                    <div className="text-zinc-400">{passive}</div>
+                    <div className="text-amber-600/80 italic">{lock}</div>
+                  </div>
+                ))}
+              </div>
             </SectionCard>
           </div>
         )}
@@ -2263,6 +2369,81 @@ export default function DieInTheJungleAdmin() {
                 </table>
               </div>
               <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Daily Login</AmberBtn>
+            </SectionCard>
+
+            {/* Run Earnings Simulator */}
+            <SectionCard title="🧮 Run Earnings Simulator">
+              <p className="text-zinc-400 text-sm mb-4">Simulate how much XP and Gems a player earns for a given run scenario, based on your current reward settings.</p>
+              {(() => {
+                const [simKills, setSimKills] = React.useState(8);
+                const [simZones, setSimZones] = React.useState(2);
+                const [simBossKills, setSimBossKills] = React.useState(0);
+                const [simWon, setSimWon] = React.useState(false);
+                const rr = config.runRewards || EMPTY_CONFIG.runRewards;
+                const xp = rr.baseXp + simKills * rr.xpPerKill + simZones * rr.xpPerZone;
+                const gems = rr.baseGems + simBossKills * rr.gemsPerBoss + (simWon ? rr.bonusGemsOnWin : 0);
+                const thresholds = config.xpThresholds || DEFAULT_XP_THRESHOLDS;
+                return (
+                  <div className="space-y-5">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {[
+                        { label: 'Kills', value: simKills, set: setSimKills, min: 0, max: 50 },
+                        { label: 'Zones Cleared', value: simZones, set: setSimZones, min: 0, max: 10 },
+                        { label: 'Boss Kills', value: simBossKills, set: setSimBossKills, min: 0, max: 5 },
+                      ].map(({ label, value, set, min, max }) => (
+                        <div key={label} className="space-y-1">
+                          <label className="text-xs text-zinc-400">{label}</label>
+                          <div className="flex items-center gap-2">
+                            <input type="range" min={min} max={max} value={value} onChange={e => set(Number(e.target.value))} className="flex-1 accent-amber-400" />
+                            <span className="text-amber-300 font-mono text-sm w-8 text-center">{value}</span>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="space-y-1">
+                        <label className="text-xs text-zinc-400">Run Result</label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <button onClick={() => setSimWon(false)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${!simWon ? 'bg-rose-500/20 border-rose-400/60 text-rose-300' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}>
+                            💀 Died
+                          </button>
+                          <button onClick={() => setSimWon(true)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${simWon ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-300' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}>
+                            🏆 Won
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-center">
+                        <div className="text-2xl font-bold text-amber-300">{xp} XP</div>
+                        <div className="text-xs text-zinc-500 mt-1">
+                          {rr.baseXp} base + {simKills}×{rr.xpPerKill} kills + {simZones}×{rr.xpPerZone} zones
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-center">
+                        <div className="text-2xl font-bold text-emerald-300">{gems} 💎</div>
+                        <div className="text-xs text-zinc-500 mt-1">
+                          {rr.baseGems} base{simBossKills > 0 ? ` + ${simBossKills}×${rr.gemsPerBoss} boss` : ''}{simWon ? ` + ${rr.bonusGemsOnWin} win bonus` : ''}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs text-zinc-400 font-medium mb-2">Runs needed to reach each level at this pace:</div>
+                      <div className="flex flex-wrap gap-2">
+                        {thresholds.map((threshold, i) => (
+                          <div key={i} className="flex flex-col items-center rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-2 min-w-[52px]">
+                            <span className="text-[10px] text-zinc-500">Lv {i + 1}</span>
+                            <span className="font-bold text-amber-300 text-sm">{xp > 0 ? Math.ceil(threshold / xp) : '∞'}</span>
+                            <span className="text-[10px] text-zinc-600">runs</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </SectionCard>
           </div>
         )}
@@ -2935,6 +3116,74 @@ export default function DieInTheJungleAdmin() {
                 rows={12}
               />
             </SectionCard>
+
+            {/* Config Diff Viewer */}
+            <SectionCard title="🔍 Config Diff Viewer">
+              <p className="text-zinc-400 text-sm mb-4">See exactly what changed between your current (unsaved) config and the last saved version on the server.</p>
+              {(() => {
+                const [savedConfig, setSavedConfig] = React.useState(null);
+                const [diffLines, setDiffLines] = React.useState(null);
+                const [diffLoading, setDiffLoading] = React.useState(false);
+
+                function computeDiff(a, b, path = '') {
+                  const lines = [];
+                  const allKeys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
+                  for (const key of allKeys) {
+                    const fullPath = path ? `${path}.${key}` : key;
+                    const va = a?.[key];
+                    const vb = b?.[key];
+                    if (JSON.stringify(va) === JSON.stringify(vb)) continue;
+                    if (typeof va === 'object' && va !== null && typeof vb === 'object' && vb !== null && !Array.isArray(va) && !Array.isArray(vb)) {
+                      lines.push(...computeDiff(va, vb, fullPath));
+                    } else {
+                      lines.push({ path: fullPath, before: JSON.stringify(va), after: JSON.stringify(vb) });
+                    }
+                  }
+                  return lines;
+                }
+
+                async function loadAndDiff() {
+                  setDiffLoading(true);
+                  try {
+                    const res = await fetch('/api/miniapp/config');
+                    const data = await res.json();
+                    setSavedConfig(data);
+                    setDiffLines(computeDiff(data, config));
+                  } catch (e) {
+                    setDiffLines([{ path: 'error', before: '', after: 'Failed to load saved config' }]);
+                  }
+                  setDiffLoading(false);
+                }
+
+                return (
+                  <div className="space-y-3">
+                    <AmberBtn onClick={loadAndDiff} disabled={diffLoading}>
+                      {diffLoading ? 'Comparing...' : '🔎 Compare with Saved Config'}
+                    </AmberBtn>
+                    {diffLines !== null && (
+                      diffLines.length === 0 ? (
+                        <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm">
+                          ✅ No differences — current config matches saved config.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="text-xs text-zinc-400">{diffLines.length} field{diffLines.length !== 1 ? 's' : ''} changed:</div>
+                          <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1">
+                            {diffLines.map((d, i) => (
+                              <div key={i} className="rounded-lg border border-zinc-700 bg-zinc-800/60 p-2.5 text-xs font-mono">
+                                <div className="text-amber-300 font-bold mb-1">{d.path}</div>
+                                <div className="text-rose-400"><span className="text-zinc-600">before:</span> {d.before ?? 'undefined'}</div>
+                                <div className="text-emerald-400"><span className="text-zinc-600">after: </span> {d.after ?? 'undefined'}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                );
+              })()}
+            </SectionCard>
           </div>
         )}
 
@@ -3038,8 +3287,9 @@ export default function DieInTheJungleAdmin() {
 
             {/* Gem Shop Items */}
             <SectionCard title="💎 Gem Shop Items">
-              <p className="text-zinc-400 text-sm mb-4">Define items purchasable with gems during or between runs. Toggle each item on/off for the shop pool.</p>
+              <p className="text-zinc-400 text-sm mb-4">Define items purchasable with gems. Toggle on/off and set price per item. Custom items can be added below.</p>
               {(() => {
+                const [newShopItem, setNewShopItem] = React.useState({ id: '', label: '', desc: '', cost: 30 });
                 const GEM_SHOP_DEFAULTS = [
                   { id: 'reroll_token', label: 'Reroll Token', desc: '+1 free reroll next combat', cost: 30 },
                   { id: 'max_hp_5', label: '+5 Max HP', desc: 'Permanent for this run', cost: 40 },
@@ -3050,35 +3300,75 @@ export default function DieInTheJungleAdmin() {
                   { id: 'shield_start', label: 'Starting Shield (5)', desc: 'Begin each combat with 5 shield', cost: 45 },
                   { id: 'dice_upgrade', label: 'Dice Upgrade', desc: '+1 to all die face values this run', cost: 70 },
                 ];
+                const allItems = [...GEM_SHOP_DEFAULTS, ...(config.pools?.shopCustomItems || [])];
+                function toggleItem(id) {
+                  setConfig(p => ({ ...p, pools: { ...p.pools, shopItemEnabled: { ...(p.pools?.shopItemEnabled || {}), [id]: p.pools?.shopItemEnabled?.[id] === false ? true : false } } }));
+                }
+                function setCost(id, cost) {
+                  setConfig(p => ({ ...p, pools: { ...p.pools, shopItemCosts: { ...(p.pools?.shopItemCosts || {}), [id]: cost } } }));
+                }
+                function addCustomItem() {
+                  if (!newShopItem.id.trim() || !newShopItem.label.trim()) return;
+                  const item = { id: newShopItem.id.trim().replace(/\s+/g, '_'), label: newShopItem.label.trim(), desc: newShopItem.desc.trim(), cost: newShopItem.cost };
+                  setConfig(p => ({ ...p, pools: { ...p.pools, shopCustomItems: [...(p.pools?.shopCustomItems || []), item] } }));
+                  setNewShopItem({ id: '', label: '', desc: '', cost: 30 });
+                }
+                function removeCustomItem(id) {
+                  setConfig(p => ({ ...p, pools: { ...p.pools, shopCustomItems: (p.pools?.shopCustomItems || []).filter(i => i.id !== id) } }));
+                }
                 return (
                   <div className="space-y-2">
-                    {GEM_SHOP_DEFAULTS.map((item) => {
+                    {allItems.map((item) => {
                       const enabled = config.pools?.shopItemEnabled?.[item.id] !== false;
+                      const cost = config.pools?.shopItemCosts?.[item.id] ?? item.cost;
+                      const isCustom = !GEM_SHOP_DEFAULTS.find(d => d.id === item.id);
                       return (
                         <div key={item.id} className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${enabled ? 'border-amber-500/40 bg-amber-500/5' : 'border-zinc-700 bg-zinc-800/30 opacity-60'}`}>
-                          <button
-                            onClick={() => setConfig(p => ({ ...p, pools: { ...p.pools, shopItemEnabled: { ...(p.pools?.shopItemEnabled || {}), [item.id]: !enabled } } }))}
-                            className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 ${enabled ? 'bg-amber-500' : 'bg-zinc-600'}`}
-                          >
-                            <span className={`block w-4 h-4 rounded-full bg-white transition-transform mx-0.5 ${enabled ? 'translate-x-3' : 'translate-x-0'}`} />
+                          <button onClick={() => toggleItem(item.id)}
+                            className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 relative ${enabled ? 'bg-amber-500' : 'bg-zinc-600'}`}>
+                            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${enabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
                           </button>
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-zinc-200">{item.label}</div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-medium text-zinc-200">{item.label}</span>
+                              {isCustom && <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/20 border border-violet-500/30 text-violet-300">custom</span>}
+                            </div>
                             <div className="text-xs text-zinc-500">{item.desc}</div>
                           </div>
-                          <div className="flex items-center gap-1 text-sm font-bold text-amber-300 shrink-0">
-                            <span>💎</span>
-                            <input type="number" min={0} max={999}
-                              defaultValue={item.cost}
-                              className="w-14 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-sm text-center text-amber-300"
-                              onClick={(e) => e.stopPropagation()} />
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-amber-300">💎</span>
+                            <input type="number" min={0} max={9999} value={cost}
+                              onChange={(e) => setCost(item.id, Number(e.target.value))}
+                              className="w-16 rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-sm text-center text-amber-300" />
                           </div>
-                          <span className={`text-xs px-2 py-0.5 rounded border ${enabled ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-300' : 'bg-zinc-700 border-zinc-600 text-zinc-500'}`}>
+                          <span className={`text-xs px-2 py-0.5 rounded border shrink-0 ${enabled ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-300' : 'bg-zinc-700 border-zinc-600 text-zinc-500'}`}>
                             {enabled ? 'ON' : 'OFF'}
                           </span>
+                          {isCustom && (
+                            <button onClick={() => removeCustomItem(item.id)} className="text-rose-500 hover:text-rose-400 text-sm shrink-0">🗑️</button>
+                          )}
                         </div>
                       );
                     })}
+
+                    {/* Add custom item form */}
+                    <div className="mt-4 pt-4 border-t border-zinc-700 space-y-3">
+                      <div className="text-xs font-medium text-zinc-400 uppercase tracking-wider">+ Add Custom Item</div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <input value={newShopItem.id} onChange={e => setNewShopItem(p => ({ ...p, id: e.target.value }))}
+                          placeholder="item_id" className="rounded bg-zinc-800 border border-zinc-700 px-2 py-1.5 text-xs text-zinc-100" />
+                        <input value={newShopItem.label} onChange={e => setNewShopItem(p => ({ ...p, label: e.target.value }))}
+                          placeholder="Display Name" className="rounded bg-zinc-800 border border-zinc-700 px-2 py-1.5 text-xs text-zinc-100" />
+                        <input value={newShopItem.desc} onChange={e => setNewShopItem(p => ({ ...p, desc: e.target.value }))}
+                          placeholder="Description" className="rounded bg-zinc-800 border border-zinc-700 px-2 py-1.5 text-xs text-zinc-100" />
+                        <div className="flex gap-1.5">
+                          <input type="number" value={newShopItem.cost} onChange={e => setNewShopItem(p => ({ ...p, cost: Number(e.target.value) }))}
+                            placeholder="Cost" className="w-20 rounded bg-zinc-800 border border-zinc-700 px-2 py-1.5 text-xs text-center text-amber-300" />
+                          <button onClick={addCustomItem} className="flex-1 px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-xs font-medium text-black">Add</button>
+                        </div>
+                      </div>
+                    </div>
+                    <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Shop Config</AmberBtn>
                   </div>
                 );
               })()}
@@ -3240,6 +3530,53 @@ export default function DieInTheJungleAdmin() {
               <div className="text-2xl font-black text-amber-300 mb-1">🧭 Welcome to the Admin Panel</div>
               <p className="text-zinc-400 text-sm">Everything you need to manage, tune, and ship <strong className="text-zinc-200">Die In The Jungle</strong>. This panel controls the live game config — changes save instantly to the backend.</p>
             </div>
+
+            {/* Live Content Stats */}
+            {(() => {
+              const totalEnemies = (config.monsters?.customMonsters || []).length;
+              const totalArtifacts = (config.artifacts?.customArtifacts || []).length;
+              const totalEvents = (config.randomEvents || []).length;
+              const totalNPCs = (config.npcEncounters || []).length;
+              const totalNarrativeLines = (config.narrative?.arcs || []).reduce((s, arc) => s + (arc.lines || []).filter(l => l?.trim()).length, 0);
+              const totalAssets = Object.values(config.assets || {}).flatMap(cat => Object.values(cat)).flat().length;
+              const totalSounds = Object.values(config.sounds || {}).flat().filter(s => s).length;
+              const arcCount = (config.narrative?.arcs || []).length;
+              const stats = [
+                { icon: '👹', label: 'Enemies', value: totalEnemies, color: 'rose', link: 'enemies' },
+                { icon: '💎', label: 'Artifacts', value: totalArtifacts, color: 'amber', link: 'artifacts' },
+                { icon: '🎲', label: 'Events', value: totalEvents, color: 'violet', link: 'events' },
+                { icon: '🧙', label: 'NPCs', value: totalNPCs, color: 'cyan', link: 'events' },
+                { icon: '📖', label: 'Narrative Lines', value: totalNarrativeLines, color: 'emerald', link: 'narrative' },
+                { icon: '🖼️', label: 'Assets', value: totalAssets, color: 'blue', link: 'assets' },
+                { icon: '🎵', label: 'Sounds', value: totalSounds, color: 'pink', link: 'sound' },
+                { icon: '📚', label: 'Story Arcs', value: arcCount, color: 'orange', link: 'narrative' },
+              ];
+              const colorMap = {
+                rose: 'border-rose-500/40 bg-rose-500/5 text-rose-300',
+                amber: 'border-amber-500/40 bg-amber-500/5 text-amber-300',
+                violet: 'border-violet-500/40 bg-violet-500/5 text-violet-300',
+                cyan: 'border-cyan-500/40 bg-cyan-500/5 text-cyan-300',
+                emerald: 'border-emerald-500/40 bg-emerald-500/5 text-emerald-300',
+                blue: 'border-blue-500/40 bg-blue-500/5 text-blue-300',
+                pink: 'border-pink-500/40 bg-pink-500/5 text-pink-300',
+                orange: 'border-orange-500/40 bg-orange-500/5 text-orange-300',
+              };
+              return (
+                <SectionCard title="📊 Content Stats — Live Overview">
+                  <p className="text-zinc-500 text-xs mb-3">Real-time count of all configured content. Click a card to navigate to that section.</p>
+                  <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+                    {stats.map(({ icon, label, value, color, link }) => (
+                      <button key={label} onClick={() => setActiveTab(link)}
+                        className={`rounded-xl border p-3 text-center hover:opacity-80 transition-opacity cursor-pointer ${colorMap[color]}`}>
+                        <div className="text-xl mb-1">{icon}</div>
+                        <div className="text-xl font-black">{value}</div>
+                        <div className="text-[10px] opacity-70 mt-0.5">{label}</div>
+                      </button>
+                    ))}
+                  </div>
+                </SectionCard>
+              );
+            })()}
 
             {/* System Health */}
             {(() => {
