@@ -1,6 +1,48 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "../components/Button";
+import {
+  type MapLayer,
+  type MapNode,
+  type MapEvent,
+  type ShopItem,
+  generateZoneMap,
+  updateFogOfWar,
+  getAvailableNodes,
+  getNodeEmoji,
+  getNodeLabel,
+  pickRandomEvent,
+  resolveEventChoice,
+  generateShopItems,
+  REST_OPTIONS,
+  createRng,
+} from "./mapSystem";
+import {
+  type Companion,
+  type CompanionId,
+  COMPANIONS,
+  getCompanion,
+  tickCompanionCooldown,
+  startCompanionCooldown,
+} from "./companions";
+import {
+  type MetaProgressionState,
+  type UnlockId,
+  type RunReward,
+  UNLOCKS,
+  loadMeta,
+  saveMeta,
+  recordRunEnd,
+  tryUnlockWithGems,
+  computeLevel,
+  xpToNextLevel,
+  canPlayKKM,
+  hasWeaponSlot,
+  hasCompanionSlot,
+  hasDiceSpecials,
+  hasLaneBonuses,
+  getUnlockedCompanions,
+} from "../lib/metaProgression";
 
 const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
 
@@ -665,12 +707,32 @@ function dieStyleByKind(kind) {
   return { shell: "from-zinc-100/30 to-white/35 border-white/60", tag: "bg-white/35 text-white" };
 }
 
-function rollDice(count) {
-  return Array.from({ length: count }, (_, i) => ({
-    id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}`,
-    kind: DIE_KIND_ORDER[i % DIE_KIND_ORDER.length],
-    value: Math.floor(Math.random() * 6) + 1,
-  }));
+function rollDice(count, specialFacesEnabled = false, attackDieBonus = 0) {
+  return Array.from({ length: count }, (_, i) => {
+    const kind = DIE_KIND_ORDER[i % DIE_KIND_ORDER.length];
+    const value = Math.floor(Math.random() * 6) + 1;
+    let special = null;
+    if (specialFacesEnabled) {
+      // Face 1 attack = curse enemy (disables their next regen/charge)
+      if (kind === 'attack' && value === 1) special = 'curse';
+      // Face 6 attack = pierce (bypasses enemy shield)
+      else if (kind === 'attack' && value === 6) special = 'pierce';
+      // Face 6 heal = nurture (also grants shield equal to half heal)
+      else if (kind === 'heal' && value === 6) special = 'nurture';
+      // Face 6 shield = fortress (persists next turn)
+      else if (kind === 'shield' && value === 6) special = 'fortress';
+    }
+    // Gecko companion: +attackDieBonus to attack dice (min 1 to preserve curse on 1)
+    const finalValue = kind === 'attack' && attackDieBonus > 0
+      ? Math.min(6, Math.max(1, value + attackDieBonus))
+      : value;
+    return {
+      id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}`,
+      kind,
+      value: finalValue,
+      special,
+    };
+  });
 }
 
 function nextAvailableDieIndex(dice) {
@@ -964,31 +1026,71 @@ function resolvePlayerGrid(state) {
   let totalAttack = 0;
   let totalShield = 0;
   let totalHeal = 0;
-  let attackDiceCount = 0;
+  let pierceAttack = 0;  // Pierce dice bypass shield
+  let fortressActive = false;  // Shield persists next turn
+  let hasCurse = false;  // Curse face 1: enemy loses their next regen/charge
   const rowBreakdown = [];
+
+  // Count dice per type across entire grid (for SURGE)
+  const allDice = state.grid.flat().filter(Boolean);
+  const atkCount = allDice.filter(d => getDieMeta(d).kind === 'attack').length;
+  const healCount = allDice.filter(d => getDieMeta(d).kind === 'heal').length;
+  const shieldCount = allDice.filter(d => getDieMeta(d).kind === 'shield').length;
 
   state.grid.forEach((row, rowIndex) => {
     let rowAttack = 0;
     let rowShield = 0;
     let rowHeal = 0;
     const mult = rowMultiplier(player, rowIndex);
+
+    // Mid row: count dice per type for combo bonus (+5 if 2 same type)
+    const midRowKinds = rowIndex === 1
+      ? { attack: row.filter(d => d && getDieMeta(d).kind === 'attack').length,
+          heal:   row.filter(d => d && getDieMeta(d).kind === 'heal').length,
+          shield: row.filter(d => d && getDieMeta(d).kind === 'shield').length }
+      : null;
+
     row.forEach((die) => {
       if (die === null) return;
       const meta = getDieMeta(die);
       if (meta.kind === "shield") {
+        if (die.special === 'fortress') fortressActive = true;
         rowShield += die.value * mult;
       } else if (meta.kind === "heal") {
-        rowHeal += (die.value + player.healBonus) * mult;
+        const healAmt = (die.value + player.healBonus) * mult;
+        rowHeal += healAmt;
+        // Nurture (face 6 heal): also grants +shield equal to half heal
+        if (die.special === 'nurture') {
+          rowShield += Math.round(healAmt * 0.5);
+          rowBreakdown.push(`☀️ Nurture: heal also grants +${Math.round(healAmt * 0.5)} shield`);
+        }
       } else {
         const attackValue = (die.value + player.attackDieValueBonus + player.attackBonus) * mult;
-        rowAttack += attackValue;
-        attackDiceCount += 1;
+        if (die.special === 'pierce') {
+          // Face 6: Pierce bypasses enemy shield — tracked separately
+          pierceAttack += attackValue;
+          rowBreakdown.push(`🔱 Pierce (face 6): ${attackValue} dmg ignores shield`);
+        } else if (die.special === 'curse') {
+          // Face 1: Curse — still deals damage but also curses enemy (resets charge, disables regen)
+          rowAttack += attackValue;
+          hasCurse = true;
+          rowBreakdown.push(`☠️ Curse (face 1): ${attackValue} dmg + enemy charge reset`);
+        } else {
+          rowAttack += attackValue;
+        }
       }
     });
 
     if (rowAttack > 0) rowAttack += ROW_INFO[rowIndex].laneBonus.attack;
     if (rowShield > 0) rowShield += ROW_INFO[rowIndex].laneBonus.shield;
     if (rowHeal > 0) rowHeal += ROW_INFO[rowIndex].laneBonus.heal;
+
+    // Mid row combo: 2+ of same type → +5 bonus
+    if (midRowKinds) {
+      if (midRowKinds.attack >= 2) { rowAttack += 5; rowBreakdown.push('✨ Mid combo: 2 attack → +5 dmg'); }
+      if (midRowKinds.heal >= 2) { rowHeal += 5; rowBreakdown.push('✨ Mid combo: 2 heal → +5 HP'); }
+      if (midRowKinds.shield >= 2) { rowShield += 5; rowBreakdown.push('✨ Mid combo: 2 shield → +5 shield'); }
+    }
 
     totalAttack += rowAttack;
     totalShield += rowShield;
@@ -998,9 +1100,22 @@ function resolvePlayerGrid(state) {
 
   totalShield *= player.shieldMultiplier;
 
-  if (attackDiceCount >= 3) {
-    totalAttack += 5;
-    rowBreakdown.unshift(`🔥 Combo: 3 attack dice = +5 damage`);
+  // SURGE: 3 dice of same type in one turn → big bonus
+  if (atkCount >= 3) {
+    totalAttack += 10;
+    rowBreakdown.unshift(`⚡ SURGE Attack! +10 damage`);
+  } else if (healCount >= 3) {
+    totalHeal += 8;
+    rowBreakdown.unshift(`⚡ SURGE Heal! +8 HP`);
+  } else if (shieldCount >= 3) {
+    totalShield += 8;
+    rowBreakdown.unshift(`⚡ SURGE Shield! +8 shield`);
+  }
+
+  // Apply pierce damage first (bypasses shield)
+  if (pierceAttack > 0) {
+    enemy.hp -= pierceAttack;
+    rowBreakdown.unshift(`⚡ Pierce: ${pierceAttack} dmg bypassed shield`);
   }
 
   if (enemy.firstHitIgnored && totalAttack > 0) {
@@ -1016,7 +1131,7 @@ function resolvePlayerGrid(state) {
     rowBreakdown.unshift(`🛡️ Enemy shield blocked ${blocked}`);
   }
 
-  if (enemy.modifier === "thorns" && totalAttack > 0) {
+  if (enemy.modifier === "thorns" && (totalAttack + pierceAttack) > 0) {
     player.hp -= 1;
     rowBreakdown.unshift(`🌵 Thorns recoil: lose 1 HP`);
   }
@@ -1025,7 +1140,12 @@ function resolvePlayerGrid(state) {
   player.shield += totalShield;
   player.hp = Math.min(player.maxHp, player.hp + totalHeal);
 
-  const overkillBreak = totalAttack >= 15;
+  // Fortress: mark shield for persistence
+  if (fortressActive) {
+    player._fortressShield = (player._fortressShield || 0) + Math.round(totalShield);
+  }
+
+  const overkillBreak = (totalAttack + pierceAttack) >= 15;
   if (overkillBreak && enemy.hp > 0) {
     enemy.charge = 0;
     rowBreakdown.unshift(`💥 Overkill broke enemy charge`);
@@ -1035,16 +1155,19 @@ function resolvePlayerGrid(state) {
     player,
     enemy,
     totals: {
-      attack: Math.max(0, totalAttack),
+      attack: Math.max(0, totalAttack + pierceAttack),
       shield: Math.max(0, totalShield),
       heal: Math.max(0, totalHeal),
     },
     log: [
       ...rowBreakdown,
-      `⚔️ Total Attack ${Math.max(0, totalAttack)}`,
+      `⚔️ Total Attack ${Math.max(0, totalAttack + pierceAttack)}`,
       `🛡️ Total Shield +${Math.max(0, totalShield)}`,
       `❤️ Total Heal +${Math.max(0, totalHeal)}`,
     ],
+    topRowHasHeal: state.grid[0].some(d => d && getDieMeta(d).kind === 'heal'),
+    botRowDiceCount: state.grid[2].filter(Boolean).length,
+    surgeType: atkCount >= 3 ? 'attack' : healCount >= 3 ? 'heal' : shieldCount >= 3 ? 'shield' : null,
   };
 }
 
@@ -1117,6 +1240,10 @@ function makeInitialPlayer(characterId = "kabalian") {
     curseNextTurn: 0,
     artifacts: [],
     reviveOnce: false,
+    coins: 0,
+    companion: null as Companion | null,
+    _fortressShield: 0,
+    companionHypnosisActive: false,
   };
 }
 
@@ -1125,6 +1252,7 @@ function makeInitialState() {
   const route = buildRoute(floor);
   const player = makeInitialPlayer();
   player.shield = player.combatStartShield;
+  const runSeed = generateRunSeed();
   return {
     floor,
     room: 0,
@@ -1149,7 +1277,7 @@ function makeInitialState() {
     characterSelectPending: true,
     score: 0,
     noHitTurns: 0,
-    runSeed: generateRunSeed(),
+    runSeed,
     runEnded: false,
     avatarMood: "focus",
     actionFlash: null,
@@ -1159,13 +1287,14 @@ function makeInitialState() {
     scorePopups: [],
     comboPopup: null,
     lastOutcome: null,
+    // Map system
+    mapLayers: null as MapLayer[] | null,
+    currentMapNodeId: null as string | null,
+    pendingEvent: null as MapEvent | null,
+    shopInventory: null as ShopItem[] | null,
+    // Saturation warning (shown when board will be full next turn)
+    boardWillSaturateWarning: false,
   };
-  safe.artifactsOffered = (safe.artifactsOffered || []).map((id) => byId.get(id)).filter(Boolean);
-  safe.enemyAttackPulse = 0;
-  safe.damagePopups = [];
-  safe.actionFlash = null;
-  safe.killPopup = null;
-  return safe;
 }
 
 function serializeGameState(game) {
@@ -1201,6 +1330,14 @@ function hydrateGameState(rawState) {
   safe.noHitTurns = Number.isFinite(safe.noHitTurns) ? safe.noHitTurns : 0;
   safe.runSeed = safe.runSeed || generateRunSeed();
   safe.characterSelectPending = Boolean(safe.characterSelectPending);
+  safe.mapLayers = safe.mapLayers ?? null;
+  safe.currentMapNodeId = safe.currentMapNodeId ?? null;
+  safe.pendingEvent = safe.pendingEvent ?? null;
+  safe.shopInventory = safe.shopInventory ?? null;
+  if (!safe.player.coins) safe.player.coins = 0;
+  if (safe.player.companion === undefined) safe.player.companion = null;
+  if (!safe.player._fortressShield) safe.player._fortressShield = 0;
+  if (!safe.player.companionHypnosisActive) safe.player.companionHypnosisActive = false;
   return safe;
 }
 
@@ -1328,11 +1465,26 @@ function ArtifactCard({ artifact, onPick }) {
   );
 }
 
+// Haptic feedback helper (Telegram WebApp)
+function haptic(type: 'impact' | 'notification' | 'selection', style?: string) {
+  try {
+    const tg = (window as any).Telegram?.WebApp;
+    if (!tg?.HapticFeedback) return;
+    if (type === 'impact') tg.HapticFeedback.impactOccurred(style || 'medium');
+    else if (type === 'notification') tg.HapticFeedback.notificationOccurred(style || 'success');
+    else tg.HapticFeedback.selectionChanged();
+  } catch {}
+}
+
 export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: DieInTheJungleProps = {}) {
   const [game, setGame] = useState(loadSavedGameState);
   const [walletAddress, setWalletAddress] = useState("");
   const [leaderboard, setLeaderboard] = useState(loadLeaderboard);
   const [hoveredSlot, setHoveredSlot] = useState(null);
+  const [autoResolve, setAutoResolve] = useState(() => {
+    try { return localStorage.getItem('jk_auto_resolve') === 'true'; } catch { return false; }
+  });
+  const [showAdvancedGuide, setShowAdvancedGuide] = useState(false);
 
   const activeDieIndex = useMemo(() => {
     if (game.selectedDieIndex !== null && game.dice[game.selectedDieIndex] !== null) return game.selectedDieIndex;
@@ -1430,20 +1582,25 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         characterId: selected.id,
         avatar: selected.avatar,
         maxHp: selected.stats.maxHp,
-        hp: Math.min(selected.stats.maxHp, g.player.hp),
+        hp: selected.stats.maxHp,
         attackBonus: selected.stats.attackBonus,
         combatStartShield: selected.stats.combatStartShield || 0,
         shield: selected.stats.combatStartShield || 0,
         rerollsPerTurn: selected.stats.rerollsPerTurn,
         rerollsLeft: selected.stats.rerollsPerTurn,
+        coins: 0,
       };
+      const mapLayers = generateZoneMap(g.floor, g.runSeed);
       return {
         ...g,
         player: nextPlayer,
         characterSelectPending: false,
+        phase: "map",
+        mapLayers,
+        currentMapNodeId: null,
         avatarMood: "focus",
-        actionFlash: { id: Date.now(), text: `🧭 ${selected.name} selected`, tone: "sky" },
-        log: [`🧭 Character selected: ${selected.name}`, ...g.log].slice(0, 40),
+        actionFlash: { id: Date.now(), text: `🧭 ${selected.name} — choose your path`, tone: "sky" },
+        log: [`🧭 Character selected: ${selected.name}`, `🗺️ Zone ${g.floor} map generated`, ...g.log].slice(0, 40),
       };
     });
   }
@@ -1481,7 +1638,10 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
     window.setTimeout(() => {
       setGame((g) => {
-        const dice = rollDice(g.player.dicePerTurn);
+        const meta = loadMeta();
+        const specialFaces = hasDiceSpecials(meta);
+        const geckoBonus = g.player.companion?.passive?.attackDieBonus ?? 0;
+        const dice = rollDice(g.player.dicePerTurn, specialFaces, geckoBonus);
         return {
           ...g,
           dice,
@@ -1490,8 +1650,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           rolling: false,
           selectedDieIndex: 0,
           avatarMood: "focus",
-          actionFlash: { id: Date.now(), text: `🎲 ${dice.map((d) => `${getDieMeta(d).emoji}${d.value}`).join(" · ")}`, tone: "amber" },
-          log: [`🎲 Rolled: ${dice.map((d) => `${getDieMeta(d).label} ${d.value}`).join(" - ")}`, ...g.log].slice(0, 40),
+          actionFlash: { id: Date.now(), text: `🎲 ${dice.map((d) => `${getDieMeta(d).emoji}${d.value}${d.special ? '✦' : ''}`).join(" · ")}`, tone: "amber" },
+          log: [`🎲 Rolled: ${dice.map((d) => `${getDieMeta(d).label} ${d.value}${d.special ? ` (${d.special})` : ''}`).join(" - ")}`, ...g.log].slice(0, 40),
         };
       });
     }, 700);
@@ -1539,20 +1699,34 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     const nextIndex = nextAvailableDieIndex(newDice);
     const allPlaced = nextIndex === null;
 
+    // Haptic on place
+    haptic('selection');
+
     setGame((g) => ({
       ...g,
       dice: newDice,
       grid: newGrid,
       cooldowns: newCooldowns,
+      // Stay in "place" so player can manually resolve, or auto-resolve if toggled
       phase: allPlaced ? "resolve" : "place",
       selectedDieIndex: nextIndex,
       avatarMood: placedMeta.kind === "attack" ? "fierce" : placedMeta.kind === "heal" ? "joy" : "guard",
       log: [`${lane.emoji} Put ${placedMeta.emoji} ${placedDie.value} in ${lane.name} x${rowMultiplier(g.player, y)}`, ...g.log].slice(0, 40),
     }));
 
-    if (allPlaced) {
+    if (allPlaced || autoResolve) {
       window.setTimeout(() => resolveTurn(newGrid, newCooldowns), 320);
     }
+  }
+
+  // Manual resolve: available when at least 1 die is placed (phase === "place" with some grid dice)
+  function manualResolve() {
+    const currentGrid = game.grid;
+    const currentCooldowns = game.cooldowns;
+    const hasAnyDie = currentGrid.some(row => row.some(cell => cell !== null));
+    if (!hasAnyDie) return;
+    haptic('impact', 'medium');
+    resolveTurn(currentGrid, currentCooldowns);
   }
 
   function resolveTurn(gridRef, cooldownRef) {
@@ -1587,22 +1761,35 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
       }
 
       if (!enemyDied) {
-        const intentNow = getIntentPreview(enemy);
-        const retaliation = resolveEnemyIntent(enemy, player, log);
-        enemy = retaliation.enemy;
-        player = retaliation.player;
-        if (intentNow.type === "attack") {
-          enemyAttackPulse = Date.now();
-          const hpLoss = Math.max(0, preRetaliationHp - player.hp);
-          hpDamageTaken = hpLoss;
-          const shieldBlocked = Math.max(0, preRetaliationShield - player.shield - hpLoss);
-          if (hpLoss > 0) {
-            damagePopups.push({ id: `${Date.now()}-player-hit`, target: "player", tone: "damage", text: `-${hpLoss}`, ...getPopupPosition("player") });
-          }
-          if (shieldBlocked > 0) {
-            damagePopups.push({ id: `${Date.now()}-player-block`, target: "player", tone: "shield", text: `🛡️ ${shieldBlocked}`, ...getPopupPosition("player") });
+        // Companion hypnosis: skip enemy intent this turn
+        if (player.companionHypnosisActive) {
+          player.companionHypnosisActive = false;
+          log.unshift(`🦎 Hypnose — enemy intent skipped!`);
+        } else {
+          const intentNow = getIntentPreview(enemy);
+          const retaliation = resolveEnemyIntent(enemy, player, log);
+          enemy = retaliation.enemy;
+          player = retaliation.player;
+          if (intentNow.type === "attack") {
+            enemyAttackPulse = Date.now();
+            const hpLoss = Math.max(0, preRetaliationHp - player.hp);
+            hpDamageTaken = hpLoss;
+            const shieldBlocked = Math.max(0, preRetaliationShield - player.shield - hpLoss);
+            if (hpLoss > 0) {
+              damagePopups.push({ id: `${Date.now()}-player-hit`, target: "player", tone: "damage", text: `-${hpLoss}`, ...getPopupPosition("player") });
+            }
+            if (shieldBlocked > 0) {
+              damagePopups.push({ id: `${Date.now()}-player-block`, target: "player", tone: "shield", text: `🛡️ ${shieldBlocked}`, ...getPopupPosition("player") });
+            }
           }
         }
+      }
+
+      // Bot row: each die placed there gives +1 coin (using lane bonuses feature)
+      const meta = loadMeta();
+      if (hasLaneBonuses(meta) && playerResult.botRowDiceCount > 0) {
+        player.coins = (player.coins || 0) + playerResult.botRowDiceCount;
+        log.unshift(`🪨 Bot row sacrifice: +${playerResult.botRowDiceCount} coin${playerResult.botRowDiceCount > 1 ? 's' : ''}`);
       }
 
       if (player.timedResetEvery > 0 && nextTurn % player.timedResetEvery === 0) {
@@ -1613,6 +1800,32 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         log.unshift(`♻️ Board full: all cooldowns reset`);
       } else {
         nextCooldowns = tickCooldowns(cooldownRef, player.cooldownTick);
+      }
+
+      // Top row heal: reset one blocked cooldown slot
+      if (hasLaneBonuses(meta) && playerResult.topRowHasHeal) {
+        let freed = false;
+        outer: for (let y = 0; y < 3; y++) {
+          for (let x = 0; x < 3; x++) {
+            if (nextCooldowns[y][x] > 0) {
+              nextCooldowns = nextCooldowns.map((row, ry) => row.map((v, rx) => ry === y && rx === x ? 0 : v));
+              log.unshift(`🔄 Heal in top row — slot (${y},${x}) cooldown freed!`);
+              freed = true;
+              break outer;
+            }
+          }
+        }
+        if (!freed) log.unshift(`🔄 Heal in top row — no blocked slots`);
+      }
+
+      // Surge flash
+      if (playerResult.surgeType) {
+        log.unshift(`⚡ SURGE ${playerResult.surgeType.toUpperCase()}!`);
+      }
+
+      // Tick companion cooldown
+      if (player.companion) {
+        player.companion = tickCompanionCooldown(player.companion);
       }
 
       if (player.hp <= 0 && player.reviveOnce) {
@@ -1690,6 +1903,12 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         avatarMood = "shocked";
       }
 
+      // Haptic feedback
+      if (enemyDied) haptic('notification', 'success');
+      else if (player.hp <= 0) haptic('notification', 'error');
+      else if (playerResult.surgeType) haptic('impact', 'heavy');
+      else if (totals.attack > 0) haptic('impact', 'light');
+
       if (enemyDied) {
         killPopup = `💀 ${pickKillWord(winStreak)} 💀`;
         log.unshift(`☠️ ${g.enemy.name} defeated · ${killPopup}`);
@@ -1710,17 +1929,15 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           combatRewardPending = true;
           artifactsOffered = buildArtifactChoices(player);
           phase = "reward";
-        } else if (g.room >= g.route.length - 1) {
-          phase = "victory";
         } else {
+          // Go to map to choose next node
+          phase = "map";
           room = g.room + 1;
-          const nextEnemy = { ...g.route[room] };
-          nextEnemy.shield = 0;
-          nextEnemy.charge = 0;
-          player.shield = player.combatStartShield;
-          log.unshift(`✅ Next enemy: ${nextEnemy.emoji} ${nextEnemy.name}`);
-          enemy = nextEnemy;
-          avatarMood = "focus";
+          player.shield = 0;
+          const coinsEarned = g.enemy.tier === "medium" ? 2 : 1;
+          player.coins = (player.coins || 0) + coinsEarned;
+          log.unshift(`🗺️ Choose your next path · +${coinsEarned} coin${coinsEarned > 1 ? 's' : ''}`);
+          avatarMood = "victory";
         }
       }
 
@@ -1766,66 +1983,46 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
       const player = applyArtifactToPlayer(g.player, artifact);
 
       if (g.startRewardPending) {
-        const nextRoom = Math.min(g.route.length - 1, g.room + 1);
-        const nextEnemy = { ...g.route[nextRoom] };
+        // After first artifact reward → go to map
         return {
           ...g,
-          player: { ...player, shield: player.combatStartShield },
-          room: nextRoom,
-          enemy: nextEnemy,
-          phase: "roll",
+          player: { ...player, shield: 0 },
+          phase: "map",
           artifactsOffered: [],
           combatRewardPending: false,
           startRewardPending: false,
-          actionFlash: { id: Date.now(), text: `🏆 Start relic: ${artifact.name}`, tone: "amber" },
+          actionFlash: { id: Date.now(), text: `🏆 ${artifact.name} — choose your path`, tone: "amber" },
           lastOutcome: null,
-          log: [`🏆 Starting artifact: ${artifact.name}`, `✅ Next enemy: ${nextEnemy.emoji} ${nextEnemy.name}`, ...g.log].slice(0, 40),
+          log: [`🏆 Starting artifact: ${artifact.name}`, `🗺️ Choose your path`, ...g.log].slice(0, 40),
         };
       }
 
-      const finishedRoute = g.room >= g.route.length - 1;
-
-      if (finishedRoute) {
-        const nextFloor = g.floor + 1;
-        const nextRoute = buildRoute(nextFloor);
-        const nextPlayer = { ...player, shield: player.combatStartShield, rerollsLeft: player.rerollsPerTurn };
-        return {
-          ...g,
-          floor: nextFloor,
-          room: 0,
-          route: nextRoute,
-          enemy: { ...nextRoute[0] },
-          player: nextPlayer,
-          phase: "roll",
-          artifactsOffered: [],
-          combatRewardPending: false,
-          startRewardPending: false,
-          cooldowns: emptyCooldowns(),
-          grid: emptyGrid(),
-          dice: [],
-          selectedDieIndex: null,
-          avatarMood: "victory",
-          actionFlash: { id: Date.now(), text: `🏆 ${artifact.name}`, tone: "amber" },
-          lastOutcome: null,
-          log: [`🏆 Chose ${artifact.name}`, `🌴 Zone ${nextFloor} begins`, ...g.log].slice(0, 40),
-        };
-      }
-
-      const nextRoom = g.room + 1;
-      const nextEnemy = { ...g.route[nextRoom] };
+      // Boss kill reward → advance to next zone with new map
+      const nextFloor = g.floor + 1;
+      const nextRoute = buildRoute(nextFloor);
+      const nextMapLayers = generateZoneMap(nextFloor, g.runSeed + ':' + nextFloor);
+      const nextPlayer = { ...player, shield: 0, rerollsLeft: player.rerollsPerTurn };
       return {
         ...g,
-        player: { ...player, shield: player.combatStartShield },
-        room: nextRoom,
-        enemy: nextEnemy,
-        phase: "roll",
-        avatarMood: "focus",
-        actionFlash: { id: Date.now(), text: `🏆 ${artifact.name}`, tone: "amber" },
-        lastOutcome: null,
+        floor: nextFloor,
+        room: 0,
+        route: nextRoute,
+        enemy: { ...nextRoute[0] },
+        player: nextPlayer,
+        phase: "map",
+        mapLayers: nextMapLayers,
+        currentMapNodeId: null,
         artifactsOffered: [],
         combatRewardPending: false,
         startRewardPending: false,
-        log: [`🏆 Chose ${artifact.name}`, `✅ Next enemy: ${nextEnemy.emoji} ${nextEnemy.name}`, ...g.log].slice(0, 40),
+        cooldowns: emptyCooldowns(),
+        grid: emptyGrid(),
+        dice: [],
+        selectedDieIndex: null,
+        avatarMood: "victory",
+        actionFlash: { id: Date.now(), text: `🌴 Zone ${nextFloor} — choose your path`, tone: "amber" },
+        lastOutcome: null,
+        log: [`🏆 Chose ${artifact.name}`, `🌴 Zone ${nextFloor} begins`, ...g.log].slice(0, 40),
       };
     });
   }
@@ -1835,57 +2032,258 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
       if (!g.combatRewardPending && g.phase !== "reward") return g;
 
       if (g.startRewardPending) {
-        const nextRoom = Math.min(g.route.length - 1, g.room + 1);
-        const nextEnemy = { ...g.route[nextRoom] };
         return {
           ...g,
-          room: nextRoom,
-          enemy: nextEnemy,
-          phase: "roll",
+          phase: "map",
           artifactsOffered: [],
           combatRewardPending: false,
           startRewardPending: false,
-          actionFlash: { id: Date.now(), text: "⏭️ Reward skipped", tone: "sky" },
-          log: ["⏭️ You skipped the artifact reward", `✅ Next enemy: ${nextEnemy.emoji} ${nextEnemy.name}`, ...g.log].slice(0, 40),
+          actionFlash: { id: Date.now(), text: "⏭️ Skipped — choose your path", tone: "sky" },
+          log: ["⏭️ Skipped start reward", "🗺️ Choose your path", ...g.log].slice(0, 40),
         };
       }
 
-      const finishedRoute = g.room >= g.route.length - 1;
-      if (finishedRoute) {
-        const nextFloor = g.floor + 1;
-        const nextRoute = buildRoute(nextFloor);
+      // Boss kill skip → advance to next zone
+      const nextFloor = g.floor + 1;
+      const nextRoute = buildRoute(nextFloor);
+      const nextMapLayers = generateZoneMap(nextFloor, g.runSeed + ':' + nextFloor);
+      return {
+        ...g,
+        floor: nextFloor,
+        room: 0,
+        route: nextRoute,
+        enemy: { ...nextRoute[0] },
+        player: { ...g.player, shield: 0, rerollsLeft: g.player.rerollsPerTurn },
+        phase: "map",
+        mapLayers: nextMapLayers,
+        currentMapNodeId: null,
+        artifactsOffered: [],
+        combatRewardPending: false,
+        startRewardPending: false,
+        cooldowns: emptyCooldowns(),
+        grid: emptyGrid(),
+        dice: [],
+        selectedDieIndex: null,
+        actionFlash: { id: Date.now(), text: `🌴 Zone ${nextFloor} — choose your path`, tone: "sky" },
+        log: ["⏭️ Skipped reward", `🌴 Zone ${nextFloor} begins`, ...g.log].slice(0, 40),
+      };
+    });
+  }
+
+  function enterMapNode(nodeId: string) {
+    setGame((g) => {
+      if (!g.mapLayers) return g;
+      const allNodes = g.mapLayers.flatMap((l) => l.nodes);
+      const node = allNodes.find((n) => n.id === nodeId);
+      if (!node || node.visited) return g;
+
+      // Update fog of war and mark visited
+      const updatedLayers = updateFogOfWar(g.mapLayers, nodeId);
+
+      if (node.type === "mob" || node.type === "elite" || node.type === "boss") {
+        // Pick enemy from existing route scaled to floor
+        const tier = node.type === "elite" ? "medium" : node.type === "mob" ? "mob" : "boss";
+        const sourcePool = (ENEMY_POOLS as Record<string, typeof ENEMY_POOLS.mob>)[tier] || ENEMY_POOLS.mob;
+        const rng = createRng(g.runSeed + ':' + nodeId);
+        const source = sourcePool[Math.floor(rng() * sourcePool.length)];
+        const base = cloneEnemy(source);
+        const scale = g.floor - 1;
+        const hpScale = tier === "boss" ? 8 : tier === "medium" ? 5 : 3;
+        const dmgScale = tier === "boss" ? 2 : 1;
+        base.hp += scale * hpScale;
+        base.maxHp = base.hp;
+        base.damage += scale * dmgScale;
+        if (tier === "medium") {
+          base.elite = true;
+          base.eliteStars = Math.min(3, g.floor);
+          base.hp = Math.round(base.hp * 1.25);
+          base.maxHp = base.hp;
+          base.damage += 2;
+          base.tier = "medium";
+          base.name = `${"⭐".repeat(base.eliteStars)} ${base.name}`;
+        }
+        const mod = randFrom(source.modifierPool || ["none"]);
+        base.modifier = mod || "none";
+        if (base.modifier === "stoneSkin") base.firstHitIgnored = true;
+        const tierLabel = node.type === "boss" ? "👑 BOSS" : node.type === "elite" ? "⭐ Elite" : "⚔️ Combat";
         return {
           ...g,
-          floor: nextFloor,
-          room: 0,
-          route: nextRoute,
-          enemy: { ...nextRoute[0] },
-          player: { ...g.player, shield: g.player.combatStartShield, rerollsLeft: g.player.rerollsPerTurn },
+          mapLayers: updatedLayers,
+          currentMapNodeId: nodeId,
+          enemy: base,
           phase: "roll",
-          artifactsOffered: [],
-          combatRewardPending: false,
-          startRewardPending: false,
+          player: { ...g.player, shield: g.player.combatStartShield, rerollsLeft: g.player.rerollsPerTurn },
           cooldowns: emptyCooldowns(),
           grid: emptyGrid(),
           dice: [],
           selectedDieIndex: null,
-          actionFlash: { id: Date.now(), text: "⏭️ Reward skipped", tone: "sky" },
-          log: ["⏭️ You skipped the artifact reward", `🌴 Zone ${nextFloor} begins`, ...g.log].slice(0, 40),
+          log: [`${tierLabel}: ${base.emoji} ${base.name}`, ...g.log].slice(0, 40),
+          actionFlash: { id: Date.now(), text: `${tierLabel}: ${base.name}`, tone: node.type === "boss" ? "amber" : "rose" },
         };
       }
 
-      const nextRoom = g.room + 1;
-      const nextEnemy = { ...g.route[nextRoom] };
+      if (node.type === "shop") {
+        const shopRng = createRng(g.runSeed + ':shop:' + nodeId);
+        const shopInventory = generateShopItems(g.floor, shopRng);
+        return {
+          ...g,
+          mapLayers: updatedLayers,
+          currentMapNodeId: nodeId,
+          shopInventory,
+          phase: "shop",
+          log: ["🛒 You entered the jungle shop.", ...g.log].slice(0, 40),
+          actionFlash: { id: Date.now(), text: "🛒 Shop", tone: "sky" },
+        };
+      }
+
+      if (node.type === "event") {
+        const evRng = createRng(g.runSeed + ':event:' + nodeId);
+        const pendingEvent = pickRandomEvent(evRng);
+        return {
+          ...g,
+          mapLayers: updatedLayers,
+          currentMapNodeId: nodeId,
+          pendingEvent,
+          phase: "event",
+          log: [`❓ Event: ${pendingEvent.title}`, ...g.log].slice(0, 40),
+          actionFlash: { id: Date.now(), text: `❓ ${pendingEvent.title}`, tone: "sky" },
+        };
+      }
+
+      if (node.type === "rest") {
+        return {
+          ...g,
+          mapLayers: updatedLayers,
+          currentMapNodeId: nodeId,
+          phase: "rest",
+          log: ["🏕️ You found a rest site.", ...g.log].slice(0, 40),
+          actionFlash: { id: Date.now(), text: "🏕️ Rest", tone: "emerald" },
+        };
+      }
+
+      return g;
+    });
+  }
+
+  function handleEventChoice(choiceIndex: number) {
+    setGame((g) => {
+      if (!g.pendingEvent) return g;
+      const rng = createRng(g.runSeed + ':ev-result:' + g.currentMapNodeId);
+      const result = resolveEventChoice(g.pendingEvent, choiceIndex, { hp: g.player.hp, maxHp: g.player.maxHp, coins: g.player.coins }, rng);
+      let player = { ...g.player };
+      if (result.hpDelta) player.hp = Math.max(1, Math.min(player.maxHp, player.hp + result.hpDelta));
+      if (result.coinDelta) player.coins = Math.max(0, (player.coins || 0) + result.coinDelta);
+      if (result.maxHpDelta) { player.maxHp += result.maxHpDelta; player.hp += result.maxHpDelta; }
+      if (result.attackBonusDelta) player.attackBonus += result.attackBonusDelta;
+      if (result.healBonusDelta) player.healBonus += result.healBonusDelta;
+      if (result.rerollDelta) { player.rerollsPerTurn += result.rerollDelta; player.rerollsLeft += result.rerollDelta; }
+      if (result.combatStartShieldDelta) player.combatStartShield += result.combatStartShieldDelta;
       return {
         ...g,
-        room: nextRoom,
-        enemy: nextEnemy,
-        phase: "roll",
-        artifactsOffered: [],
-        combatRewardPending: false,
-        startRewardPending: false,
-        actionFlash: { id: Date.now(), text: "⏭️ Reward skipped", tone: "sky" },
-        log: ["⏭️ You skipped the artifact reward", `✅ Next enemy: ${nextEnemy.emoji} ${nextEnemy.name}`, ...g.log].slice(0, 40),
+        player,
+        phase: "map",
+        pendingEvent: null,
+        log: [result.text, ...g.log].slice(0, 40),
+        actionFlash: { id: Date.now(), text: result.text.slice(0, 40), tone: "emerald" },
+      };
+    });
+  }
+
+  function handleShopBuy(itemIndex: number) {
+    setGame((g) => {
+      if (!g.shopInventory) return g;
+      const item = g.shopInventory[itemIndex];
+      if (!item) return g;
+      const coins = g.player.coins || 0;
+      if (coins < item.cost) {
+        return { ...g, actionFlash: { id: Date.now(), text: `🚫 Need ${item.cost} coins (you have ${coins})`, tone: "rose" } };
+      }
+      let player = { ...g.player, coins: coins - item.cost };
+      const e = item.effect;
+      if (e.hpDelta) player.hp = Math.min(player.maxHp, player.hp + e.hpDelta);
+      if (e.maxHpDelta) { player.maxHp += e.maxHpDelta; player.hp += e.maxHpDelta; }
+      if (e.attackBonusDelta) player.attackBonus += e.attackBonusDelta;
+      if (e.healBonusDelta) player.healBonus += e.healBonusDelta;
+      if (e.rerollDelta) { player.rerollsPerTurn += e.rerollDelta; player.rerollsLeft += e.rerollDelta; }
+      if (e.combatStartShieldDelta) player.combatStartShield += e.combatStartShieldDelta;
+      const newInventory = g.shopInventory.filter((_, i) => i !== itemIndex);
+      return {
+        ...g,
+        player,
+        shopInventory: newInventory,
+        log: [`🛒 Bought: ${item.name}`, ...g.log].slice(0, 40),
+        actionFlash: { id: Date.now(), text: `🛒 ${item.name} purchased`, tone: "emerald" },
+      };
+    });
+  }
+
+  function handleShopLeave() {
+    setGame((g) => ({ ...g, phase: "map", shopInventory: null, actionFlash: { id: Date.now(), text: "🛒 Left the shop", tone: "sky" } }));
+  }
+
+  function handleRestChoice(optionId: string) {
+    setGame((g) => {
+      const option = REST_OPTIONS.find((r) => r.id === optionId);
+      if (!option) return g;
+      let player = { ...g.player };
+      const e = option.effect;
+      if (e.hpPctHeal) player.hp = Math.min(player.maxHp, player.hp + Math.round(player.maxHp * e.hpPctHeal));
+      if (e.maxHpDelta) { player.maxHp += e.maxHpDelta; player.hp += e.maxHpDelta; }
+      if (e.attackBonusDelta) player.attackBonus += e.attackBonusDelta;
+      if (e.healBonusDelta) player.healBonus += e.healBonusDelta;
+      if (e.coinDelta) player.coins = (player.coins || 0) + e.coinDelta;
+      if (e.rerollDelta) { player.rerollsPerTurn += e.rerollDelta; player.rerollsLeft += e.rerollDelta; }
+      return {
+        ...g,
+        player,
+        phase: "map",
+        log: [`🏕️ ${option.label}`, ...g.log].slice(0, 40),
+        actionFlash: { id: Date.now(), text: `🏕️ ${option.label}`, tone: "emerald" },
+      };
+    });
+  }
+
+  function activateCompanionActive() {
+    setGame((g) => {
+      const companion = g.player.companion;
+      if (!companion || companion.cooldownRemaining > 0) return g;
+      let player = { ...g.player };
+      let enemy = { ...g.enemy };
+      const log = [];
+
+      if (companion.active.type === 'skip_intent') {
+        player.companionHypnosisActive = true;
+        log.unshift(`🦎 Hypnose — enemy will skip their next intent!`);
+      } else if (companion.active.type === 'flat_damage') {
+        const dmg = companion.active.value ?? 8;
+        enemy.hp -= dmg;
+        log.unshift(`🐊 Leap — ${dmg} flat damage, ignores shield!`);
+      } else if (companion.active.type === 'free_reroll_choice') {
+        // Free reroll all current dice
+        const meta = loadMeta();
+        const geckoBonus = player.companion?.passive?.attackDieBonus ?? 0;
+        const specialFaces = hasDiceSpecials(meta);
+        const newDice = rollDice(g.player.dicePerTurn, specialFaces, geckoBonus);
+        player.companion = startCompanionCooldown(companion);
+        log.unshift(`👁️ Vision — free reroll! Pick the best dice.`);
+        return {
+          ...g,
+          player,
+          enemy,
+          dice: newDice,
+          selectedDieIndex: 0,
+          log: [...log, ...g.log].slice(0, 40),
+          actionFlash: { id: Date.now(), text: `👁️ Vision — free reroll!`, tone: 'sky' },
+        };
+      }
+
+      player.companion = startCompanionCooldown(companion);
+      return {
+        ...g,
+        player,
+        enemy,
+        log: [...log, ...g.log].slice(0, 40),
+        actionFlash: { id: Date.now(), text: log[0] || `Companion ability used`, tone: 'emerald' },
       };
     });
   }
@@ -1901,17 +2299,31 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const notifiedRunRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!game.runEnded || !onRunEnded) return;
+    if (!game.runEnded) return;
     const runId = `${game.runSeed}:${game.score}:${game.floor}`;
     if (notifiedRunRef.current === runId) return;
     notifiedRunRef.current = runId;
-    onRunEnded({
+
+    // Award XP/gems and update unlock tree
+    const meta = loadMeta();
+    const bossZone = game.phase === 'victory' ? game.floor : undefined;
+    const { next } = recordRunEnd(meta, {
       score: game.score,
       floor: game.floor,
-      runSeed: game.runSeed,
-      characterId: game.player.characterId,
+      kills: game.winStreak,
+      bossZone,
     });
-  }, [game.runEnded, game.runSeed, game.score, game.floor, game.player.characterId, onRunEnded]);
+    saveMeta(next);
+
+    if (onRunEnded) {
+      onRunEnded({
+        score: game.score,
+        floor: game.floor,
+        runSeed: game.runSeed,
+        characterId: game.player.characterId,
+      });
+    }
+  }, [game.runEnded, game.runSeed, game.score, game.floor, game.player.characterId, game.winStreak, game.phase, onRunEnded]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -2113,6 +2525,17 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 </div>
                 <CompactStat label="🛡️ Shield" value={`${game.player.shield}`} accent="text-cyan-200" />
                 <CompactStat label="Reroll" value={`${game.player.rerollsLeft}`} accent="text-amber-300" />
+                {game.player.companion ? (
+                  <div className="col-span-2 rounded-[12px] border border-emerald-400/25 bg-emerald-900/20 p-2">
+                    <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300">Companion</div>
+                    <div className="flex items-center justify-between gap-1 text-[10px]">
+                      <span>{game.player.companion.emoji} {game.player.companion.name}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-black border ${game.player.companion.cooldownRemaining === 0 ? 'bg-emerald-600/40 border-emerald-400/50 text-emerald-200' : 'bg-zinc-800 border-zinc-600 text-zinc-400'}`}>
+                        {game.player.companion.cooldownRemaining === 0 ? 'READY' : `CD ${game.player.companion.cooldownRemaining}`}
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="col-span-2 rounded-[12px] border border-white/10 bg-black/45 p-2">
                   <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">Owned artifacts</div>
                   {game.player.artifacts.length ? (
@@ -2186,6 +2609,21 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 🔁 REROLL
               </Button>
             ) : null}
+            {game.phase === "place" && game.grid.some(row => row.some(cell => cell !== null)) ? (
+              <Button onClick={manualResolve} className="rounded-2xl border border-emerald-400/40 bg-gradient-to-b from-emerald-700/70 to-emerald-900/80 px-5 py-2.5 text-sm font-black text-white hover:from-emerald-600/80 hover:to-emerald-800 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]">
+                ✅ RESOLVE
+              </Button>
+            ) : null}
+            {game.player.companion && (game.phase === "roll" || game.phase === "place") ? (
+              <Button
+                onClick={activateCompanionActive}
+                disabled={game.player.companion.cooldownRemaining > 0}
+                className={`rounded-2xl border px-3 py-2.5 text-sm font-black transition ${game.player.companion.cooldownRemaining === 0 ? 'border-emerald-400/50 bg-emerald-600/25 text-emerald-100 hover:bg-emerald-600/40' : 'border-zinc-600/40 bg-zinc-800/50 text-zinc-500 cursor-not-allowed opacity-60'}`}
+              >
+                {game.player.companion.emoji} {game.player.companion.active.name}
+                {game.player.companion.cooldownRemaining > 0 ? ` (${game.player.companion.cooldownRemaining})` : ' ✓'}
+              </Button>
+            ) : null}
             {(game.phase === "gameover" || game.phase === "victory") ? (
               <>
                 <Button onClick={submitScoreToLeaderboard} className="rounded-2xl bg-violet-500/30 px-4 py-2.5 text-sm font-black text-white hover:bg-violet-500/45">Submit score</Button>
@@ -2218,6 +2656,18 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
               <Button onClick={() => shiftSelectedDie(1)} className="h-10 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-4 text-white hover:from-zinc-700 hover:to-zinc-800">➡️</Button>
             ) : null}
           </div>
+          <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 text-[11px] text-zinc-400 select-none">
+            <input
+              type="checkbox"
+              checked={autoResolve}
+              onChange={(e) => {
+                setAutoResolve(e.target.checked);
+                try { localStorage.setItem('jk_auto_resolve', String(e.target.checked)); } catch {}
+              }}
+              className="h-3.5 w-3.5 accent-emerald-400"
+            />
+            <span>Auto-resolve <span className="text-zinc-500">(place all dice = instant resolve)</span></span>
+          </label>
         </SectionCard>
 
 
@@ -2389,17 +2839,24 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   <div className="text-sm text-zinc-300">Choose your character before first fight. First artifact arrives after the first win.</div>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
-                  {Object.values(PLAYER_CHARACTERS).map((character) => (
-                    <button
-                      key={character.id}
-                      onClick={() => pickCharacter(character.id)}
-                      className="rounded-2xl border border-white/15 bg-black/45 p-3 text-left transition hover:border-amber-300/60 hover:bg-black/70"
-                    >
-                      <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
-                      <div className="font-black text-lg text-amber-200">{character.name}</div>
-                      <div className="text-xs text-zinc-300">{character.subtitle}</div>
-                    </button>
-                  ))}
+                  {Object.values(PLAYER_CHARACTERS).map((character) => {
+                    const isLocked = character.id === 'kkm' && !canPlayKKM(loadMeta());
+                    return (
+                      <button
+                        key={character.id}
+                        onClick={() => !isLocked && pickCharacter(character.id)}
+                        disabled={isLocked}
+                        className={`rounded-2xl border p-3 text-left transition ${isLocked ? 'border-zinc-700/50 bg-black/30 opacity-60 cursor-not-allowed' : 'border-white/15 bg-black/45 hover:border-amber-300/60 hover:bg-black/70'}`}
+                      >
+                        <div className="relative">
+                          <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
+                          {isLocked && <div className="absolute inset-0 flex items-center justify-center text-4xl">🔒</div>}
+                        </div>
+                        <div className="font-black text-lg text-amber-200">{character.name} {isLocked ? '(Locked)' : ''}</div>
+                        <div className="text-xs text-zinc-300">{isLocked ? 'Defeat Zone 1 boss or spend 100 gems to unlock' : character.subtitle}</div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </motion.div>
@@ -2424,6 +2881,168 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           {game.comboPopup ? (
             <motion.div initial={{ opacity: 0, scale: 0.82 }} animate={{ opacity: 1, scale: 1.05 }} exit={{ opacity: 0, scale: 0.9 }} className="pointer-events-none fixed left-1/2 top-44 z-40 -translate-x-1/2 rounded-2xl border border-amber-300/45 bg-black/85 px-6 py-3 text-2xl font-black text-amber-200 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
               {game.comboPopup}
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        {/* ── Map overlay ──────────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {game.phase === "map" && game.mapLayers && !game.characterSelectPending ? (() => {
+            const available = getAvailableNodes(game.mapLayers, game.currentMapNodeId);
+            return (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm">
+                <div className="w-full max-w-lg rounded-[28px] border border-amber-300/20 bg-zinc-950/98 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <div className="font-serif text-xl italic text-amber-300">Zone {game.floor} — Choose Your Path</div>
+                      <div className="text-[11px] text-zinc-400">🪙 {game.player.coins || 0} coins · {game.player.hp}/{game.player.maxHp} HP</div>
+                    </div>
+                    <div className="rounded-xl border border-amber-300/20 bg-black/40 px-2 py-1 text-[10px] text-amber-200">Room {game.room + 1}</div>
+                  </div>
+
+                  {/* Map layers */}
+                  <div className="mb-3 space-y-2 overflow-y-auto" style={{ maxHeight: '55vh' }}>
+                    {game.mapLayers.map((layer) => (
+                      <div key={layer.layerIndex} className="flex items-center justify-center gap-2">
+                        {layer.nodes.map((node) => {
+                          const isAvailable = available.some((n) => n.id === node.id);
+                          const isCurrent = node.id === game.currentMapNodeId;
+                          const isDone = node.visited;
+                          const isRevealed = node.revealed;
+                          const borderClass = isDone
+                            ? "border-emerald-400/50 bg-emerald-900/30"
+                            : isCurrent
+                              ? "border-amber-300/60 bg-amber-900/25"
+                              : isAvailable
+                                ? "border-amber-300/70 bg-amber-300/10 shadow-[0_0_12px_rgba(252,211,77,0.18)] cursor-pointer hover:bg-amber-300/20"
+                                : isRevealed
+                                  ? "border-white/20 bg-black/40"
+                                  : "border-white/10 bg-black/30 opacity-50";
+                          return (
+                            <button
+                              key={node.id}
+                              disabled={!isAvailable}
+                              onClick={() => isAvailable && enterMapNode(node.id)}
+                              className={`flex min-w-[72px] flex-col items-center rounded-2xl border p-2 transition ${borderClass}`}
+                            >
+                              {isRevealed || isDone ? (
+                                <>
+                                  <span className="text-xl">{getNodeEmoji(node.type)}</span>
+                                  <span className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-100">{getNodeLabel(node.type)}</span>
+                                  {isDone ? <span className="text-[9px] text-emerald-400">✓ done</span> : null}
+                                  {isAvailable ? <span className="mt-1 animate-pulse text-[9px] text-amber-300">TAP</span> : null}
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-xl">❓</span>
+                                  <span className="text-[9px] text-zinc-400">hidden</span>
+                                </>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+
+                  {available.length === 0 ? (
+                    <div className="rounded-xl border border-rose-300/30 bg-rose-900/20 p-3 text-center text-sm text-rose-200">
+                      No paths available. The boss must already be cleared.
+                    </div>
+                  ) : (
+                    <div className="text-center text-[10px] text-zinc-400">Tap a highlighted node to travel there.</div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })() : null}
+        </AnimatePresence>
+
+        {/* ── Event overlay ─────────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {game.phase === "event" && game.pendingEvent ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-sm rounded-[28px] border border-cyan-300/20 bg-zinc-950/98 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
+                <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-cyan-400">❓ Random Event</div>
+                <div className="mb-2 font-serif text-xl italic text-amber-300">{game.pendingEvent.title}</div>
+                <div className="mb-4 rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-zinc-200">{game.pendingEvent.description}</div>
+                <div className="space-y-2">
+                  {game.pendingEvent.choices.map((choice, idx) => (
+                    <button
+                      key={`choice-${idx}`}
+                      onClick={() => handleEventChoice(idx)}
+                      className="w-full rounded-xl border border-white/20 bg-white/10 p-3 text-left transition hover:bg-white/20"
+                    >
+                      <div className="font-black text-sm text-white">{choice.label}</div>
+                      <div className="text-[11px] text-zinc-300">{choice.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        {/* ── Shop overlay ──────────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {game.phase === "shop" && game.shopInventory ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-sm rounded-[28px] border border-amber-300/20 bg-zinc-950/98 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
+                <div className="mb-1 flex items-center justify-between">
+                  <div>
+                    <div className="font-serif text-xl italic text-amber-300">🛒 Jungle Shop</div>
+                    <div className="text-[11px] text-zinc-400">Zone {game.floor} · Your coins: <span className="text-amber-300 font-black">{game.player.coins || 0}</span></div>
+                  </div>
+                  <button onClick={handleShopLeave} className="rounded-xl border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20">Leave</button>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {game.shopInventory.map((item, idx) => (
+                    <div key={item.id} className="flex items-center justify-between gap-2 rounded-xl border border-white/15 bg-black/40 p-3">
+                      <div className="flex-1">
+                        <div className="font-black text-sm text-white">{item.name}</div>
+                        <div className="text-[10px] text-zinc-300">{item.description}</div>
+                      </div>
+                      <button
+                        onClick={() => handleShopBuy(idx)}
+                        disabled={(game.player.coins || 0) < item.cost}
+                        className="rounded-xl border border-amber-300/30 bg-amber-500/20 px-3 py-1.5 text-xs font-black text-amber-200 hover:bg-amber-500/35 disabled:opacity-40"
+                      >
+                        🪙 {item.cost}
+                      </button>
+                    </div>
+                  ))}
+                  {game.shopInventory.length === 0 ? (
+                    <div className="rounded-xl border border-white/10 bg-black/35 p-3 text-center text-sm text-zinc-400">Sold out.</div>
+                  ) : null}
+                </div>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        {/* ── Rest overlay ──────────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {game.phase === "rest" ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-sm rounded-[28px] border border-emerald-300/20 bg-zinc-950/98 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
+                <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-emerald-400">🏕️ Rest Site</div>
+                <div className="mb-2 font-serif text-xl italic text-amber-300">A Moment of Calm</div>
+                <div className="mb-4 rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-zinc-300">
+                  The jungle quiets around you. <span className="text-white font-black">{game.player.hp}/{game.player.maxHp} HP</span>. Choose how to spend this moment.
+                </div>
+                <div className="space-y-2">
+                  {REST_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      onClick={() => handleRestChoice(option.id)}
+                      className="w-full rounded-xl border border-white/20 bg-white/10 p-3 text-left transition hover:bg-white/20"
+                    >
+                      <div className="font-black text-sm text-white">{option.label}</div>
+                      <div className="text-[11px] text-zinc-300">{option.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </motion.div>
           ) : null}
         </AnimatePresence>
@@ -2496,7 +3115,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         <AnimatePresence>
           {game.showHowToPlay ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-              <div className="w-full max-w-xl rounded-[28px] border border-amber-300/20 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
+              <div className="w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-[28px] border border-amber-300/20 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <img src={LOGO_URL} alt="Kabal logo" className="h-10 w-10 object-contain" />
@@ -2507,16 +3126,67 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   </div>
                   <Button onClick={() => setGame((g) => ({ ...g, showHowToPlay: false }))} className="rounded-xl bg-white/10 px-4 py-2 text-white hover:bg-white/20">✕</Button>
                 </div>
-                <div className="space-y-2 text-sm text-white md:text-base">
-                  <div>1️⃣ Click <span className="font-black text-amber-300">ROLL</span></div>
-                  <div>2️⃣ You can use <span className="font-black text-amber-300">1 reroll</span> per turn unless cursed</div>
-                  <div>3️⃣ Tap a die, then place it on a free slot</div>
-                  <div>4️⃣ 🔥 Top row = x3 · ✨ Mid row = x2 · 🪨 Bottom row = x1</div>
-                  <div>5️⃣ Used slots gain cooldown</div>
-                  <div>6️⃣ If the board saturates, all cooldowns reset</div>
-                  <div>7️⃣ Enemies have visible intents and combat modifiers</div>
-                  <div>8️⃣ Beat elites and bosses, pick artifacts, continue to higher zones</div>
+                {/* Quick tutorial */}
+                <div className="mb-3 space-y-1.5 text-sm text-white">
+                  <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-300">Quick start</div>
+                  <div>1️⃣ Press <span className="font-black text-amber-300">ROLL</span> to get your dice for the turn</div>
+                  <div>2️⃣ Tap a die to select it, then tap a board slot to place it</div>
+                  <div>3️⃣ Once happy, press <span className="font-black text-emerald-300">RESOLVE</span> — or place all dice to auto-resolve</div>
+                  <div>4️⃣ 🔁 You have 1 <span className="font-black text-amber-300">Reroll</span> per turn — tap a die first, then REROLL</div>
+                  <div>5️⃣ Kill all enemies in a zone to advance to the next one</div>
                 </div>
+
+                {/* HUD guide */}
+                <div className="mb-3 rounded-xl border border-cyan-300/20 bg-cyan-950/30 p-3 space-y-1.5 text-[12px] text-zinc-100">
+                  <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">HUD — what's on screen</div>
+                  <div>⚔️ <span className="font-black">Attack die</span> — black dice, deals damage (row multiplier applies)</div>
+                  <div>🛡️ <span className="font-black">Shield die</span> — white dice, adds shield this turn</div>
+                  <div>❤️ <span className="font-black">Heal die</span> — pink dice, restores HP</div>
+                  <div>🔥 <span className="font-black">Top row ×3</span> · ✨ <span className="font-black">Mid ×2</span> · 🪨 <span className="font-black">Bot ×1</span> — multipliers per row</div>
+                  <div>⏳ <span className="font-black">Cooldown</span> — used slots are locked for N turns; board saturates if all slots locked</div>
+                  <div>💀 <span className="font-black">Enemy intent</span> — shown above enemy; predicts next action</div>
+                  <div>⚡ <span className="font-black">Enemy charge</span> — bar fills each turn; at max = SURGE (heavy attack)</div>
+                </div>
+
+                {/* Advanced guide toggle */}
+                <button
+                  onClick={() => setShowAdvancedGuide((v) => !v)}
+                  className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[12px] font-black text-zinc-300 hover:bg-white/10"
+                >
+                  <span>📚 Advanced guide</span>
+                  <span>{showAdvancedGuide ? '▲' : '▼'}</span>
+                </button>
+                {showAdvancedGuide ? (
+                  <div className="mt-2 space-y-3 rounded-xl border border-white/10 bg-black/40 p-3 text-[12px] text-zinc-100">
+                    <div>
+                      <div className="mb-1 font-black text-violet-300">Enemy stats</div>
+                      <div className="space-y-0.5">
+                        <div>❤️ <span className="font-black">HP</span> — total life; regen enemies heal each turn</div>
+                        <div>🛡️ <span className="font-black">Shield</span> — absorbs damage; pierce attacks bypass it</div>
+                        <div>⚡ <span className="font-black">Charge</span> — how close to SURGE; reset with ☠️ Curse (face 1)</div>
+                        <div>🔥 <span className="font-black">Strength</span> — damage multiplier on attacks</div>
+                        <div>⚙️ <span className="font-black">Intents</span> — Attack / Shield / Regen / Charging shown 1 turn ahead</div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mb-1 font-black text-amber-300">Special dice faces</div>
+                      <div className="space-y-0.5">
+                        <div>☠️ <span className="font-black">Curse</span> (⚔️ face 1) — deals damage + resets enemy charge bar</div>
+                        <div>🔱 <span className="font-black">Pierce</span> (⚔️ face 6) — deals damage and ignores enemy shield</div>
+                        <div>💚 <span className="font-black">Nurture</span> (❤️ face 6) — heals for double value</div>
+                        <div>🏰 <span className="font-black">Fortress</span> (🛡️ face 6) — shield carries over to next turn</div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mb-1 font-black text-emerald-300">Build archetypes</div>
+                      <div className="space-y-1">
+                        <div><span className="font-black text-red-300">⚔️ Berserker</span> — stack top row (×3) attack slots + pierce artifacts. One-shot enemies before they charge.</div>
+                        <div><span className="font-black text-cyan-300">🛡️ Fortress</span> — shield dice + fortress face + regen artifacts. Outlast and grind enemies down slowly.</div>
+                        <div><span className="font-black text-violet-300">✨ Surge Control</span> — use curse (face 1) to reset enemy charge every turn. Combine mid-row ×2 for consistent damage without dying to SURGE.</div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </motion.div>
           ) : null}
