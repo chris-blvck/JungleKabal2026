@@ -336,6 +336,7 @@ const EMPTY_CONFIG = {
     ],
   },
   releaseNotes: '',
+  knownIssues: [],
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -417,6 +418,7 @@ function withDefaults(raw = {}) {
       rewards: Array.isArray(raw.dailyLogin?.rewards) ? raw.dailyLogin.rewards : EMPTY_CONFIG.dailyLogin.rewards,
     },
     releaseNotes: typeof raw.releaseNotes === 'string' ? raw.releaseNotes : '',
+    knownIssues: Array.isArray(raw.knownIssues) ? raw.knownIssues : [],
   };
 }
 
@@ -1948,6 +1950,21 @@ export default function DieInTheJungleAdmin() {
         ══════════════════════════════════════════════════════════════════════ */}
         {activeTab === 'assets' && (
           <div className="space-y-6">
+            {/* Stats overview */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {[
+                { label: 'Total Assets', value: (() => { let t = 0; Object.values(config.assets || {}).forEach(cat => Object.values(cat).forEach(sub => { if (Array.isArray(sub)) t += sub.length; })); return t; })() },
+                { label: '👹 Monsters', value: (() => { const c = config.assets?.monsters || {}; return Object.values(c).reduce((s, a) => s + (Array.isArray(a) ? a.length : 0), 0); })() },
+                { label: '🌿 Backgrounds', value: (() => { const c = config.assets?.backgrounds || {}; return Object.values(c).reduce((s, a) => s + (Array.isArray(a) ? a.length : 0), 0); })() },
+                { label: '🎲 Events', value: (() => { const c = config.assets?.events || {}; return Object.values(c).reduce((s, a) => s + (Array.isArray(a) ? a.length : 0), 0); })() },
+                { label: '🗺️ Zones', value: (() => { const c = config.assets?.zones || {}; return Object.values(c).reduce((s, a) => s + (Array.isArray(a) ? a.length : 0), 0); })() },
+              ].map(({ label, value }) => (
+                <div key={label} className="rounded-lg border border-zinc-700 bg-zinc-800/60 p-3 text-center">
+                  <div className="text-2xl font-black text-amber-300">{value}</div>
+                  <div className="text-xs text-zinc-500 mt-1">{label}</div>
+                </div>
+              ))}
+            </div>
             <SectionCard title="🖼️ Asset Manager">
               <div className="flex flex-wrap items-end gap-3">
                 <div>
@@ -2328,6 +2345,69 @@ export default function DieInTheJungleAdmin() {
                     <div className="h-3 rounded-full bg-zinc-800 overflow-hidden">
                       <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all" style={{ width: pct + '%' }} />
                     </div>
+                  </div>
+                );
+              })()}
+            </SectionCard>
+
+            {/* Known Issues Bug Tracker */}
+            <SectionCard title="🐛 Known Issues — Bug Tracker">
+              <p className="text-zinc-400 text-sm mb-4">Track bugs with severity and status. Saved to config.</p>
+              {(() => {
+                const [newBug, setNewBug] = React.useState({ title: '', severity: 'medium', status: 'open', notes: '' });
+                const bugs = config.knownIssues || [];
+                const severityColors = { critical: 'bg-rose-700/40 text-rose-300 border-rose-700/40', high: 'bg-orange-700/40 text-orange-300 border-orange-700/40', medium: 'bg-amber-700/40 text-amber-300 border-amber-700/40', low: 'bg-zinc-600/40 text-zinc-400 border-zinc-600/40' };
+                const statusColors = { open: 'text-rose-400', in_progress: 'text-amber-400', fixed: 'text-emerald-400', wontfix: 'text-zinc-500' };
+                return (
+                  <div className="space-y-3">
+                    {/* Add form */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2 p-3 rounded-lg border border-zinc-700 bg-zinc-800/40">
+                      <input value={newBug.title} onChange={(e) => setNewBug(p => ({ ...p, title: e.target.value }))}
+                        placeholder="Bug title..." className="md:col-span-2 rounded bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm text-zinc-100" />
+                      <select value={newBug.severity} onChange={(e) => setNewBug(p => ({ ...p, severity: e.target.value }))}
+                        className="rounded bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm text-zinc-100">
+                        <option value="critical">🔴 Critical</option>
+                        <option value="high">🟠 High</option>
+                        <option value="medium">🟡 Medium</option>
+                        <option value="low">🟢 Low</option>
+                      </select>
+                      <AmberBtn onClick={() => {
+                        if (!newBug.title.trim()) return;
+                        const issue = { ...newBug, id: Date.now().toString(), createdAt: new Date().toISOString() };
+                        setConfig(p => ({ ...p, knownIssues: [...(p.knownIssues || []), issue] }));
+                        setNewBug({ title: '', severity: 'medium', status: 'open', notes: '' });
+                      }}>+ Add Bug</AmberBtn>
+                    </div>
+                    {/* Bug list */}
+                    {bugs.length === 0 ? (
+                      <p className="text-zinc-500 text-sm">No bugs tracked yet. Add one above.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {bugs.map((bug) => (
+                          <div key={bug.id} className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${bug.status === 'fixed' ? 'border-zinc-700/50 opacity-60' : 'border-zinc-700 bg-zinc-800/30'}`}>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded border font-mono mt-0.5 shrink-0 ${severityColors[bug.severity]}`}>{bug.severity}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className={`text-sm font-medium ${bug.status === 'fixed' ? 'line-through text-zinc-500' : 'text-zinc-200'}`}>{bug.title}</div>
+                              {bug.notes && <div className="text-xs text-zinc-500 mt-0.5 italic">{bug.notes}</div>}
+                            </div>
+                            <select value={bug.status}
+                              onChange={(e) => setConfig(p => ({ ...p, knownIssues: (p.knownIssues || []).map(b => b.id === bug.id ? { ...b, status: e.target.value } : b) }))}
+                              className={`text-xs rounded bg-zinc-900 border border-zinc-700 px-2 py-1 shrink-0 ${statusColors[bug.status]}`}>
+                              <option value="open">Open</option>
+                              <option value="in_progress">In Progress</option>
+                              <option value="fixed">Fixed</option>
+                              <option value="wontfix">Won't Fix</option>
+                            </select>
+                            <button onClick={() => setConfig(p => ({ ...p, knownIssues: (p.knownIssues || []).filter(b => b.id !== bug.id) }))}
+                              className="text-xs text-zinc-600 hover:text-rose-400 shrink-0">✕</button>
+                          </div>
+                        ))}
+                        <div className="text-xs text-zinc-600 pt-1">
+                          {bugs.filter(b => b.status === 'open').length} open · {bugs.filter(b => b.status === 'in_progress').length} in progress · {bugs.filter(b => b.status === 'fixed').length} fixed
+                        </div>
+                      </div>
+                    )}
+                    <AmberBtn onClick={() => saveConfig(config)} disabled={loading}>💾 Save Issues</AmberBtn>
                   </div>
                 );
               })()}
@@ -2999,6 +3079,63 @@ export default function DieInTheJungleAdmin() {
                         </div>
                       );
                     })}
+                  </div>
+                );
+              })()}
+            </SectionCard>
+
+            {/* Drop Simulator */}
+            <SectionCard title="🎰 Drop Simulator">
+              <p className="text-zinc-400 text-sm mb-4">Simulate 100 artifact drops and 100 starter drops to verify your weight distribution in practice.</p>
+              {(() => {
+                const [simResults, setSimResults] = React.useState(null);
+                function simulate(weights, n) {
+                  const entries = Object.entries(weights).filter(([, v]) => v > 0);
+                  const total = entries.reduce((s, [, v]) => s + v, 0);
+                  if (total === 0) return {};
+                  const counts = {};
+                  entries.forEach(([k]) => { counts[k] = 0; });
+                  for (let i = 0; i < n; i++) {
+                    let rand = Math.random() * total;
+                    for (const [k, v] of entries) {
+                      rand -= v;
+                      if (rand <= 0) { counts[k]++; break; }
+                    }
+                  }
+                  return counts;
+                }
+                return (
+                  <div>
+                    <button onClick={() => {
+                      const art = simulate(config.pools?.artifactWeights || { gray: 4, gold: 3, chrome: 1 }, 100);
+                      const starter = simulate(config.pools?.starterWeights || { gray: 6, gold: 3, chrome: 1 }, 100);
+                      const map = simulate(config.pools?.mapNodeWeights || { combat: 3, shop: 1, rest: 1, event: 1 }, 100);
+                      setSimResults({ art, starter, map });
+                    }} className="px-4 py-2 rounded-lg bg-violet-700 hover:bg-violet-600 text-sm font-medium mb-4">
+                      🎲 Simulate 100 Drops
+                    </button>
+                    {simResults && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {[
+                          { title: '💎 Artifact Drops', data: simResults.art },
+                          { title: '🎁 Starter Drops', data: simResults.starter },
+                          { title: '🗺️ Map Nodes (100 nodes)', data: simResults.map },
+                        ].map(({ title, data }) => (
+                          <div key={title} className="rounded-lg border border-zinc-700 bg-zinc-800/40 p-3">
+                            <div className="text-sm font-medium text-zinc-300 mb-2">{title}</div>
+                            {Object.entries(data).sort(([, a], [, b]) => b - a).map(([key, count]) => (
+                              <div key={key} className="flex items-center gap-2 mb-1">
+                                <span className="text-xs text-zinc-400 w-20 capitalize">{key}</span>
+                                <div className="flex-1 h-2 bg-zinc-700 rounded-full overflow-hidden">
+                                  <div className="h-full bg-amber-500 transition-all" style={{ width: `${count}%` }} />
+                                </div>
+                                <span className="text-xs font-mono text-amber-300 w-10 text-right">{count}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })()}
