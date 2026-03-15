@@ -2364,6 +2364,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   function enterMapNode(nodeId: string) {
     setGame((g) => {
       if (!g.mapLayers) return g;
+      // Block navigation if map opened mid-combat — view only
+      if (g.combatMapView) return g;
       const allNodes = g.mapLayers.flatMap((l) => l.nodes);
       const node = allNodes.find((n) => n.id === nodeId);
       if (!node || node.visited) return g;
@@ -3206,7 +3208,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
             ) : null}
             {(game.phase === "roll" || game.phase === "place") && game.mapLayers && (
               <Button
-                onClick={() => setGame(g => ({ ...g, phase: 'map' }))}
+                onClick={() => setGame(g => ({ ...g, prevCombatPhase: g.phase, phase: 'map', combatMapView: true }))}
                 className="rounded-xl border border-amber-400/25 bg-amber-900/30 px-2 py-2 text-xs font-black text-amber-200 hover:bg-amber-900/50"
               >
                 &#x1F5FA;&#xFE0F;
@@ -3592,6 +3594,19 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                     <div className="rounded-xl border border-amber-300/20 bg-black/40 px-2 py-1 text-[10px] text-amber-200">Room {game.room + 1}</div>
                   </div>
 
+                  {/* Combat view-only banner */}
+                  {game.combatMapView && (
+                    <div className="mb-3 rounded-xl border border-rose-400/40 bg-rose-950/60 px-3 py-2 flex items-center justify-between gap-2">
+                      <span className="text-xs text-rose-300 font-bold">⚔️ Combat in progress — map is view only</span>
+                      <button
+                        onClick={() => setGame(g => ({ ...g, phase: g.prevCombatPhase || 'place', combatMapView: false, prevCombatPhase: null }))}
+                        className="rounded-lg border border-rose-400/50 bg-rose-700/60 px-3 py-1 text-xs font-black text-rose-100 hover:bg-rose-600/70"
+                      >
+                        ← Back to Combat
+                      </button>
+                    </div>
+                  )}
+
                   {/* Map layers */}
                   <div className="mb-3 space-y-2 overflow-y-auto" style={{ maxHeight: '55vh' }}>
                     {game.mapLayers.map((layer) => (
@@ -3613,9 +3628,9 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                           return (
                             <button
                               key={node.id}
-                              disabled={!isAvailable}
-                              onClick={() => isAvailable && enterMapNode(node.id)}
-                              className={`flex min-w-[72px] flex-col items-center rounded-2xl border p-2 transition ${borderClass}`}
+                              disabled={!isAvailable || game.combatMapView}
+                              onClick={() => isAvailable && !game.combatMapView && enterMapNode(node.id)}
+                              className={`flex min-w-[72px] flex-col items-center rounded-2xl border p-2 transition ${borderClass} ${game.combatMapView && isAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                               {isRevealed || isDone ? (
                                 <>
