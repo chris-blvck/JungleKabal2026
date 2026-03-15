@@ -44,6 +44,7 @@ import {
   hasDiceSpecials,
   hasLaneBonuses,
   getUnlockedCompanions,
+  getRelicSlotCount,
 } from "@/lib/metaProgression";
 import {
   type BiomeId,
@@ -1539,6 +1540,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const [weaponRarityFilter, setWeaponRarityFilter] = useState<string>('all');
   const [weaponArchFilter, setWeaponArchFilter] = useState<string>('all');
   const [meta, setMeta] = useState<MetaProgressionState>(loadMeta);
+  const [showXpPanel, setShowXpPanel] = useState(false);
   const [lastRunReward, setLastRunReward] = useState<RunReward | null>(null);
   const [leaderboard, setLeaderboard] = useState<Array<{ name: string; score: number; floor: number; date: string; seed: number }>>(() => {
     try { const raw = localStorage.getItem('jungle_kabal_leaderboard_v1'); return raw ? JSON.parse(raw) : []; } catch { return []; }
@@ -2641,43 +2643,62 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.78)), url(${effectiveBg})` }}>
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-1.5 pb-3 md:gap-2">
         <div className="rounded-[22px] border border-amber-300/20 bg-black/35 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md md:p-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <img src={LOGO_URL} alt="Kabal logo" className="h-9 w-9 object-contain" />
+          <div className="flex flex-wrap items-center justify-between gap-1.5">
+            {/* Left: logo + title */}
+            <div className="flex items-center gap-1.5">
+              <img src={LOGO_URL} alt="Kabal logo" className="h-8 w-8 object-contain md:h-9 md:w-9" />
               <div>
-                <h1 className="font-serif text-base italic tracking-wide text-amber-300 md:text-2xl">DIE JUNGLE</h1>
-                <p className="text-[10px] text-zinc-100 md:text-xs">{biome.emoji} {biome.name} · zone {game.floor}</p>
+                <h1 className="font-serif text-sm italic tracking-wide text-amber-300 md:text-2xl">DIE JUNGLE</h1>
+                <p className="text-[9px] text-zinc-100 md:text-xs">{biome.emoji} {biome.name} · Z{game.floor}</p>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 md:gap-2">
-              {/* XP bar */}
-              <div className="hidden md:flex flex-col items-end gap-0.5">
-                <div className="flex items-center gap-1 text-[9px] text-amber-300">
-                  <span>Lv.{xpInfo.level}</span>
-                  <span className="text-zinc-400">{xpInfo.current}/{xpInfo.needed || '∞'} XP</span>
+            {/* Center chips: Score · Coins · Room · Streak */}
+            <div className="flex flex-wrap items-center gap-1">
+              {/* Score — prominent violet */}
+              <div className="flex items-center gap-1 rounded-lg border border-violet-400/25 bg-violet-900/20 px-2 py-1">
+                <span className="text-[9px] uppercase tracking-[0.15em] text-zinc-400">Score</span>
+                <span className="text-sm font-black text-violet-300 md:text-base">{game.score}</span>
+              </div>
+              {/* Coins */}
+              <div className="flex items-center gap-0.5 rounded-lg border border-yellow-400/20 bg-yellow-900/15 px-2 py-1 text-[11px] font-black text-yellow-300">
+                🪙 {game.player.coins || 0}
+              </div>
+              {/* Room */}
+              <div className="flex items-center gap-0.5 rounded-lg border border-amber-400/20 bg-amber-900/15 px-2 py-1 text-[10px] font-black text-amber-200">
+                R{game.room + 1}/{game.route.length}
+              </div>
+              {/* Win streak — only when > 0 */}
+              {game.winStreak > 0 && (
+                <div className="flex items-center gap-0.5 rounded-lg border border-emerald-400/20 bg-emerald-900/15 px-2 py-1 text-[10px] font-black text-emerald-300">
+                  🔥{game.winStreak}
                 </div>
-                <div className="h-1.5 w-20 overflow-hidden rounded-full bg-zinc-800 border border-zinc-700">
+              )}
+              {/* Phase chip */}
+              <div className="rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-black uppercase text-amber-300">
+                {game.phase}
+              </div>
+            </div>
+            {/* Right: XP chip + gems + help + restart */}
+            <div className="flex items-center gap-1 md:gap-1.5">
+              {/* Clickable XP chip */}
+              <button
+                onClick={() => setShowXpPanel(true)}
+                className="flex flex-col items-end gap-0.5 rounded-xl border border-amber-400/20 bg-amber-950/20 px-2 py-1 hover:bg-amber-950/35 transition"
+              >
+                <span className="text-[9px] text-amber-300 font-black">Lv.{xpInfo.level}</span>
+                <div className="h-1.5 w-16 overflow-hidden rounded-full bg-zinc-800 border border-zinc-700">
                   <div className="h-full rounded-full bg-amber-400 transition-all duration-500" style={{ width: `${xpPct}%` }} />
                 </div>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-black/40 px-2 py-1.5 text-right">
-                <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Score</div>
-                <div className="text-xs font-black text-violet-300 md:text-sm">{game.score}</div>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-black/40 px-2 py-1.5 text-right">
-                <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Phase</div>
-                <div className="text-xs font-black uppercase text-amber-300 md:text-sm">{game.phase}</div>
-              </div>
+              </button>
               <button onClick={() => setShowArsenal(true)} className="rounded-xl border border-violet-400/20 bg-black/40 px-2 py-1.5 text-right hover:bg-violet-900/30 transition">
                 <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Gems</div>
-                <div className="text-xs font-black text-violet-300 md:text-sm">💎 {meta.gems}</div>
+                <div className="text-xs font-black text-violet-300">💎 {meta.gems}</div>
               </button>
-              <Button onClick={() => setGame((g) => ({ ...g, showHowToPlay: true }))} className="rounded-xl bg-white/10 px-2.5 py-2 text-white hover:bg-white/20">❓</Button>
-              {/* Restart button — always visible in header */}
+              <Button onClick={() => setGame((g) => ({ ...g, showHowToPlay: true }))} className="rounded-xl bg-white/10 px-2 py-1.5 text-white hover:bg-white/20 text-xs">❓</Button>
               {!game.runEnded && game.phase !== 'reward' && game.phase !== 'map' && (
                 <Button
                   onClick={() => setShowRestartConfirm(true)}
-                  className="rounded-xl bg-rose-500/15 px-2.5 py-2 text-rose-300 hover:bg-rose-500/30 text-xs"
+                  className="rounded-xl bg-rose-500/15 px-2 py-1.5 text-rose-300 hover:bg-rose-500/30 text-xs"
                 >↺</Button>
               )}
             </div>
@@ -2686,19 +2707,19 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
         <div className="grid shrink-0 gap-1.5 md:gap-2 md:grid-cols-[1.15fr_1fr_1.15fr]">
           <SectionCard title="Enemy panel" className="order-3 md:order-3">
-            <div className="rounded-[18px] border border-rose-300/30 bg-gradient-to-b from-rose-950/45 to-black/85 p-2">
-              <div className="flex h-full flex-col items-center justify-center gap-2 rounded-[14px] border border-rose-300/40 bg-black/35 p-2 text-center">
+            <div className="rounded-[18px] border border-rose-300/30 bg-gradient-to-b from-rose-950/45 to-black/85 p-1.5">
+              <div className="flex h-full flex-col items-center justify-center gap-1.5 rounded-[14px] border border-rose-300/40 bg-black/35 p-1.5 text-center">
                 <motion.img
                   ref={enemyAnchorRef}
                   src={game.enemy.image}
                   alt={game.enemy.name}
                   animate={game.enemyHitPulse ? { scale: [1, 1.12, 0.96, 1], filter: ["brightness(1)", "brightness(1.55)", "brightness(1)"] } : game.enemyAttackPulse ? { x: [0, -10, 10, -8, 8, 0], scale: [1, 1.06, 1] } : intent.type === "attack" ? { scale: [1, 1.03, 1], x: [0, -2, 2, 0] } : { scale: 1, x: 0 }}
                   transition={{ duration: 0.45 }}
-                  className="h-[128px] w-full object-contain contrast-110 saturate-110 drop-shadow-[0_14px_24px_rgba(0,0,0,0.6)] md:h-[175px]"
+                  className="h-[90px] w-full object-contain contrast-110 saturate-110 drop-shadow-[0_14px_24px_rgba(0,0,0,0.6)] md:h-[128px]"
                 />
-                <div className="text-xs font-black md:text-sm">{game.enemy.emoji} {game.enemy.name}{game.enemy.elite ? ` ${"⭐".repeat(game.enemy.eliteStars || 1)}` : ""}</div>
+                <div className="text-[11px] font-black md:text-sm">{game.enemy.emoji} {game.enemy.name}{game.enemy.elite ? ` ${"⭐".repeat(game.enemy.eliteStars || 1)}` : ""}</div>
                 <div className="text-[9px] text-zinc-300">{game.enemy.mood}</div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1">
                   <div className="rounded-full border border-white/10 bg-black/45 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-zinc-200">
                     {getTierLabel(game.enemy)}
                   </div>
@@ -2718,26 +2739,21 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           </SectionCard>
 
           <SectionCard title="Combat center" className="order-2 md:order-2">
-            <div className="grid grid-cols-2 gap-1.5 rounded-[16px] border border-white/10 bg-black/35 p-2">
-              <CompactStat label="Room" value={`${game.room + 1}/${game.route.length}`} accent="text-amber-300" />
-              <CompactStat label="Score" value={`${game.score}`} accent="text-violet-300" />
+            <div className="grid grid-cols-2 gap-1 rounded-[16px] border border-white/10 bg-black/35 p-1.5">
               <CompactStat label="Intent" value={`${intentMeta(intent.type).emoji} ${intent.type}`} accent={intentMeta(intent.type).color} />
               <CompactStat label="Value" value={`${intent.value}`} accent="text-rose-300" />
               <CompactStat label="Modifier" value={intent.mod.badge} accent={modifierClass(game.enemy.modifier)} />
-              <CompactStat label="Streak" value={`${game.winStreak}`} accent="text-emerald-300" />
               <CompactStat label="No-hit" value={`${game.noHitTurns}T · x${streakMultiplier.toFixed(1)}`} accent="text-lime-300" />
               <CompactStat label="Enemy Shield" value={`${game.enemy.shield || 0}`} accent="text-rose-200" />
-              <CompactStat label="🪙 Coins" value={`${game.player.coins || 0}`} accent="text-yellow-300" />
-              <CompactStat label="💎 Gems" value={`${meta.gems}`} accent="text-violet-300" />
-              <div className="rounded-[16px] border border-white/10 bg-black/35 p-2 text-center">
-                <div className="text-[9px] uppercase tracking-[0.16em] text-zinc-300">Outcome</div>
-                <div className="mt-1 text-xs font-black text-cyan-100">{game.lastOutcome || "—"}</div>
+              <div className="rounded-[12px] border border-white/10 bg-black/35 p-1.5 text-center">
+                <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-300">Outcome</div>
+                <div className="mt-0.5 text-[11px] font-black text-cyan-100">{game.lastOutcome || "—"}</div>
               </div>
-              <div className="col-span-2 rounded-[12px] border border-white/10 bg-black/40 p-2">
-                <div className="mb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-300">Intent timeline</div>
-                <div className="space-y-1 text-[11px]">
-                  {intentTimeline.map((entry, idx) => (
-                    <div key={`${entry.type}-${idx}-${entry.value}`} className={`rounded-lg border border-white/10 px-2 py-1 ${idx === 0 ? "bg-white/10" : "bg-black/35"}`}>
+              <div className="col-span-2 rounded-[12px] border border-white/10 bg-black/40 p-1.5">
+                <div className="mb-1 text-[9px] uppercase tracking-[0.14em] text-zinc-300">Intent timeline</div>
+                <div className="space-y-0.5 text-[10px]">
+                  {intentTimeline.slice(0, 2).map((entry, idx) => (
+                    <div key={`${entry.type}-${idx}-${entry.value}`} className={`rounded-lg border border-white/10 px-2 py-0.5 ${idx === 0 ? "bg-white/10" : "bg-black/35"}`}>
                       <span className={intentMeta(entry.type).color}>{intentMeta(entry.type).emoji} {entry.label}</span>
                       <span className="ml-1 text-zinc-200">{entry.value}</span>
                     </div>
@@ -2748,22 +2764,22 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           </SectionCard>
 
           <SectionCard title="Player panel" className="order-1 md:order-1">
-            <div className="rounded-[18px] border border-cyan-300/30 bg-gradient-to-b from-cyan-950/40 to-black/85 p-2">
-              <div className="grid grid-cols-2 gap-1.5 rounded-[14px] border border-cyan-300/30 bg-black/35 p-2">
-                <div className="col-span-2 flex flex-col items-center gap-2 rounded-[16px] border border-white/10 bg-black/35 p-2 text-center">
+            <div className="rounded-[18px] border border-cyan-300/30 bg-gradient-to-b from-cyan-950/40 to-black/85 p-1.5">
+              <div className="grid grid-cols-2 gap-1 rounded-[14px] border border-cyan-300/30 bg-black/35 p-1.5">
+                <div className="col-span-2 flex flex-col items-center gap-1.5 rounded-[16px] border border-white/10 bg-black/35 p-1.5 text-center">
                 <motion.img
                   ref={playerAnchorRef}
                   src={avatarUrl}
                   alt="Kabalian"
                   animate={game.avatarMood === "hurt" ? { x: [0, -2, 2, -2, 0] } : game.avatarMood === "victory" ? { y: [0, -3, 0] } : { x: 0, y: 0 }}
                   transition={{ duration: 0.45 }}
-                  className={`h-[128px] w-full rounded-2xl border border-white/10 bg-black/40 object-contain md:h-[175px] ${avatarRing}`}
+                  className={`h-[90px] w-full rounded-2xl border border-white/10 bg-black/40 object-contain md:h-[128px] ${avatarRing}`}
                 />
                 <div className="min-w-0">
-                  <div className="font-black">{game.player.characterId === "kkm" ? "KKM" : "Kabalian"}</div>
-                  <div className="text-[10px] text-zinc-300">CD {game.player.cooldownBase} · Tick {game.player.cooldownTick} · Artifacts {totalArtifacts}</div>
+                  <div className="text-sm font-black">{game.player.characterId === "kkm" ? "KKM" : "Kabalian"}</div>
+                  <div className="text-[9px] text-zinc-300">CD {game.player.cooldownBase} · Tick {game.player.cooldownTick} · Arts {totalArtifacts}</div>
                 </div>
-                <img src={LOGO_URL} alt="Kabal logo" className="h-7 w-7 object-contain opacity-90" />
+                <img src={LOGO_URL} alt="Kabal logo" className="h-6 w-6 object-contain opacity-90" />
               </div>
                 <div className="col-span-2">
                   <LifeBar label="Player HP" current={game.player.hp} max={game.player.maxHp} tone="player" />
