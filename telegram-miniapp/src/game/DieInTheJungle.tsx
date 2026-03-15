@@ -1,6 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "../components/Button";
+import {
+  type MapLayer,
+  type MapNode,
+  type MapEvent,
+  type ShopItem,
+  generateZoneMap,
+  updateFogOfWar,
+  getAvailableNodes,
+  getNodeEmoji,
+  getNodeLabel,
+  pickRandomEvent,
+  resolveEventChoice,
+  generateShopItems,
+  REST_OPTIONS,
+  createRng,
+} from "./mapSystem";
 
 const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
 
@@ -1117,6 +1133,7 @@ function makeInitialPlayer(characterId = "kabalian") {
     curseNextTurn: 0,
     artifacts: [],
     reviveOnce: false,
+    coins: 0,
   };
 }
 
@@ -1125,6 +1142,7 @@ function makeInitialState() {
   const route = buildRoute(floor);
   const player = makeInitialPlayer();
   player.shield = player.combatStartShield;
+  const runSeed = generateRunSeed();
   return {
     floor,
     room: 0,
@@ -1149,7 +1167,7 @@ function makeInitialState() {
     characterSelectPending: true,
     score: 0,
     noHitTurns: 0,
-    runSeed: generateRunSeed(),
+    runSeed,
     runEnded: false,
     avatarMood: "focus",
     actionFlash: null,
@@ -1159,13 +1177,12 @@ function makeInitialState() {
     scorePopups: [],
     comboPopup: null,
     lastOutcome: null,
+    // Map system
+    mapLayers: null as MapLayer[] | null,
+    currentMapNodeId: null as string | null,
+    pendingEvent: null as MapEvent | null,
+    shopInventory: null as ShopItem[] | null,
   };
-  safe.artifactsOffered = (safe.artifactsOffered || []).map((id) => byId.get(id)).filter(Boolean);
-  safe.enemyAttackPulse = 0;
-  safe.damagePopups = [];
-  safe.actionFlash = null;
-  safe.killPopup = null;
-  return safe;
 }
 
 function serializeGameState(game) {
@@ -1201,6 +1218,11 @@ function hydrateGameState(rawState) {
   safe.noHitTurns = Number.isFinite(safe.noHitTurns) ? safe.noHitTurns : 0;
   safe.runSeed = safe.runSeed || generateRunSeed();
   safe.characterSelectPending = Boolean(safe.characterSelectPending);
+  safe.mapLayers = safe.mapLayers ?? null;
+  safe.currentMapNodeId = safe.currentMapNodeId ?? null;
+  safe.pendingEvent = safe.pendingEvent ?? null;
+  safe.shopInventory = safe.shopInventory ?? null;
+  if (!safe.player.coins) safe.player.coins = 0;
   return safe;
 }
 
@@ -1430,20 +1452,25 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         characterId: selected.id,
         avatar: selected.avatar,
         maxHp: selected.stats.maxHp,
-        hp: Math.min(selected.stats.maxHp, g.player.hp),
+        hp: selected.stats.maxHp,
         attackBonus: selected.stats.attackBonus,
         combatStartShield: selected.stats.combatStartShield || 0,
         shield: selected.stats.combatStartShield || 0,
         rerollsPerTurn: selected.stats.rerollsPerTurn,
         rerollsLeft: selected.stats.rerollsPerTurn,
+        coins: 0,
       };
+      const mapLayers = generateZoneMap(g.floor, g.runSeed);
       return {
         ...g,
         player: nextPlayer,
         characterSelectPending: false,
+        phase: "map",
+        mapLayers,
+        currentMapNodeId: null,
         avatarMood: "focus",
-        actionFlash: { id: Date.now(), text: `🧭 ${selected.name} selected`, tone: "sky" },
-        log: [`🧭 Character selected: ${selected.name}`, ...g.log].slice(0, 40),
+        actionFlash: { id: Date.now(), text: `🧭 ${selected.name} — choose your path`, tone: "sky" },
+        log: [`🧭 Character selected: ${selected.name}`, `🗺️ Zone ${g.floor} map generated`, ...g.log].slice(0, 40),
       };
     });
   }
@@ -1710,17 +1737,15 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           combatRewardPending = true;
           artifactsOffered = buildArtifactChoices(player);
           phase = "reward";
-        } else if (g.room >= g.route.length - 1) {
-          phase = "victory";
         } else {
+          // Go to map to choose next node
+          phase = "map";
           room = g.room + 1;
-          const nextEnemy = { ...g.route[room] };
-          nextEnemy.shield = 0;
-          nextEnemy.charge = 0;
-          player.shield = player.combatStartShield;
-          log.unshift(`✅ Next enemy: ${nextEnemy.emoji} ${nextEnemy.name}`);
-          enemy = nextEnemy;
-          avatarMood = "focus";
+          player.shield = 0;
+          const coinsEarned = g.enemy.tier === "medium" ? 2 : 1;
+          player.coins = (player.coins || 0) + coinsEarned;
+          log.unshift(`🗺️ Choose your next path · +${coinsEarned} coin${coinsEarned > 1 ? 's' : ''}`);
+          avatarMood = "victory";
         }
       }
 
@@ -1766,66 +1791,46 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
       const player = applyArtifactToPlayer(g.player, artifact);
 
       if (g.startRewardPending) {
-        const nextRoom = Math.min(g.route.length - 1, g.room + 1);
-        const nextEnemy = { ...g.route[nextRoom] };
+        // After first artifact reward → go to map
         return {
           ...g,
-          player: { ...player, shield: player.combatStartShield },
-          room: nextRoom,
-          enemy: nextEnemy,
-          phase: "roll",
+          player: { ...player, shield: 0 },
+          phase: "map",
           artifactsOffered: [],
           combatRewardPending: false,
           startRewardPending: false,
-          actionFlash: { id: Date.now(), text: `🏆 Start relic: ${artifact.name}`, tone: "amber" },
+          actionFlash: { id: Date.now(), text: `🏆 ${artifact.name} — choose your path`, tone: "amber" },
           lastOutcome: null,
-          log: [`🏆 Starting artifact: ${artifact.name}`, `✅ Next enemy: ${nextEnemy.emoji} ${nextEnemy.name}`, ...g.log].slice(0, 40),
+          log: [`🏆 Starting artifact: ${artifact.name}`, `🗺️ Choose your path`, ...g.log].slice(0, 40),
         };
       }
 
-      const finishedRoute = g.room >= g.route.length - 1;
-
-      if (finishedRoute) {
-        const nextFloor = g.floor + 1;
-        const nextRoute = buildRoute(nextFloor);
-        const nextPlayer = { ...player, shield: player.combatStartShield, rerollsLeft: player.rerollsPerTurn };
-        return {
-          ...g,
-          floor: nextFloor,
-          room: 0,
-          route: nextRoute,
-          enemy: { ...nextRoute[0] },
-          player: nextPlayer,
-          phase: "roll",
-          artifactsOffered: [],
-          combatRewardPending: false,
-          startRewardPending: false,
-          cooldowns: emptyCooldowns(),
-          grid: emptyGrid(),
-          dice: [],
-          selectedDieIndex: null,
-          avatarMood: "victory",
-          actionFlash: { id: Date.now(), text: `🏆 ${artifact.name}`, tone: "amber" },
-          lastOutcome: null,
-          log: [`🏆 Chose ${artifact.name}`, `🌴 Zone ${nextFloor} begins`, ...g.log].slice(0, 40),
-        };
-      }
-
-      const nextRoom = g.room + 1;
-      const nextEnemy = { ...g.route[nextRoom] };
+      // Boss kill reward → advance to next zone with new map
+      const nextFloor = g.floor + 1;
+      const nextRoute = buildRoute(nextFloor);
+      const nextMapLayers = generateZoneMap(nextFloor, g.runSeed + ':' + nextFloor);
+      const nextPlayer = { ...player, shield: 0, rerollsLeft: player.rerollsPerTurn };
       return {
         ...g,
-        player: { ...player, shield: player.combatStartShield },
-        room: nextRoom,
-        enemy: nextEnemy,
-        phase: "roll",
-        avatarMood: "focus",
-        actionFlash: { id: Date.now(), text: `🏆 ${artifact.name}`, tone: "amber" },
-        lastOutcome: null,
+        floor: nextFloor,
+        room: 0,
+        route: nextRoute,
+        enemy: { ...nextRoute[0] },
+        player: nextPlayer,
+        phase: "map",
+        mapLayers: nextMapLayers,
+        currentMapNodeId: null,
         artifactsOffered: [],
         combatRewardPending: false,
         startRewardPending: false,
-        log: [`🏆 Chose ${artifact.name}`, `✅ Next enemy: ${nextEnemy.emoji} ${nextEnemy.name}`, ...g.log].slice(0, 40),
+        cooldowns: emptyCooldowns(),
+        grid: emptyGrid(),
+        dice: [],
+        selectedDieIndex: null,
+        avatarMood: "victory",
+        actionFlash: { id: Date.now(), text: `🌴 Zone ${nextFloor} — choose your path`, tone: "amber" },
+        lastOutcome: null,
+        log: [`🏆 Chose ${artifact.name}`, `🌴 Zone ${nextFloor} begins`, ...g.log].slice(0, 40),
       };
     });
   }
@@ -1835,57 +1840,213 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
       if (!g.combatRewardPending && g.phase !== "reward") return g;
 
       if (g.startRewardPending) {
-        const nextRoom = Math.min(g.route.length - 1, g.room + 1);
-        const nextEnemy = { ...g.route[nextRoom] };
         return {
           ...g,
-          room: nextRoom,
-          enemy: nextEnemy,
-          phase: "roll",
+          phase: "map",
           artifactsOffered: [],
           combatRewardPending: false,
           startRewardPending: false,
-          actionFlash: { id: Date.now(), text: "⏭️ Reward skipped", tone: "sky" },
-          log: ["⏭️ You skipped the artifact reward", `✅ Next enemy: ${nextEnemy.emoji} ${nextEnemy.name}`, ...g.log].slice(0, 40),
+          actionFlash: { id: Date.now(), text: "⏭️ Skipped — choose your path", tone: "sky" },
+          log: ["⏭️ Skipped start reward", "🗺️ Choose your path", ...g.log].slice(0, 40),
         };
       }
 
-      const finishedRoute = g.room >= g.route.length - 1;
-      if (finishedRoute) {
-        const nextFloor = g.floor + 1;
-        const nextRoute = buildRoute(nextFloor);
+      // Boss kill skip → advance to next zone
+      const nextFloor = g.floor + 1;
+      const nextRoute = buildRoute(nextFloor);
+      const nextMapLayers = generateZoneMap(nextFloor, g.runSeed + ':' + nextFloor);
+      return {
+        ...g,
+        floor: nextFloor,
+        room: 0,
+        route: nextRoute,
+        enemy: { ...nextRoute[0] },
+        player: { ...g.player, shield: 0, rerollsLeft: g.player.rerollsPerTurn },
+        phase: "map",
+        mapLayers: nextMapLayers,
+        currentMapNodeId: null,
+        artifactsOffered: [],
+        combatRewardPending: false,
+        startRewardPending: false,
+        cooldowns: emptyCooldowns(),
+        grid: emptyGrid(),
+        dice: [],
+        selectedDieIndex: null,
+        actionFlash: { id: Date.now(), text: `🌴 Zone ${nextFloor} — choose your path`, tone: "sky" },
+        log: ["⏭️ Skipped reward", `🌴 Zone ${nextFloor} begins`, ...g.log].slice(0, 40),
+      };
+    });
+  }
+
+  function enterMapNode(nodeId: string) {
+    setGame((g) => {
+      if (!g.mapLayers) return g;
+      const allNodes = g.mapLayers.flatMap((l) => l.nodes);
+      const node = allNodes.find((n) => n.id === nodeId);
+      if (!node || node.visited) return g;
+
+      // Update fog of war and mark visited
+      const updatedLayers = updateFogOfWar(g.mapLayers, nodeId);
+
+      if (node.type === "mob" || node.type === "elite" || node.type === "boss") {
+        // Pick enemy from existing route scaled to floor
+        const tier = node.type === "elite" ? "medium" : node.type === "mob" ? "mob" : "boss";
+        const sourcePool = (ENEMY_POOLS as Record<string, typeof ENEMY_POOLS.mob>)[tier] || ENEMY_POOLS.mob;
+        const rng = createRng(g.runSeed + ':' + nodeId);
+        const source = sourcePool[Math.floor(rng() * sourcePool.length)];
+        const base = cloneEnemy(source);
+        const scale = g.floor - 1;
+        const hpScale = tier === "boss" ? 8 : tier === "medium" ? 5 : 3;
+        const dmgScale = tier === "boss" ? 2 : 1;
+        base.hp += scale * hpScale;
+        base.maxHp = base.hp;
+        base.damage += scale * dmgScale;
+        if (tier === "medium") {
+          base.elite = true;
+          base.eliteStars = Math.min(3, g.floor);
+          base.hp = Math.round(base.hp * 1.25);
+          base.maxHp = base.hp;
+          base.damage += 2;
+          base.tier = "medium";
+          base.name = `${"⭐".repeat(base.eliteStars)} ${base.name}`;
+        }
+        const mod = randFrom(source.modifierPool || ["none"]);
+        base.modifier = mod || "none";
+        if (base.modifier === "stoneSkin") base.firstHitIgnored = true;
+        const tierLabel = node.type === "boss" ? "👑 BOSS" : node.type === "elite" ? "⭐ Elite" : "⚔️ Combat";
         return {
           ...g,
-          floor: nextFloor,
-          room: 0,
-          route: nextRoute,
-          enemy: { ...nextRoute[0] },
-          player: { ...g.player, shield: g.player.combatStartShield, rerollsLeft: g.player.rerollsPerTurn },
+          mapLayers: updatedLayers,
+          currentMapNodeId: nodeId,
+          enemy: base,
           phase: "roll",
-          artifactsOffered: [],
-          combatRewardPending: false,
-          startRewardPending: false,
+          player: { ...g.player, shield: g.player.combatStartShield, rerollsLeft: g.player.rerollsPerTurn },
           cooldowns: emptyCooldowns(),
           grid: emptyGrid(),
           dice: [],
           selectedDieIndex: null,
-          actionFlash: { id: Date.now(), text: "⏭️ Reward skipped", tone: "sky" },
-          log: ["⏭️ You skipped the artifact reward", `🌴 Zone ${nextFloor} begins`, ...g.log].slice(0, 40),
+          log: [`${tierLabel}: ${base.emoji} ${base.name}`, ...g.log].slice(0, 40),
+          actionFlash: { id: Date.now(), text: `${tierLabel}: ${base.name}`, tone: node.type === "boss" ? "amber" : "rose" },
         };
       }
 
-      const nextRoom = g.room + 1;
-      const nextEnemy = { ...g.route[nextRoom] };
+      if (node.type === "shop") {
+        const shopRng = createRng(g.runSeed + ':shop:' + nodeId);
+        const shopInventory = generateShopItems(g.floor, shopRng);
+        return {
+          ...g,
+          mapLayers: updatedLayers,
+          currentMapNodeId: nodeId,
+          shopInventory,
+          phase: "shop",
+          log: ["🛒 You entered the jungle shop.", ...g.log].slice(0, 40),
+          actionFlash: { id: Date.now(), text: "🛒 Shop", tone: "sky" },
+        };
+      }
+
+      if (node.type === "event") {
+        const evRng = createRng(g.runSeed + ':event:' + nodeId);
+        const pendingEvent = pickRandomEvent(evRng);
+        return {
+          ...g,
+          mapLayers: updatedLayers,
+          currentMapNodeId: nodeId,
+          pendingEvent,
+          phase: "event",
+          log: [`❓ Event: ${pendingEvent.title}`, ...g.log].slice(0, 40),
+          actionFlash: { id: Date.now(), text: `❓ ${pendingEvent.title}`, tone: "sky" },
+        };
+      }
+
+      if (node.type === "rest") {
+        return {
+          ...g,
+          mapLayers: updatedLayers,
+          currentMapNodeId: nodeId,
+          phase: "rest",
+          log: ["🏕️ You found a rest site.", ...g.log].slice(0, 40),
+          actionFlash: { id: Date.now(), text: "🏕️ Rest", tone: "emerald" },
+        };
+      }
+
+      return g;
+    });
+  }
+
+  function handleEventChoice(choiceIndex: number) {
+    setGame((g) => {
+      if (!g.pendingEvent) return g;
+      const rng = createRng(g.runSeed + ':ev-result:' + g.currentMapNodeId);
+      const result = resolveEventChoice(g.pendingEvent, choiceIndex, { hp: g.player.hp, maxHp: g.player.maxHp, coins: g.player.coins }, rng);
+      let player = { ...g.player };
+      if (result.hpDelta) player.hp = Math.max(1, Math.min(player.maxHp, player.hp + result.hpDelta));
+      if (result.coinDelta) player.coins = Math.max(0, (player.coins || 0) + result.coinDelta);
+      if (result.maxHpDelta) { player.maxHp += result.maxHpDelta; player.hp += result.maxHpDelta; }
+      if (result.attackBonusDelta) player.attackBonus += result.attackBonusDelta;
+      if (result.healBonusDelta) player.healBonus += result.healBonusDelta;
+      if (result.rerollDelta) { player.rerollsPerTurn += result.rerollDelta; player.rerollsLeft += result.rerollDelta; }
+      if (result.combatStartShieldDelta) player.combatStartShield += result.combatStartShieldDelta;
       return {
         ...g,
-        room: nextRoom,
-        enemy: nextEnemy,
-        phase: "roll",
-        artifactsOffered: [],
-        combatRewardPending: false,
-        startRewardPending: false,
-        actionFlash: { id: Date.now(), text: "⏭️ Reward skipped", tone: "sky" },
-        log: ["⏭️ You skipped the artifact reward", `✅ Next enemy: ${nextEnemy.emoji} ${nextEnemy.name}`, ...g.log].slice(0, 40),
+        player,
+        phase: "map",
+        pendingEvent: null,
+        log: [result.text, ...g.log].slice(0, 40),
+        actionFlash: { id: Date.now(), text: result.text.slice(0, 40), tone: "emerald" },
+      };
+    });
+  }
+
+  function handleShopBuy(itemIndex: number) {
+    setGame((g) => {
+      if (!g.shopInventory) return g;
+      const item = g.shopInventory[itemIndex];
+      if (!item) return g;
+      const coins = g.player.coins || 0;
+      if (coins < item.cost) {
+        return { ...g, actionFlash: { id: Date.now(), text: `🚫 Need ${item.cost} coins (you have ${coins})`, tone: "rose" } };
+      }
+      let player = { ...g.player, coins: coins - item.cost };
+      const e = item.effect;
+      if (e.hpDelta) player.hp = Math.min(player.maxHp, player.hp + e.hpDelta);
+      if (e.maxHpDelta) { player.maxHp += e.maxHpDelta; player.hp += e.maxHpDelta; }
+      if (e.attackBonusDelta) player.attackBonus += e.attackBonusDelta;
+      if (e.healBonusDelta) player.healBonus += e.healBonusDelta;
+      if (e.rerollDelta) { player.rerollsPerTurn += e.rerollDelta; player.rerollsLeft += e.rerollDelta; }
+      if (e.combatStartShieldDelta) player.combatStartShield += e.combatStartShieldDelta;
+      const newInventory = g.shopInventory.filter((_, i) => i !== itemIndex);
+      return {
+        ...g,
+        player,
+        shopInventory: newInventory,
+        log: [`🛒 Bought: ${item.name}`, ...g.log].slice(0, 40),
+        actionFlash: { id: Date.now(), text: `🛒 ${item.name} purchased`, tone: "emerald" },
+      };
+    });
+  }
+
+  function handleShopLeave() {
+    setGame((g) => ({ ...g, phase: "map", shopInventory: null, actionFlash: { id: Date.now(), text: "🛒 Left the shop", tone: "sky" } }));
+  }
+
+  function handleRestChoice(optionId: string) {
+    setGame((g) => {
+      const option = REST_OPTIONS.find((r) => r.id === optionId);
+      if (!option) return g;
+      let player = { ...g.player };
+      const e = option.effect;
+      if (e.hpPctHeal) player.hp = Math.min(player.maxHp, player.hp + Math.round(player.maxHp * e.hpPctHeal));
+      if (e.maxHpDelta) { player.maxHp += e.maxHpDelta; player.hp += e.maxHpDelta; }
+      if (e.attackBonusDelta) player.attackBonus += e.attackBonusDelta;
+      if (e.healBonusDelta) player.healBonus += e.healBonusDelta;
+      if (e.coinDelta) player.coins = (player.coins || 0) + e.coinDelta;
+      if (e.rerollDelta) { player.rerollsPerTurn += e.rerollDelta; player.rerollsLeft += e.rerollDelta; }
+      return {
+        ...g,
+        player,
+        phase: "map",
+        log: [`🏕️ ${option.label}`, ...g.log].slice(0, 40),
+        actionFlash: { id: Date.now(), text: `🏕️ ${option.label}`, tone: "emerald" },
       };
     });
   }
@@ -2424,6 +2585,168 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           {game.comboPopup ? (
             <motion.div initial={{ opacity: 0, scale: 0.82 }} animate={{ opacity: 1, scale: 1.05 }} exit={{ opacity: 0, scale: 0.9 }} className="pointer-events-none fixed left-1/2 top-44 z-40 -translate-x-1/2 rounded-2xl border border-amber-300/45 bg-black/85 px-6 py-3 text-2xl font-black text-amber-200 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
               {game.comboPopup}
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        {/* ── Map overlay ──────────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {game.phase === "map" && game.mapLayers && !game.characterSelectPending ? (() => {
+            const available = getAvailableNodes(game.mapLayers, game.currentMapNodeId);
+            return (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm">
+                <div className="w-full max-w-lg rounded-[28px] border border-amber-300/20 bg-zinc-950/98 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <div className="font-serif text-xl italic text-amber-300">Zone {game.floor} — Choose Your Path</div>
+                      <div className="text-[11px] text-zinc-400">🪙 {game.player.coins || 0} coins · {game.player.hp}/{game.player.maxHp} HP</div>
+                    </div>
+                    <div className="rounded-xl border border-amber-300/20 bg-black/40 px-2 py-1 text-[10px] text-amber-200">Room {game.room + 1}</div>
+                  </div>
+
+                  {/* Map layers */}
+                  <div className="mb-3 space-y-2 overflow-y-auto" style={{ maxHeight: '55vh' }}>
+                    {game.mapLayers.map((layer) => (
+                      <div key={layer.layerIndex} className="flex items-center justify-center gap-2">
+                        {layer.nodes.map((node) => {
+                          const isAvailable = available.some((n) => n.id === node.id);
+                          const isCurrent = node.id === game.currentMapNodeId;
+                          const isDone = node.visited;
+                          const isRevealed = node.revealed;
+                          const borderClass = isDone
+                            ? "border-emerald-400/50 bg-emerald-900/30"
+                            : isCurrent
+                              ? "border-amber-300/60 bg-amber-900/25"
+                              : isAvailable
+                                ? "border-amber-300/70 bg-amber-300/10 shadow-[0_0_12px_rgba(252,211,77,0.18)] cursor-pointer hover:bg-amber-300/20"
+                                : isRevealed
+                                  ? "border-white/20 bg-black/40"
+                                  : "border-white/10 bg-black/30 opacity-50";
+                          return (
+                            <button
+                              key={node.id}
+                              disabled={!isAvailable}
+                              onClick={() => isAvailable && enterMapNode(node.id)}
+                              className={`flex min-w-[72px] flex-col items-center rounded-2xl border p-2 transition ${borderClass}`}
+                            >
+                              {isRevealed || isDone ? (
+                                <>
+                                  <span className="text-xl">{getNodeEmoji(node.type)}</span>
+                                  <span className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-100">{getNodeLabel(node.type)}</span>
+                                  {isDone ? <span className="text-[9px] text-emerald-400">✓ done</span> : null}
+                                  {isAvailable ? <span className="mt-1 animate-pulse text-[9px] text-amber-300">TAP</span> : null}
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-xl">❓</span>
+                                  <span className="text-[9px] text-zinc-400">hidden</span>
+                                </>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+
+                  {available.length === 0 ? (
+                    <div className="rounded-xl border border-rose-300/30 bg-rose-900/20 p-3 text-center text-sm text-rose-200">
+                      No paths available. The boss must already be cleared.
+                    </div>
+                  ) : (
+                    <div className="text-center text-[10px] text-zinc-400">Tap a highlighted node to travel there.</div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })() : null}
+        </AnimatePresence>
+
+        {/* ── Event overlay ─────────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {game.phase === "event" && game.pendingEvent ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-sm rounded-[28px] border border-cyan-300/20 bg-zinc-950/98 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
+                <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-cyan-400">❓ Random Event</div>
+                <div className="mb-2 font-serif text-xl italic text-amber-300">{game.pendingEvent.title}</div>
+                <div className="mb-4 rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-zinc-200">{game.pendingEvent.description}</div>
+                <div className="space-y-2">
+                  {game.pendingEvent.choices.map((choice, idx) => (
+                    <button
+                      key={`choice-${idx}`}
+                      onClick={() => handleEventChoice(idx)}
+                      className="w-full rounded-xl border border-white/20 bg-white/10 p-3 text-left transition hover:bg-white/20"
+                    >
+                      <div className="font-black text-sm text-white">{choice.label}</div>
+                      <div className="text-[11px] text-zinc-300">{choice.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        {/* ── Shop overlay ──────────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {game.phase === "shop" && game.shopInventory ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-sm rounded-[28px] border border-amber-300/20 bg-zinc-950/98 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
+                <div className="mb-1 flex items-center justify-between">
+                  <div>
+                    <div className="font-serif text-xl italic text-amber-300">🛒 Jungle Shop</div>
+                    <div className="text-[11px] text-zinc-400">Zone {game.floor} · Your coins: <span className="text-amber-300 font-black">{game.player.coins || 0}</span></div>
+                  </div>
+                  <button onClick={handleShopLeave} className="rounded-xl border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20">Leave</button>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {game.shopInventory.map((item, idx) => (
+                    <div key={item.id} className="flex items-center justify-between gap-2 rounded-xl border border-white/15 bg-black/40 p-3">
+                      <div className="flex-1">
+                        <div className="font-black text-sm text-white">{item.name}</div>
+                        <div className="text-[10px] text-zinc-300">{item.description}</div>
+                      </div>
+                      <button
+                        onClick={() => handleShopBuy(idx)}
+                        disabled={(game.player.coins || 0) < item.cost}
+                        className="rounded-xl border border-amber-300/30 bg-amber-500/20 px-3 py-1.5 text-xs font-black text-amber-200 hover:bg-amber-500/35 disabled:opacity-40"
+                      >
+                        🪙 {item.cost}
+                      </button>
+                    </div>
+                  ))}
+                  {game.shopInventory.length === 0 ? (
+                    <div className="rounded-xl border border-white/10 bg-black/35 p-3 text-center text-sm text-zinc-400">Sold out.</div>
+                  ) : null}
+                </div>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        {/* ── Rest overlay ──────────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {game.phase === "rest" ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-sm rounded-[28px] border border-emerald-300/20 bg-zinc-950/98 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
+                <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-emerald-400">🏕️ Rest Site</div>
+                <div className="mb-2 font-serif text-xl italic text-amber-300">A Moment of Calm</div>
+                <div className="mb-4 rounded-xl border border-white/10 bg-black/35 p-3 text-sm text-zinc-300">
+                  The jungle quiets around you. <span className="text-white font-black">{game.player.hp}/{game.player.maxHp} HP</span>. Choose how to spend this moment.
+                </div>
+                <div className="space-y-2">
+                  {REST_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      onClick={() => handleRestChoice(option.id)}
+                      className="w-full rounded-xl border border-white/20 bg-white/10 p-3 text-left transition hover:bg-white/20"
+                    >
+                      <div className="font-black text-sm text-white">{option.label}</div>
+                      <div className="text-[11px] text-zinc-300">{option.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </motion.div>
           ) : null}
         </AnimatePresence>
