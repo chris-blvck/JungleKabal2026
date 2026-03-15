@@ -1764,7 +1764,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         // Companion hypnosis: skip enemy intent this turn
         if (player.companionHypnosisActive) {
           player.companionHypnosisActive = false;
-          log.unshift(`🦎 Hypnose — enemy intent skipped!`);
+          log.unshift(`🦎 Hypnosis — enemy intent skipped!`);
         } else {
           const intentNow = getIntentPreview(enemy);
           const retaliation = resolveEnemyIntent(enemy, player, log);
@@ -2253,7 +2253,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
       if (companion.active.type === 'skip_intent') {
         player.companionHypnosisActive = true;
-        log.unshift(`🦎 Hypnose — enemy will skip their next intent!`);
+        log.unshift(`🦎 Hypnosis — enemy will skip their next intent!`);
       } else if (companion.active.type === 'flat_damage') {
         const dmg = companion.active.value ?? 8;
         enemy.hp -= dmg;
@@ -2581,12 +2581,12 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         </SectionCard>
 
         <SectionCard title="Dice + Action" className="order-2" right={<div className="text-[9px] text-zinc-300">Tap die, then slot</div>}>
-          <div className="mb-1 flex flex-wrap justify-center gap-1 text-[9px] md:text-[10px]">
+          {game.floor === 1 && <div className="mb-1 flex flex-wrap justify-center gap-1 text-[9px] md:text-[10px]">
             <div className="rounded-xl border border-zinc-300/30 bg-zinc-900/70 px-2 py-1">⚔️ Attack die 1-6 (black)</div>
-            <div className="rounded-xl border border-pink-200/35 bg-pink-500/20 px-2 py-1">❤️ Dé Health 1-6</div>
+            <div className="rounded-xl border border-pink-200/35 bg-pink-500/20 px-2 py-1">❤️ Health die 1-6</div>
             <div className="rounded-xl border border-white/50 bg-white/15 px-2 py-1">🛡️ Shield die 1-6 (white)</div>
             <div className="rounded-xl border border-white/10 bg-black/35 px-2 py-1">🔥 Combo = 3 attack dice</div>
-          </div>
+          </div>}
           <div className="mb-1 grid gap-1 rounded-[12px] border border-white/10 bg-black/35 p-2 text-[11px] md:grid-cols-2">
             <div>
               <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-300">Damage forecast</div>
@@ -2674,7 +2674,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
 
         <SectionCard title="Board" className="order-3 md:order-3" right={<div className="text-[9px] text-zinc-300">Place dice on available slots</div>}>
-          {activeDieMeta && game.phase === "place" ? (
+          {activeDieMeta && game.phase === "place" && game.floor === 1 ? (
             <div className="mb-2 flex items-center gap-2 rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-2 py-1.5 text-[11px] text-white">
               <span className="text-lg">{activeDieMeta.emoji}</span>
               <div>
