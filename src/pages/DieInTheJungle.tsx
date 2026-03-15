@@ -713,14 +713,18 @@ function rollDice(count, specialFacesEnabled = false, attackDieBonus = 0) {
     const value = Math.floor(Math.random() * 6) + 1;
     let special = null;
     if (specialFacesEnabled) {
-      if (kind === 'attack' && value === 6) special = 'pierce';   // ignore shield
-      else if (kind === 'attack' && value === 5) special = 'echo'; // +3 if in top row
-      else if (kind === 'heal' && value === 6) special = 'nurture'; // also heals shield
-      else if (kind === 'shield' && value === 6) special = 'fortress'; // persists next turn
+      // Face 1 attack = curse enemy (disables their next regen/charge)
+      if (kind === 'attack' && value === 1) special = 'curse';
+      // Face 6 attack = pierce (bypasses enemy shield)
+      else if (kind === 'attack' && value === 6) special = 'pierce';
+      // Face 6 heal = nurture (also grants shield equal to half heal)
+      else if (kind === 'heal' && value === 6) special = 'nurture';
+      // Face 6 shield = fortress (persists next turn)
+      else if (kind === 'shield' && value === 6) special = 'fortress';
     }
-    // Gecko companion: +attackDieBonus to attack dice
+    // Gecko companion: +attackDieBonus to attack dice (min 1 to preserve curse on 1)
     const finalValue = kind === 'attack' && attackDieBonus > 0
-      ? Math.min(6, value + attackDieBonus)
+      ? Math.min(6, Math.max(1, value + attackDieBonus))
       : value;
     return {
       id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}`,
@@ -1024,6 +1028,7 @@ function resolvePlayerGrid(state) {
   let totalHeal = 0;
   let pierceAttack = 0;  // Pierce dice bypass shield
   let fortressActive = false;  // Shield persists next turn
+  let hasCurse = false;  // Curse face 1: enemy loses their next regen/charge
   const rowBreakdown = [];
 
   // Count dice per type across entire grid (for SURGE)
@@ -1062,16 +1067,16 @@ function resolvePlayerGrid(state) {
       } else {
         const attackValue = (die.value + player.attackDieValueBonus + player.attackBonus) * mult;
         if (die.special === 'pierce') {
-          // Pierce bypasses enemy shield — tracked separately
+          // Face 6: Pierce bypasses enemy shield — tracked separately
           pierceAttack += attackValue;
-          rowBreakdown.push(`⚡ Pierce die: ${attackValue} dmg ignores shield`);
+          rowBreakdown.push(`🔱 Pierce (face 6): ${attackValue} dmg ignores shield`);
+        } else if (die.special === 'curse') {
+          // Face 1: Curse — still deals damage but also curses enemy (resets charge, disables regen)
+          rowAttack += attackValue;
+          hasCurse = true;
+          rowBreakdown.push(`☠️ Curse (face 1): ${attackValue} dmg + enemy charge reset`);
         } else {
           rowAttack += attackValue;
-          // Echo face 5 attack: +3 if placed in top row
-          if (die.special === 'echo' && rowIndex === 0) {
-            rowAttack += 3;
-            rowBreakdown.push(`🌟 Echo: +3 bonus in top row`);
-          }
         }
       }
     });
@@ -1287,6 +1292,8 @@ function makeInitialState() {
     currentMapNodeId: null as string | null,
     pendingEvent: null as MapEvent | null,
     shopInventory: null as ShopItem[] | null,
+    // Saturation warning (shown when board will be full next turn)
+    boardWillSaturateWarning: false,
   };
 }
 
@@ -1458,11 +1465,26 @@ function ArtifactCard({ artifact, onPick }) {
   );
 }
 
+// Haptic feedback helper (Telegram WebApp)
+function haptic(type: 'impact' | 'notification' | 'selection', style?: string) {
+  try {
+    const tg = (window as any).Telegram?.WebApp;
+    if (!tg?.HapticFeedback) return;
+    if (type === 'impact') tg.HapticFeedback.impactOccurred(style || 'medium');
+    else if (type === 'notification') tg.HapticFeedback.notificationOccurred(style || 'success');
+    else tg.HapticFeedback.selectionChanged();
+  } catch {}
+}
+
 export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: DieInTheJungleProps = {}) {
   const [game, setGame] = useState(loadSavedGameState);
   const [walletAddress, setWalletAddress] = useState("");
   const [leaderboard, setLeaderboard] = useState(loadLeaderboard);
   const [hoveredSlot, setHoveredSlot] = useState(null);
+  const [autoResolve, setAutoResolve] = useState(() => {
+    try { return localStorage.getItem('jk_auto_resolve') === 'true'; } catch { return false; }
+  });
+  const [showAdvancedGuide, setShowAdvancedGuide] = useState(false);
 
   const activeDieIndex = useMemo(() => {
     if (game.selectedDieIndex !== null && game.dice[game.selectedDieIndex] !== null) return game.selectedDieIndex;
@@ -1677,20 +1699,34 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     const nextIndex = nextAvailableDieIndex(newDice);
     const allPlaced = nextIndex === null;
 
+    // Haptic on place
+    haptic('selection');
+
     setGame((g) => ({
       ...g,
       dice: newDice,
       grid: newGrid,
       cooldowns: newCooldowns,
+      // Stay in "place" so player can manually resolve, or auto-resolve if toggled
       phase: allPlaced ? "resolve" : "place",
       selectedDieIndex: nextIndex,
       avatarMood: placedMeta.kind === "attack" ? "fierce" : placedMeta.kind === "heal" ? "joy" : "guard",
       log: [`${lane.emoji} Put ${placedMeta.emoji} ${placedDie.value} in ${lane.name} x${rowMultiplier(g.player, y)}`, ...g.log].slice(0, 40),
     }));
 
-    if (allPlaced) {
+    if (allPlaced || autoResolve) {
       window.setTimeout(() => resolveTurn(newGrid, newCooldowns), 320);
     }
+  }
+
+  // Manual resolve: available when at least 1 die is placed (phase === "place" with some grid dice)
+  function manualResolve() {
+    const currentGrid = game.grid;
+    const currentCooldowns = game.cooldowns;
+    const hasAnyDie = currentGrid.some(row => row.some(cell => cell !== null));
+    if (!hasAnyDie) return;
+    haptic('impact', 'medium');
+    resolveTurn(currentGrid, currentCooldowns);
   }
 
   function resolveTurn(gridRef, cooldownRef) {
@@ -1866,6 +1902,12 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         actionFlash = { id: Date.now() + 1, text: `💥 -${g.player.hp - player.hp} HP`, tone: "rose" };
         avatarMood = "shocked";
       }
+
+      // Haptic feedback
+      if (enemyDied) haptic('notification', 'success');
+      else if (player.hp <= 0) haptic('notification', 'error');
+      else if (playerResult.surgeType) haptic('impact', 'heavy');
+      else if (totals.attack > 0) haptic('impact', 'light');
 
       if (enemyDied) {
         killPopup = `💀 ${pickKillWord(winStreak)} 💀`;
@@ -2567,6 +2609,11 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 🔁 REROLL
               </Button>
             ) : null}
+            {game.phase === "place" && game.grid.some(row => row.some(cell => cell !== null)) ? (
+              <Button onClick={manualResolve} className="rounded-2xl border border-emerald-400/40 bg-gradient-to-b from-emerald-700/70 to-emerald-900/80 px-5 py-2.5 text-sm font-black text-white hover:from-emerald-600/80 hover:to-emerald-800 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]">
+                ✅ RESOLVE
+              </Button>
+            ) : null}
             {game.player.companion && (game.phase === "roll" || game.phase === "place") ? (
               <Button
                 onClick={activateCompanionActive}
@@ -2609,6 +2656,18 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
               <Button onClick={() => shiftSelectedDie(1)} className="h-10 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-800/80 to-zinc-900 px-4 text-white hover:from-zinc-700 hover:to-zinc-800">➡️</Button>
             ) : null}
           </div>
+          <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 text-[11px] text-zinc-400 select-none">
+            <input
+              type="checkbox"
+              checked={autoResolve}
+              onChange={(e) => {
+                setAutoResolve(e.target.checked);
+                try { localStorage.setItem('jk_auto_resolve', String(e.target.checked)); } catch {}
+              }}
+              className="h-3.5 w-3.5 accent-emerald-400"
+            />
+            <span>Auto-resolve <span className="text-zinc-500">(place all dice = instant resolve)</span></span>
+          </label>
         </SectionCard>
 
 
@@ -3056,7 +3115,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         <AnimatePresence>
           {game.showHowToPlay ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-              <div className="w-full max-w-xl rounded-[28px] border border-amber-300/20 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
+              <div className="w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-[28px] border border-amber-300/20 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <img src={LOGO_URL} alt="Kabal logo" className="h-10 w-10 object-contain" />
@@ -3067,16 +3126,67 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   </div>
                   <Button onClick={() => setGame((g) => ({ ...g, showHowToPlay: false }))} className="rounded-xl bg-white/10 px-4 py-2 text-white hover:bg-white/20">✕</Button>
                 </div>
-                <div className="space-y-2 text-sm text-white md:text-base">
-                  <div>1️⃣ Click <span className="font-black text-amber-300">ROLL</span></div>
-                  <div>2️⃣ You can use <span className="font-black text-amber-300">1 reroll</span> per turn unless cursed</div>
-                  <div>3️⃣ Tap a die, then place it on a free slot</div>
-                  <div>4️⃣ 🔥 Top row = x3 · ✨ Mid row = x2 · 🪨 Bottom row = x1</div>
-                  <div>5️⃣ Used slots gain cooldown</div>
-                  <div>6️⃣ If the board saturates, all cooldowns reset</div>
-                  <div>7️⃣ Enemies have visible intents and combat modifiers</div>
-                  <div>8️⃣ Beat elites and bosses, pick artifacts, continue to higher zones</div>
+                {/* Quick tutorial */}
+                <div className="mb-3 space-y-1.5 text-sm text-white">
+                  <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-amber-300">Quick start</div>
+                  <div>1️⃣ Press <span className="font-black text-amber-300">ROLL</span> to get your dice for the turn</div>
+                  <div>2️⃣ Tap a die to select it, then tap a board slot to place it</div>
+                  <div>3️⃣ Once happy, press <span className="font-black text-emerald-300">RESOLVE</span> — or place all dice to auto-resolve</div>
+                  <div>4️⃣ 🔁 You have 1 <span className="font-black text-amber-300">Reroll</span> per turn — tap a die first, then REROLL</div>
+                  <div>5️⃣ Kill all enemies in a zone to advance to the next one</div>
                 </div>
+
+                {/* HUD guide */}
+                <div className="mb-3 rounded-xl border border-cyan-300/20 bg-cyan-950/30 p-3 space-y-1.5 text-[12px] text-zinc-100">
+                  <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">HUD — what's on screen</div>
+                  <div>⚔️ <span className="font-black">Attack die</span> — black dice, deals damage (row multiplier applies)</div>
+                  <div>🛡️ <span className="font-black">Shield die</span> — white dice, adds shield this turn</div>
+                  <div>❤️ <span className="font-black">Heal die</span> — pink dice, restores HP</div>
+                  <div>🔥 <span className="font-black">Top row ×3</span> · ✨ <span className="font-black">Mid ×2</span> · 🪨 <span className="font-black">Bot ×1</span> — multipliers per row</div>
+                  <div>⏳ <span className="font-black">Cooldown</span> — used slots are locked for N turns; board saturates if all slots locked</div>
+                  <div>💀 <span className="font-black">Enemy intent</span> — shown above enemy; predicts next action</div>
+                  <div>⚡ <span className="font-black">Enemy charge</span> — bar fills each turn; at max = SURGE (heavy attack)</div>
+                </div>
+
+                {/* Advanced guide toggle */}
+                <button
+                  onClick={() => setShowAdvancedGuide((v) => !v)}
+                  className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[12px] font-black text-zinc-300 hover:bg-white/10"
+                >
+                  <span>📚 Advanced guide</span>
+                  <span>{showAdvancedGuide ? '▲' : '▼'}</span>
+                </button>
+                {showAdvancedGuide ? (
+                  <div className="mt-2 space-y-3 rounded-xl border border-white/10 bg-black/40 p-3 text-[12px] text-zinc-100">
+                    <div>
+                      <div className="mb-1 font-black text-violet-300">Enemy stats</div>
+                      <div className="space-y-0.5">
+                        <div>❤️ <span className="font-black">HP</span> — total life; regen enemies heal each turn</div>
+                        <div>🛡️ <span className="font-black">Shield</span> — absorbs damage; pierce attacks bypass it</div>
+                        <div>⚡ <span className="font-black">Charge</span> — how close to SURGE; reset with ☠️ Curse (face 1)</div>
+                        <div>🔥 <span className="font-black">Strength</span> — damage multiplier on attacks</div>
+                        <div>⚙️ <span className="font-black">Intents</span> — Attack / Shield / Regen / Charging shown 1 turn ahead</div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mb-1 font-black text-amber-300">Special dice faces</div>
+                      <div className="space-y-0.5">
+                        <div>☠️ <span className="font-black">Curse</span> (⚔️ face 1) — deals damage + resets enemy charge bar</div>
+                        <div>🔱 <span className="font-black">Pierce</span> (⚔️ face 6) — deals damage and ignores enemy shield</div>
+                        <div>💚 <span className="font-black">Nurture</span> (❤️ face 6) — heals for double value</div>
+                        <div>🏰 <span className="font-black">Fortress</span> (🛡️ face 6) — shield carries over to next turn</div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mb-1 font-black text-emerald-300">Build archetypes</div>
+                      <div className="space-y-1">
+                        <div><span className="font-black text-red-300">⚔️ Berserker</span> — stack top row (×3) attack slots + pierce artifacts. One-shot enemies before they charge.</div>
+                        <div><span className="font-black text-cyan-300">🛡️ Fortress</span> — shield dice + fortress face + regen artifacts. Outlast and grind enemies down slowly.</div>
+                        <div><span className="font-black text-violet-300">✨ Surge Control</span> — use curse (face 1) to reset enemy charge every turn. Combine mid-row ×2 for consistent damage without dying to SURGE.</div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </motion.div>
           ) : null}
