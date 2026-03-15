@@ -52,6 +52,21 @@ import {
   pickNextBiome,
   ENEMY_BIOME_MAP,
 } from "@/game/biomeSystem";
+import {
+  type Weapon,
+  type Rarity,
+  RARITY_COLORS,
+  STARTER_WEAPONS,
+  buildWeapon,
+  applyWeaponPassives,
+  activateWeaponSpecial,
+  tickWeaponCooldowns,
+  tickEnemyDot,
+  onKillLegendaryTrigger,
+  getWeaponDisplayInfo,
+  shouldPersistShield,
+  getStaffLegendaryHealBonus,
+} from "@/game/weapons";
 
 const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
 
@@ -145,7 +160,6 @@ const DICE_IMAGES_BY_KIND = {
 };
 
 const GAME_STATE_STORAGE_KEY = "jungle_kabal_run_state_v1";
-const LEADERBOARD_STORAGE_KEY = "jungle_kabal_leaderboard_v1";
 
 const DIE_KIND_ORDER = ["attack", "shield", "heal"];
 
@@ -1262,6 +1276,7 @@ function makeInitialPlayer(characterId = "kabalian") {
     companion: null as Companion | null,
     _fortressShield: 0,
     companionHypnosisActive: false,
+    weaponSlots: [null, null] as (Weapon | null)[],
   };
 }
 
@@ -1362,6 +1377,7 @@ function hydrateGameState(rawState) {
   if (safe.player.companion === undefined) safe.player.companion = null;
   if (!safe.player._fortressShield) safe.player._fortressShield = 0;
   if (!safe.player.companionHypnosisActive) safe.player.companionHypnosisActive = false;
+  if (!safe.player.weaponSlots) safe.player.weaponSlots = [null, null];
   return safe;
 }
 
@@ -1373,17 +1389,6 @@ function loadSavedGameState() {
     return hydrateGameState(parsed) || makeInitialState();
   } catch {
     return makeInitialState();
-  }
-}
-
-function loadLeaderboard() {
-  try {
-    const raw = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
   }
 }
 
@@ -1520,14 +1525,15 @@ function haptic(type: 'impact' | 'notification' | 'selection', style?: string) {
 
 export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: DieInTheJungleProps = {}) {
   const [game, setGame] = useState(loadSavedGameState);
-  const [walletAddress, setWalletAddress] = useState("");
-  const [leaderboard, setLeaderboard] = useState(loadLeaderboard);
   const [hoveredSlot, setHoveredSlot] = useState(null);
   const [autoResolve, setAutoResolve] = useState(() => {
     try { return localStorage.getItem('jk_auto_resolve') === 'true'; } catch { return false; }
   });
   const [showAdvancedGuide, setShowAdvancedGuide] = useState(false);
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
+  const [showArsenal, setShowArsenal] = useState(false);
+  const [selectedStartWeapon, setSelectedStartWeapon] = useState<Weapon | null>(null);
+  const [selectedStartCompanion, setSelectedStartCompanion] = useState<Companion | null>(null);
   const [meta, setMeta] = useState<MetaProgressionState>(loadMeta);
   const [lastRunReward, setLastRunReward] = useState<RunReward | null>(null);
 
@@ -1544,6 +1550,19 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const intentTimeline = getIntentTimeline(game.enemy, 3);
   const expectedOutcome = estimatePlayerOutcome(game.grid, game.player);
   const streakMultiplier = getNoHitMultiplier(game.noHitTurns);
+
+  // Preview projected HP/shield changes before Resolve
+  const resolvePreview = useMemo(() => {
+    const hasAnyDie = game.grid.some(row => row.some(cell => cell !== null));
+    if (!hasAnyDie || game.phase !== "place") return null;
+    const result = resolvePlayerGrid({ ...game, grid: game.grid, enemy: game.enemy, player: game.player });
+    return {
+      playerHpAfter: Math.min(game.player.maxHp, result.player.hp),
+      playerShieldAfter: result.player.shield,
+      enemyHpAfter: Math.max(0, result.enemy.hp),
+      totals: result.totals,
+    };
+  }, [game.grid, game.phase, game.player, game.enemy]);
   const enemyAnchorRef = useRef(null);
   const playerAnchorRef = useRef(null);
 
@@ -1575,44 +1594,17 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     }));
   }
 
-  function connectWallet() {
-    const provider = (window as any).solana;
-    if (!provider?.connect) {
-      setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "⚠️ Phantom wallet not found", tone: "rose" } }));
-      return;
-    }
-    provider.connect()
-      .then((response) => {
-        const address = response?.publicKey?.toString?.() || "";
-        setWalletAddress(address);
-        setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "✅ Wallet connected", tone: "emerald" } }));
-      })
-      .catch(() => {
-        setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "❌ Wallet connect failed", tone: "rose" } }));
-      });
-  }
-
-  function submitScoreToLeaderboard() {
-    if (!game.runEnded) return;
-    const entry = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      wallet: walletAddress || "guest",
-      score: game.score,
-      zone: game.floor,
-      at: new Date().toISOString(),
-    };
-    const next = [entry, ...leaderboard]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 20);
-    setLeaderboard(next);
-    localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(next));
-    setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: "🏁 Score submitted", tone: "emerald" } }));
-  }
-
   function shareRun() {
     const characterName = game.player.characterId === "kkm" ? "KKM" : "Kabalian";
-    const text = `Reached Zone ${game.floor} in DIE JUNGLE%0AScore: ${game.score}%0ACharacter: ${characterName}%0ASeed: ${game.runSeed}%0A%23KabalBlessing`;
-    window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank", "noopener,noreferrer");
+    const text = `I reached Zone ${game.floor} in DIE JUNGLE 🌴\nScore: ${game.score} | ${characterName}\nSeed: ${game.runSeed}\n#KabalBlessing\ndiejungle.fun`;
+    const tg = (window as any).Telegram?.WebApp;
+    if (tg?.shareUrl) {
+      tg.shareUrl(`https://diejungle.fun`, text);
+    } else if (tg?.openTelegramLink) {
+      tg.openTelegramLink(`https://t.me/share/url?url=https://diejungle.fun&text=${encodeURIComponent(text)}`);
+    } else {
+      window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+    }
   }
 
   function pushLog(lines) {
@@ -1621,8 +1613,9 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
   function pickCharacter(characterId) {
     const selected = PLAYER_CHARACTERS[characterId] || PLAYER_CHARACTERS.kabalian;
+    const currentMeta = loadMeta();
     setGame((g) => {
-      const nextPlayer = {
+      let nextPlayer: any = {
         ...g.player,
         characterId: selected.id,
         avatar: selected.avatar,
@@ -1635,6 +1628,17 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         rerollsLeft: selected.stats.rerollsPerTurn,
         coins: 0,
       };
+      // Apply starter weapon if selected
+      if (hasWeaponSlot(currentMeta) && selectedStartWeapon) {
+        const slots: (Weapon | null)[] = [null, null];
+        slots[0] = selectedStartWeapon;
+        nextPlayer = applyWeaponPassives(nextPlayer, slots);
+        nextPlayer.weaponSlots = slots;
+      }
+      // Apply starter companion if selected
+      if (hasCompanionSlot(currentMeta) && selectedStartCompanion) {
+        nextPlayer.companion = { ...selectedStartCompanion, cooldownRemaining: 0 };
+      }
       const mapLayers = generateZoneMap(g.floor, g.runSeed);
       return {
         ...g,
@@ -1758,14 +1762,14 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
       dice: newDice,
       grid: newGrid,
       cooldowns: newCooldowns,
-      // Stay in "place" so player can manually resolve, or auto-resolve if toggled
-      phase: allPlaced ? "resolve" : "place",
+      // Always stay in "place" — player must click Resolve (or use auto-resolve toggle)
+      phase: "place",
       selectedDieIndex: nextIndex,
       avatarMood: placedMeta.kind === "attack" ? "fierce" : placedMeta.kind === "heal" ? "joy" : "guard",
       log: [`${lane.emoji} Put ${placedMeta.emoji} ${placedDie.value} in ${lane.name} x${rowMultiplier(g.player, y)}`, ...g.log].slice(0, 40),
     }));
 
-    if (allPlaced || autoResolve) {
+    if (autoResolve && allPlaced) {
       window.setTimeout(() => resolveTurn(newGrid, newCooldowns), 320);
     }
   }
@@ -1780,15 +1784,74 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     resolveTurn(currentGrid, currentCooldowns);
   }
 
+  function useWeaponSpecial(slotIndex: number) {
+    setGame((g) => {
+      const weapons: (Weapon | null)[] = g.player.weaponSlots || [null, null];
+      const weapon = weapons[slotIndex];
+      if (!weapon || weapon.cooldownRemaining > 0) return g;
+      if (g.phase !== 'place' && g.phase !== 'roll') return g;
+
+      const { newCombatState, log: wLog, sideEffects } = activateWeaponSpecial(weapon, {
+        player: g.player,
+        enemy: g.enemy,
+        grid: g.grid,
+        turn: g.turn,
+        weapons,
+        doubleStrikeActive: g.doubleStrikeActive,
+        overloadActive: g.overloadActive,
+        overloadValue: g.overloadValue,
+      });
+
+      haptic('impact', 'medium');
+
+      let nextCooldowns = g.cooldowns;
+      if (sideEffects.some(e => e.type === 'reset_slot_cooldowns')) {
+        nextCooldowns = emptyCooldowns();
+      }
+
+      return {
+        ...g,
+        player: { ...g.player, ...newCombatState.player, weaponSlots: newCombatState.weapons || weapons },
+        enemy: newCombatState.enemy,
+        cooldowns: nextCooldowns,
+        doubleStrikeActive: newCombatState.doubleStrikeActive || false,
+        overloadActive: newCombatState.overloadActive || false,
+        overloadValue: newCombatState.overloadValue || 1,
+        log: [wLog, ...g.log].slice(0, 40),
+        actionFlash: { id: Date.now(), text: wLog, tone: 'violet' },
+      };
+    });
+  }
+
   function resolveTurn(gridRef, cooldownRef) {
     setGame((g) => {
-      const playerResult = resolvePlayerGrid({ ...g, grid: gridRef, enemy: g.enemy, player: g.player });
+      // Weapon: apply double strike flag before resolving (doubles total attack)
+      const doubleStrike = g.doubleStrikeActive || false;
+      const overloadActive = g.overloadActive || false;
+      const overloadValue = g.overloadValue || 1;
+
+      const playerResult = resolvePlayerGrid({
+        ...g,
+        grid: gridRef,
+        enemy: g.enemy,
+        player: g.player,
+        doubleStrike,
+        overloadActive,
+        overloadValue,
+      });
       let enemy = playerResult.enemy;
       let player = playerResult.player;
-      const preRetaliationShield = player.shield;
-      const preRetaliationHp = player.hp;
       const totals = playerResult.totals;
       let log = [...playerResult.log];
+
+      // Weapon DoT tick
+      const dotResult = tickEnemyDot(enemy);
+      if (dotResult.damage > 0) {
+        enemy = dotResult.newEnemy;
+        log.unshift(`☠️ DoT: -${dotResult.damage} HP ennemi`);
+      }
+      const preRetaliationShield = player.shield;
+      const preRetaliationHp = player.hp;
       const enemyDied = enemy.hp <= 0;
       let nextCooldowns = cooldownRef;
       const saturated = boardIsSaturated(gridRef, cooldownRef);
@@ -1992,6 +2055,17 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         }
       }
 
+      // Weapon: tick cooldowns + legendary kill trigger
+      let weaponSlots = player.weaponSlots as (Weapon | null)[] || [null, null];
+      if (enemyDied) {
+        weaponSlots = onKillLegendaryTrigger(weaponSlots);
+      }
+      weaponSlots = tickWeaponCooldowns(weaponSlots, player);
+      player.weaponSlots = weaponSlots;
+
+      // Reset weapon flags for next turn
+      player = { ...player, weaponSlots };
+
       // Track boss floor for meta achievement (boss kill on this floor)
       const lastBossFloor = (enemyDied && g.enemy.tier === "boss") ? g.floor : (g.lastBossFloor ?? null);
 
@@ -2031,6 +2105,9 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         lastOutcome,
         lastBossFloor,
         currentBiome,
+        doubleStrikeActive: false,
+        overloadActive: false,
+        overloadValue: 1,
       };
     });
 
@@ -2173,7 +2250,14 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           currentMapNodeId: nodeId,
           enemy: base,
           phase: "roll",
-          player: { ...g.player, shield: g.player.combatStartShield, rerollsLeft: g.player.rerollsPerTurn },
+          player: (() => {
+            const base = { ...g.player, shield: g.player.combatStartShield, rerollsLeft: g.player.rerollsPerTurn };
+            // Re-apply weapon passives (non-cumulative) at combat start
+            // (they are already baked in from equip; only shield persists here)
+            const wpSlots: (Weapon | null)[] = base.weaponSlots || [null, null];
+            const shieldBonus = wpSlots.reduce((acc, w) => acc + (w?.passive?.combatStartShield || 0), 0);
+            return { ...base, shield: base.shield + shieldBonus };
+          })(),
           cooldowns: emptyCooldowns(),
           grid: emptyGrid(),
           dice: [],
@@ -2524,6 +2608,10 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Phase</div>
                 <div className="text-xs font-black uppercase text-amber-300 md:text-sm">{game.phase}</div>
               </div>
+              <button onClick={() => setShowArsenal(true)} className="rounded-xl border border-violet-400/20 bg-black/40 px-2 py-1.5 text-right hover:bg-violet-900/30 transition">
+                <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Gems</div>
+                <div className="text-xs font-black text-violet-300 md:text-sm">💎 {meta.gems}</div>
+              </button>
               <Button onClick={() => setGame((g) => ({ ...g, showHowToPlay: true }))} className="rounded-xl bg-white/10 px-2.5 py-2 text-white hover:bg-white/20">❓</Button>
               {/* Restart button — always visible in header */}
               {!game.runEnded && game.phase !== 'reward' && game.phase !== 'map' && (
@@ -2712,6 +2800,43 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 </Button>
               )
             ) : null}
+            {resolvePreview ? (
+              <div className="w-full rounded-2xl border border-white/10 bg-zinc-900/80 px-3 py-2 text-[11px]">
+                <div className="mb-1.5 text-center text-[10px] font-black uppercase tracking-widest text-zinc-400">If you resolve now</div>
+                <div className="flex items-center justify-center gap-4">
+                  {/* Enemy */}
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-[10px] text-zinc-500">Enemy HP</span>
+                    <div className="flex items-center gap-1 font-black">
+                      <span className="text-red-400">{game.enemy.hp}</span>
+                      <span className="text-zinc-500">→</span>
+                      <span className={resolvePreview.enemyHpAfter <= 0 ? "text-emerald-400" : "text-orange-300"}>{Math.max(0, resolvePreview.enemyHpAfter)}</span>
+                    </div>
+                    {resolvePreview.totals.attack > 0 && <span className="text-[10px] text-red-400">⚔️ -{resolvePreview.totals.attack}</span>}
+                  </div>
+                  <div className="h-8 w-px bg-white/10" />
+                  {/* Player HP */}
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-[10px] text-zinc-500">Your HP</span>
+                    <div className="flex items-center gap-1 font-black">
+                      <span className="text-zinc-300">{game.player.hp}</span>
+                      <span className="text-zinc-500">→</span>
+                      <span className={resolvePreview.playerHpAfter > game.player.hp ? "text-emerald-400" : "text-zinc-300"}>{resolvePreview.playerHpAfter}</span>
+                    </div>
+                    {resolvePreview.totals.heal > 0 && <span className="text-[10px] text-emerald-400">❤️ +{resolvePreview.totals.heal}</span>}
+                  </div>
+                  {resolvePreview.totals.shield > 0 && (
+                    <>
+                      <div className="h-8 w-px bg-white/10" />
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="text-[10px] text-zinc-500">Shield</span>
+                        <span className="font-black text-sky-300">+{resolvePreview.totals.shield}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : null}
             {game.phase === "place" && game.grid.some(row => row.some(cell => cell !== null)) ? (
               BTN_IMAGES.resolve ? (
                 <ActionBtn
@@ -2735,9 +2860,28 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 {game.player.companion.cooldownRemaining > 0 ? ` (${game.player.companion.cooldownRemaining})` : ' ✓'}
               </Button>
             ) : null}
+            {hasWeaponSlot(loadMeta()) && (game.phase === "roll" || game.phase === "place") ? (
+              (game.player.weaponSlots || []).map((weapon, slotIndex) => {
+                if (!weapon) return null;
+                const info = getWeaponDisplayInfo(weapon);
+                if (!info) return null;
+                const ready = weapon.cooldownRemaining === 0;
+                return (
+                  <Button
+                    key={`weapon-slot-${slotIndex}`}
+                    onClick={() => useWeaponSpecial(slotIndex)}
+                    disabled={!ready}
+                    className={`rounded-2xl border px-3 py-2.5 text-sm font-black transition ${ready ? 'border-amber-400/50 bg-amber-600/20 text-amber-100 hover:bg-amber-600/35' : 'border-zinc-600/40 bg-zinc-800/50 text-zinc-500 cursor-not-allowed opacity-60'}`}
+                  >
+                    <span style={{ color: RARITY_COLORS[weapon.rarity] }}>⚔️</span>{' '}
+                    <span>{weapon.name}</span>{' '}
+                    <span className="text-[10px]">{ready ? 'READY' : `${weapon.cooldownRemaining}/${weapon.cooldown}`}</span>
+                  </Button>
+                );
+              })
+            ) : null}
             {(game.phase === "gameover" || game.phase === "victory") ? (
               <>
-                <Button onClick={submitScoreToLeaderboard} className="rounded-2xl bg-violet-500/30 px-4 py-2.5 text-sm font-black text-white hover:bg-violet-500/45">Submit score</Button>
                 <Button onClick={shareRun} className="rounded-2xl bg-sky-500/35 px-4 py-2.5 text-sm font-black text-white hover:bg-sky-500/50">Share run</Button>
                 {BTN_IMAGES.restart ? (
                   <ActionBtn imgSrc={BTN_IMAGES.restart} label="↺ RESTART" onClick={restart} />
@@ -2874,16 +3018,6 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           </div>
         </SectionCard>
 
-        <SectionCard title="Leaderboard">
-          <div className="space-y-1">
-            {leaderboard.length ? leaderboard.slice(0, 5).map((entry, index) => (
-              <div key={entry.id} className="flex items-center justify-between rounded-[12px] border border-white/10 bg-black/35 px-2.5 py-1.5 text-[11px]">
-                <span>#{index + 1} · {entry.wallet === "guest" ? "guest" : `${entry.wallet.slice(0, 4)}...${entry.wallet.slice(-4)}`}</span>
-                <span>🏆 {entry.score} · Zone {entry.zone}</span>
-              </div>
-            )) : <div className="text-[11px] text-zinc-300">No score yet. Finish a run and submit.</div>}
-          </div>
-        </SectionCard>
 
 
         <AnimatePresence>
@@ -2946,36 +3080,87 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         </AnimatePresence>
 
         <AnimatePresence>
-          {game.characterSelectPending ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-              <div className="w-full max-w-3xl rounded-[28px] border border-cyan-300/25 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
-                <div className="mb-4 text-center">
-                  <div className="font-serif text-2xl italic text-amber-300">Choose your character</div>
-                  <div className="text-sm text-zinc-300">Choose your character before first fight. First artifact arrives after the first win.</div>
+          {game.characterSelectPending ? (() => {
+            const charSelectMeta = loadMeta();
+            const showWeaponPick = hasWeaponSlot(charSelectMeta);
+            const showCompanionPick = hasCompanionSlot(charSelectMeta);
+            const unlockedCompanionIds = getUnlockedCompanions(charSelectMeta);
+            const availableCompanions = COMPANIONS.filter(c => unlockedCompanionIds.includes(c.id));
+            return (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm overflow-y-auto">
+                <div className="w-full max-w-3xl rounded-[28px] border border-cyan-300/25 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
+                  <div className="mb-4 text-center">
+                    <div className="font-serif text-2xl italic text-amber-300">Choose your character</div>
+                    <div className="text-sm text-zinc-300">Choose your character before first fight. First artifact arrives after the first win.</div>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2 mb-4">
+                    {Object.values(PLAYER_CHARACTERS).map((character) => {
+                      const isLocked = character.id === 'kkm' && !canPlayKKM(charSelectMeta);
+                      return (
+                        <button
+                          key={character.id}
+                          onClick={() => !isLocked && pickCharacter(character.id)}
+                          disabled={isLocked}
+                          className={`rounded-2xl border p-3 text-left transition ${isLocked ? 'border-zinc-700/50 bg-black/30 opacity-60 cursor-not-allowed' : 'border-white/15 bg-black/45 hover:border-amber-300/60 hover:bg-black/70'}`}
+                        >
+                          <div className="relative">
+                            <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
+                            {isLocked && <div className="absolute inset-0 flex items-center justify-center text-4xl">🔒</div>}
+                          </div>
+                          <div className="font-black text-lg text-amber-200">{character.name} {isLocked ? '(Locked)' : ''}</div>
+                          <div className="text-xs text-zinc-300">{isLocked ? 'Defeat Zone 1 boss or spend 100 gems to unlock' : character.subtitle}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {showWeaponPick && (
+                    <div className="mb-4">
+                      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">⚔️ Starter Weapon (optional)</div>
+                      <div className="grid gap-2 grid-cols-2 md:grid-cols-3">
+                        {STARTER_WEAPONS.map((weapon) => {
+                          const isSelected = selectedStartWeapon?.id === weapon.id;
+                          return (
+                            <button
+                              key={weapon.id}
+                              onClick={() => setSelectedStartWeapon(isSelected ? null : weapon)}
+                              className={`rounded-xl border p-2.5 text-left transition ${isSelected ? 'border-amber-300/60 bg-amber-950/30' : 'border-white/10 bg-black/35 hover:border-white/25'}`}
+                            >
+                              <div className="text-xs font-black" style={{ color: RARITY_COLORS[weapon.rarity] }}>{weapon.name}</div>
+                              <div className="text-[10px] text-zinc-400 capitalize">{weapon.archetype} · {weapon.rarity}</div>
+                              <div className="text-[10px] text-zinc-300 mt-1">{weapon.special.name}: {weapon.special.desc}</div>
+                              {isSelected && <div className="mt-1 text-[10px] font-black text-amber-300">✓ Selected</div>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {showCompanionPick && availableCompanions.length > 0 && (
+                    <div className="mb-4">
+                      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">🐾 Starter Companion (optional)</div>
+                      <div className="grid gap-2 grid-cols-2 md:grid-cols-3">
+                        {availableCompanions.map((companion) => {
+                          const isSelected = selectedStartCompanion?.id === companion.id;
+                          return (
+                            <button
+                              key={companion.id}
+                              onClick={() => setSelectedStartCompanion(isSelected ? null : companion)}
+                              className={`rounded-xl border p-2.5 text-left transition ${isSelected ? 'border-emerald-300/60 bg-emerald-950/30' : 'border-white/10 bg-black/35 hover:border-white/25'}`}
+                            >
+                              <div className="text-lg">{companion.emoji}</div>
+                              <div className="text-xs font-black text-white">{companion.name}</div>
+                              <div className="text-[10px] text-zinc-400">{companion.active.name}</div>
+                              {isSelected && <div className="mt-1 text-[10px] font-black text-emerald-300">✓ Selected</div>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {Object.values(PLAYER_CHARACTERS).map((character) => {
-                    const isLocked = character.id === 'kkm' && !canPlayKKM(loadMeta());
-                    return (
-                      <button
-                        key={character.id}
-                        onClick={() => !isLocked && pickCharacter(character.id)}
-                        disabled={isLocked}
-                        className={`rounded-2xl border p-3 text-left transition ${isLocked ? 'border-zinc-700/50 bg-black/30 opacity-60 cursor-not-allowed' : 'border-white/15 bg-black/45 hover:border-amber-300/60 hover:bg-black/70'}`}
-                      >
-                        <div className="relative">
-                          <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
-                          {isLocked && <div className="absolute inset-0 flex items-center justify-center text-4xl">🔒</div>}
-                        </div>
-                        <div className="font-black text-lg text-amber-200">{character.name} {isLocked ? '(Locked)' : ''}</div>
-                        <div className="text-xs text-zinc-300">{isLocked ? 'Defeat Zone 1 boss or spend 100 gems to unlock' : character.subtitle}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </motion.div>
-          ) : null}
+              </motion.div>
+            );
+          })() : null}
         </AnimatePresence>
 
         <AnimatePresence>
@@ -3175,7 +3360,6 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   <div className="col-span-2 rounded-xl border border-white/10 bg-black/35 px-3 py-2">Seed: <span className="font-black text-cyan-200">#{game.runSeed}</span></div>
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                  <Button onClick={submitScoreToLeaderboard} className="rounded-xl bg-violet-500/30 px-4 py-2 text-white hover:bg-violet-500/45">Submit score</Button>
                   <Button onClick={shareRun} className="rounded-xl bg-sky-500/35 px-4 py-2 text-white hover:bg-sky-500/50">Share run</Button>
                   <Button onClick={restart} className="rounded-xl bg-white px-4 py-2 text-black hover:bg-zinc-200">Play again</Button>
                 </div>
@@ -3417,6 +3601,67 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 <Button onClick={restart} className="w-full rounded-2xl bg-amber-400 py-2.5 text-sm font-black text-black hover:bg-amber-300">
                   ↺ Play Again
                 </Button>
+              </motion.div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        {/* Arsenal / Gems screen */}
+        <AnimatePresence>
+          {showArsenal ? (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+            >
+              <motion.div
+                initial={{ scale: 0.93, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.93, y: 20 }}
+                className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-[28px] border border-violet-400/25 bg-zinc-950/96 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.65)]"
+              >
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <div className="font-serif text-xl italic text-violet-300">💎 Arsenal</div>
+                    <div className="text-[11px] text-zinc-400">Spend gems to unlock permanent upgrades</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="rounded-xl border border-violet-400/25 bg-violet-950/30 px-3 py-1.5 text-sm font-black text-violet-300">💎 {meta.gems}</div>
+                    <Button onClick={() => setShowArsenal(false)} className="rounded-xl bg-white/10 px-3 py-2 text-white hover:bg-white/20">✕</Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {UNLOCKS.map((unlock) => {
+                    const isUnlocked = meta.unlocks.includes(unlock.id);
+                    const canAfford = meta.gems >= unlock.gemCost;
+                    return (
+                      <div
+                        key={unlock.id}
+                        className={`flex items-center gap-3 rounded-2xl border p-3 transition ${isUnlocked ? 'border-emerald-400/25 bg-emerald-950/20' : 'border-white/10 bg-black/35'}`}
+                      >
+                        <div className="text-2xl">{isUnlocked ? '✅' : '🔒'}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-black text-sm text-white">{unlock.name}</div>
+                          <div className="text-[10px] text-zinc-400">{unlock.description}</div>
+                        </div>
+                        {isUnlocked ? (
+                          <div className="text-[10px] text-emerald-400 font-black">Owned</div>
+                        ) : (
+                          <button
+                            disabled={!canAfford}
+                            onClick={() => {
+                              const result = tryUnlockWithGems(meta, unlock.id);
+                              if (result) {
+                                saveMeta(result);
+                                setMeta(result);
+                              }
+                            }}
+                            className="rounded-xl border border-violet-400/30 bg-violet-500/20 px-3 py-1.5 text-xs font-black text-violet-200 hover:bg-violet-500/35 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                          >
+                            💎 {unlock.gemCost}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </motion.div>
             </motion.div>
           ) : null}
