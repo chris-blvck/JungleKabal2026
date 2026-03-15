@@ -3249,7 +3249,9 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
             const available = getAvailableNodes(game.mapLayers, game.currentMapNodeId);
             return (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm">
-                <div className="w-full max-w-lg rounded-[28px] border border-amber-300/20 bg-zinc-950/98 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
+                <div className="relative w-full max-w-lg rounded-[28px] border border-amber-300/20 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.6)] overflow-hidden" style={{ backgroundImage: 'url(https://i.postimg.cc/439mqzHC/amber-ancient-scroll.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                <div className="absolute inset-0 bg-black/55" />
+                <div className="relative z-10">
                   <div className="mb-3 flex items-center justify-between">
                     <div>
                       <div className="font-serif text-xl italic text-amber-300">Zone {game.floor} — Choose Your Path</div>
@@ -3310,6 +3312,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   ) : (
                     <div className="text-center text-[10px] text-zinc-400">Tap a highlighted node to travel there.</div>
                   )}
+                </div>{/* end relative z-10 */}
                 </div>
               </motion.div>
             );
