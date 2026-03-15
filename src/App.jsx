@@ -16,7 +16,8 @@ import KabalAcademyMVP from './pages/KabalAcademyMVP';
 import KabalAcademyAdmin from './pages/KabalAcademyAdmin';
 import TrackRecord from './pages/TrackRecord';
 import TrophyRoom from './pages/TrophyRoom';
-import AngelOpsDashboard from './pages/AngelOpsDashboard';
+import KabalCheckout from './pages/KabalCheckout';
+import TelegramMiniApp from './pages/TelegramMiniApp';
 
 const isTeamContext =
   typeof window !== 'undefined' &&
@@ -61,10 +62,6 @@ export default function App() {
           <Route path="/academy/admin"            element={<KabalAcademyAdmin />} />
           <Route path="/academy/checkout"         element={<KabalCheckout />} />
           <Route path="/telegram-miniapp"          element={<TelegramMiniApp />} />
-
-          {/* GAME MIRROR (available on team.* too) */}
-          <Route path="/diejungle"                element={<DieInTheJungle />} />
-          <Route path="/diejungle/admin"          element={<DieInTheJungleAdmin />} />
 
           {/* Fallback */}
           <Route path="*"                         element={<TeamHome />} />

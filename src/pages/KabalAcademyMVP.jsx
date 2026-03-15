@@ -54,6 +54,9 @@ function getLiveReplays(content) {
 
 const TELEGRAM_MINI_APP_URL = import.meta.env.VITE_TELEGRAM_MINI_APP_URL || "/telegram-miniapp";
 
+const TELEGRAM_MINI_APP_URL = import.meta.env.VITE_TELEGRAM_MINI_APP_URL || "/telegram-miniapp";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+
 function MobileTabs({ tab, setTab }) {
   const tabs = [["learn", "Cours", BookOpen], ["progress", "Suivi", Target], ["tools", "Outils", Wallet]];
 
@@ -83,44 +86,10 @@ export default function KabalAcademyMVP() {
   const [doneByLesson, setDoneByLesson] = useState({});
   const [search, setSearch] = useState("");
   const [quizAnswers, setQuizAnswers] = useState({});
-  const [expandedModules, setExpandedModules] = useState(new Set());
-  const [lastLessonByPack, setLastLessonByPack] = useState({});
-  const [celebrationMessage, setCelebrationMessage] = useState("");
-
-  useEffect(() => {
-    try {
-      const rawExpanded = localStorage.getItem(EXPANDED_MODULES_KEY);
-      if (rawExpanded) {
-        const ids = JSON.parse(rawExpanded);
-        if (Array.isArray(ids)) setExpandedModules(new Set(ids));
-      }
-      const rawLastLesson = localStorage.getItem(LAST_LESSON_KEY);
-      if (rawLastLesson) {
-        const parsed = JSON.parse(rawLastLesson);
-        if (parsed && typeof parsed === "object") setLastLessonByPack(parsed);
-      }
-      const rawDone = localStorage.getItem(DONE_LESSONS_KEY);
-      if (rawDone) {
-        const parsedDone = JSON.parse(rawDone);
-        if (parsedDone && typeof parsedDone === "object") setDoneByLesson(parsedDone);
-      }
-    } catch {
-      setExpandedModules(new Set());
-      setLastLessonByPack({});
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(EXPANDED_MODULES_KEY, JSON.stringify(Array.from(expandedModules)));
-  }, [expandedModules]);
-
-  useEffect(() => {
-    localStorage.setItem(LAST_LESSON_KEY, JSON.stringify(lastLessonByPack));
-  }, [lastLessonByPack]);
-
-  useEffect(() => {
-    localStorage.setItem(DONE_LESSONS_KEY, JSON.stringify(doneByLesson));
-  }, [doneByLesson]);
+  const [accessWallet, setAccessWallet] = useState("");
+  const [accessTelegramId, setAccessTelegramId] = useState("");
+  const [hasAcademyAccess, setHasAcademyAccess] = useState(false);
+  const [accessLoading, setAccessLoading] = useState(false);
 
   useEffect(() => {
     loadAcademyContent(seed).then((content) => {
@@ -181,6 +150,46 @@ export default function KabalAcademyMVP() {
   const level = Math.max(1, Math.floor(xp / 500) + 1);
   const streak = Math.min(30, Math.max(0, Math.floor(doneCount / 2)));
 
+
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    const wallet = url.searchParams.get('wallet') || '';
+    const tg = url.searchParams.get('tgUserId') || '';
+    if (wallet) setAccessWallet(wallet);
+    if (tg) setAccessTelegramId(tg);
+  }, []);
+
+  async function refreshAcademyAccess(overrideWallet = accessWallet, overrideTelegramId = accessTelegramId) {
+    if (!API_BASE || (!overrideWallet && !overrideTelegramId)) {
+      setHasAcademyAccess(false);
+      return;
+    }
+    setAccessLoading(true);
+    try {
+      const query = new URLSearchParams();
+      if (overrideWallet) query.set('wallet', overrideWallet);
+      if (overrideTelegramId) query.set('telegramId', overrideTelegramId);
+      const response = await fetch(`${API_BASE}/api/access/list?${query.toString()}`);
+      const payload = await response.json();
+      const entitlements = payload.entitlements || [];
+      const unlocked = entitlements.some((entry) => {
+        const app = (entry?.product?.app || 'academy').toLowerCase();
+        return app === 'academy';
+      });
+      setHasAcademyAccess(unlocked);
+    } catch {
+      setHasAcademyAccess(false);
+    } finally {
+      setAccessLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refreshAcademyAccess();
+  }, [accessWallet, accessTelegramId]);
+
   const results = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return [];
@@ -238,7 +247,7 @@ export default function KabalAcademyMVP() {
             <h1 className="mt-4 text-4xl font-black leading-tight sm:text-5xl">Academy memecoins</h1>
             <p className="mt-4 text-zinc-300">Packs de formation, progression visuelle et structure prête pour le token-gating Telegram.</p>
           </div>
-          <Card className="rounded-3xl border-white/10 bg-white/5"><CardHeader><CardTitle>Accéder à l'Academy</CardTitle></CardHeader><CardContent className="space-y-4"><Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Ton pseudo" className="h-12 rounded-2xl border-white/10 bg-black/30" /><button onClick={() => setStarted(true)} className="h-12 w-full rounded-2xl bg-amber-400 text-black">Commencer</button><a href={TELEGRAM_MINI_APP_URL} className="flex h-12 w-full items-center justify-center rounded-2xl border border-white/20 text-zinc-200">Acheter sur Telegram Mini App</a></CardContent></Card>
+          <Card className="rounded-3xl border-white/10 bg-white/5"><CardHeader><CardTitle>Accéder à l'Academy</CardTitle></CardHeader><CardContent className="space-y-4"><Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Ton pseudo" className="h-12 rounded-2xl border-white/10 bg-black/30" /><div className="grid gap-2 sm:grid-cols-2"><Input value={accessWallet} onChange={(e) => setAccessWallet(e.target.value)} placeholder="Wallet (optional)" className="h-11 rounded-2xl border-white/10 bg-black/30" /><Input value={accessTelegramId} onChange={(e) => setAccessTelegramId(e.target.value)} placeholder="Telegram ID (optional)" className="h-11 rounded-2xl border-white/10 bg-black/30" /></div><button onClick={() => refreshAcademyAccess()} className="h-10 w-full rounded-2xl border border-white/20 text-zinc-200">{accessLoading ? 'Vérification...' : 'Vérifier accès'}</button>{!hasAcademyAccess && <p className="text-xs text-amber-300">Accès Academy non détecté. Débloque un pack dans la mini app avant de commencer.</p>}<button onClick={() => setStarted(true)} disabled={!hasAcademyAccess} className="h-12 w-full rounded-2xl bg-amber-400 text-black disabled:cursor-not-allowed disabled:opacity-50">Commencer</button><a href={TELEGRAM_MINI_APP_URL} className="flex h-12 w-full items-center justify-center rounded-2xl border border-white/20 text-zinc-200">Acheter sur Telegram Mini App</a></CardContent></Card>
         </div>
       </div>
     );

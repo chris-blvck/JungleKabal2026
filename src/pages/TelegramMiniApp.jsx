@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BookOpen, Brain, Gem, Rocket, ShoppingBag, Sparkles, CheckCircle2, Clock3, Copy, RefreshCw } from 'lucide-react';
+import { ArrowLeft, BookOpen, Brain, Gem, Rocket, ShoppingBag, Sparkles, CheckCircle2, Clock3, Copy, RefreshCw, Wallet } from 'lucide-react';
 import catalogFallback from '../data/catalogFallback.json';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
@@ -23,15 +23,45 @@ const typeTheme = {
     chip: 'border-emerald-300/40 bg-emerald-400/20 text-emerald-200',
     frame: 'border-emerald-300/30',
   },
+  skin: {
+    label: 'Skin',
+    icon: Sparkles,
+    chip: 'border-fuchsia-300/40 bg-fuchsia-400/20 text-fuchsia-200',
+    frame: 'border-fuchsia-300/30',
+  },
+  bundle: {
+    label: 'Bundle',
+    icon: Rocket,
+    chip: 'border-sky-300/40 bg-sky-400/20 text-sky-200',
+    frame: 'border-sky-300/30',
+  },
+  pass: {
+    label: 'Pass',
+    icon: Gem,
+    chip: 'border-violet-300/40 bg-violet-400/20 text-violet-200',
+    frame: 'border-violet-300/30',
+  },
 };
 
 
 
 const sectionTheme = {
-  kourses: 'border-amber-300/30 bg-amber-500/10',
+  kourse: 'border-amber-300/30 bg-amber-500/10',
   kodex: 'border-cyan-300/30 bg-cyan-500/10',
   koaching: 'border-emerald-300/30 bg-emerald-500/10',
+  skin: 'border-fuchsia-300/30 bg-fuchsia-500/10',
+  bundle: 'border-sky-300/30 bg-sky-500/10',
+  pass: 'border-violet-300/30 bg-violet-500/10',
 };
+
+const typeSections = [
+  { key: 'kourse', title: 'Kourses' },
+  { key: 'kodex', title: 'Kodex' },
+  { key: 'koaching', title: 'Koaching' },
+  { key: 'skin', title: 'Skins' },
+  { key: 'bundle', title: 'Bundles' },
+  { key: 'pass', title: 'Passes' },
+];
 const roadmapStatus = {
   done: { label: 'Done', className: 'bg-emerald-400/20 text-emerald-300 border-emerald-300/30', Icon: CheckCircle2 },
   in_progress: { label: 'In Progress', className: 'bg-amber-400/20 text-amber-300 border-amber-300/30', Icon: Clock3 },
@@ -46,6 +76,17 @@ function getTelegramUserFromUrl() {
 function getPreselectedProductId() {
   const url = new URL(window.location.href);
   return url.searchParams.get('productId') || '';
+}
+
+function getShopFromUrl() {
+  const url = new URL(window.location.href);
+  const value = (url.searchParams.get('shop') || 'academy').toLowerCase();
+  return value === 'diejungle' ? 'diejungle' : 'academy';
+}
+
+function getWalletFromUrl() {
+  const url = new URL(window.location.href);
+  return url.searchParams.get('wallet') || "";
 }
 
 async function apiRequest(path, options = {}) {
@@ -65,6 +106,20 @@ async function apiRequest(path, options = {}) {
 
   if (!response.ok) throw new Error(payload.error || `API request failed (${response.status})`);
   return payload;
+}
+
+
+
+async function trackAnalyticsEvent(event) {
+  if (!API_BASE) return;
+  try {
+    await apiRequest('/api/analytics/event', {
+      method: 'POST',
+      body: JSON.stringify({ event }),
+    });
+  } catch {
+    // telemetry must never block UX
+  }
 }
 
 function money(value) {
@@ -180,13 +235,17 @@ export default function TelegramMiniApp() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [myAccess, setMyAccess] = useState([]);
   const [accessLoading, setAccessLoading] = useState(false);
+  const [shopMode, setShopMode] = useState('academy');
 
   const canCheckout = !usingFallbackCatalog;
 
   useEffect(() => {
     const tgUser = getTelegramUserFromUrl();
     const preselected = getPreselectedProductId();
+    const walletFromUrl = getWalletFromUrl();
+    setShopMode(getShopFromUrl());
     setTelegramId(tgUser);
+    if (walletFromUrl) setBuyerWallet(walletFromUrl);
 
     apiRequest('/api/catalog')
       .then((data) => {
@@ -218,6 +277,9 @@ export default function TelegramMiniApp() {
       .finally(() => setLoadingCatalog(false));
   }, []);
 
+  useEffect(() => {
+    trackAnalyticsEvent('catalogView');
+  }, []);
 
   useEffect(() => {
     if (!payment?.id || payment.status === 'confirmed' || payment.status === 'expired') return undefined;
@@ -276,12 +338,15 @@ export default function TelegramMiniApp() {
   }, [telegramId, buyerWallet, usingFallbackCatalog]);
 
   const productMap = useMemo(() => new Map(catalog.products.map((p) => [p.id, p])), [catalog.products]);
-  const visibleProducts = useMemo(() => (activeType === 'all' ? catalog.products : catalog.products.filter((p) => normalizeProductType(p.type) === activeType)), [catalog.products, activeType]);
-  const grouped = useMemo(() => ({
-    kourses: visibleProducts.filter((p) => normalizeProductType(p.type) === 'kourse'),
-    kodex: visibleProducts.filter((p) => normalizeProductType(p.type) === 'kodex'),
-    koaching: visibleProducts.filter((p) => normalizeProductType(p.type) === 'koaching'),
-  }), [visibleProducts]);
+  const shopScopedProducts = useMemo(() => {
+    return catalog.products.filter((product) => {
+      const target = (product.app || 'academy').toLowerCase();
+      return shopMode === 'diejungle' ? target === 'diejungle' : target !== 'diejungle';
+    });
+  }, [catalog.products, shopMode]);
+
+  const visibleProducts = useMemo(() => (activeType === 'all' ? shopScopedProducts : shopScopedProducts.filter((p) => normalizeProductType(p.type) === activeType)), [shopScopedProducts, activeType]);
+  const grouped = useMemo(() => typeSections.reduce((acc, section) => ({ ...acc, [section.key]: visibleProducts.filter((p) => normalizeProductType(p.type) === section.key) }), {}), [visibleProducts]);
 
   const cartItems = useMemo(() => cartIds.map((id) => productMap.get(id)).filter(Boolean).filter((p) => !p.comingSoon), [cartIds, productMap]);
   const totalSol = useMemo(() => cartItems.reduce((sum, item) => sum + Number(item.amountSol || 0), 0), [cartItems]);
@@ -289,7 +354,26 @@ export default function TelegramMiniApp() {
   const toggleInCart = (id) => {
     const product = productMap.get(id);
     if (!product || product.comingSoon) return;
+    trackAnalyticsEvent('addToCart');
     setCartIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+
+
+  const connectWallet = async () => {
+    const provider = window?.solana;
+    if (!provider?.connect) {
+      setError('Phantom wallet not found in this browser.');
+      return;
+    }
+    try {
+      const response = await provider.connect();
+      const address = response?.publicKey?.toString?.() || '';
+      setBuyerWallet(address);
+      setError('');
+    } catch {
+      setError('Wallet connection failed.');
+    }
   };
 
   const requestNotify = async (productId) => {
@@ -369,6 +453,47 @@ export default function TelegramMiniApp() {
     }
   };
 
+
+  const detectPayment = async () => {
+    if (!payment?.id || payment.status === 'confirmed' || payment.status === 'expired') return;
+    setError('');
+    setBusy(true);
+    try {
+      const payload = await apiRequest(`/api/payments/${payment.id}/detect`, {
+        method: 'POST',
+      });
+      setPayment(payload.payment);
+      refreshOwnershipData();
+    } catch (err) {
+      const msg = err?.message || 'No payment detected yet.';
+      if (/No matching on-chain payment detected yet/i.test(msg) || /404/.test(msg)) {
+        setError('No payment detected on-chain yet. If you just paid, wait a few seconds and try Detect payment again.');
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+
+  const runGlobalAutoDetect = async () => {
+    setError('');
+    setBusy(true);
+    try {
+      await apiRequest('/api/payments/auto-detect/run', { method: 'POST' });
+      if (payment?.id) {
+        const refreshed = await apiRequest(`/api/payments/${payment.id}`);
+        if (refreshed?.payment) setPayment(refreshed.payment);
+      }
+      refreshOwnershipData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const renderSection = (title, items, themeKey) => {
     if (!items.length) return null;
     return (
@@ -403,20 +528,20 @@ export default function TelegramMiniApp() {
         </div>
 
         <header className="rounded-3xl border border-white/15 bg-gradient-to-br from-violet-500/25 via-fuchsia-500/15 to-amber-500/20 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/30 px-3 py-1 text-xs"><Sparkles className="h-4 w-4 text-amber-300" /> Kabal Mini App Store</div>
-          <h1 className="mt-3 text-2xl font-black md:text-4xl">Kourses · Kodex · Koaching</h1>
-          <p className="mt-3 max-w-3xl text-sm text-zinc-200 md:text-base">High-conversion visual catalog with symbolic free starter on-chain activation, premium packs, and roadmap-driven delivery.</p>
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/30 px-3 py-1 text-xs"><Sparkles className="h-4 w-4 text-amber-300" /> {shopMode === 'diejungle' ? 'Die in the Jungle Shop' : 'Kabal Mini App Store'}</div>
+          <h1 className="mt-3 text-2xl font-black md:text-4xl">{shopMode === 'diejungle' ? 'Skins · Bundles · Passes' : 'Kourses · Kodex · Koaching'}</h1>
+          <p className="mt-3 max-w-3xl text-sm text-zinc-200 md:text-base">{shopMode === 'diejungle' ? 'Official Die in the Jungle cosmetics store. Unlock skins and bundles with SOL and use them in your runs.' : 'High-conversion visual catalog with symbolic free starter on-chain activation, premium packs, and roadmap-driven delivery.'}</p>
         </header>
 
         {usingFallbackCatalog && (
           <div className="rounded-2xl border border-amber-300/40 bg-amber-500/10 p-3 text-sm text-amber-100">
-            ⚠️ Running in local fallback mode (API/catalog endpoint not reachable). Checkout is disabled until a backend API is configured.
+            ⚠️ Running in local fallback mode (API/catalog endpoint not reachable). Checkout is disabled until a backend API is configured. Verify VITE_API_BASE_URL and /api/catalog.
           </div>
         )}
 
         <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
           <div className="flex flex-wrap gap-2">
-            {['all', 'kourse', 'kodex', 'koaching'].map((key) => (
+            {(shopMode === 'diejungle' ? ['all', 'skin', 'bundle', 'pass'] : ['all', 'kourse', 'kodex', 'koaching']).map((key) => (
               <button
                 key={key}
                 onClick={() => setActiveType(key)}
@@ -432,9 +557,7 @@ export default function TelegramMiniApp() {
 
         {!loadingCatalog && (
           <>
-            {renderSection('Kourses', grouped.kourses, 'kourses')}
-            {renderSection('Kodex', grouped.kodex, 'kodex')}
-            {renderSection('Koaching', grouped.koaching, 'koaching')}
+            {typeSections.map((section) => renderSection(section.title, grouped[section.key] || [], section.key))}
           </>
         )}
 
@@ -551,8 +674,11 @@ export default function TelegramMiniApp() {
 
             {payment.status !== 'confirmed' && payment.status !== 'expired' && (
               <div className="mt-3 space-y-2">
+                <button onClick={detectPayment} disabled={busy} className="w-full rounded-xl border border-sky-300 px-4 py-2 text-sm text-sky-200 disabled:opacity-50">Detect payment automatically</button>
+                <button onClick={runGlobalAutoDetect} disabled={busy} className="w-full rounded-xl border border-emerald-300 px-4 py-2 text-sm text-emerald-200 disabled:opacity-50">Run global auto-detect sweep</button>
+                <p className="text-[11px] text-zinc-400">If auto-detect fails, you can still confirm manually with tx signature:</p>
                 <input value={signature} onChange={(e) => setSignature(e.target.value)} placeholder="Paste SOL tx signature" className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm" />
-                <button onClick={confirmPayment} disabled={busy} className="w-full rounded-xl border border-amber-300 px-4 py-2 text-sm text-amber-200 disabled:opacity-50">Confirm payment</button>
+                <button onClick={confirmPayment} disabled={busy} className="w-full rounded-xl border border-amber-300 px-4 py-2 text-sm text-amber-200 disabled:opacity-50">Confirm payment manually</button>
               </div>
             )}
             {payment.status === 'confirmed' && <p className="mt-3 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-200">✅ Payment confirmed. Access unlocked.</p>}
@@ -571,7 +697,10 @@ export default function TelegramMiniApp() {
             <p className="truncate text-sm font-semibold">{cartItems.length} item(s) · {money(totalSol)}</p>
             {!canCheckout && <p className="text-[11px] text-amber-300">Checkout disabled (fallback mode)</p>}
           </div>
-          <input value={buyerWallet} onChange={(e) => setBuyerWallet(e.target.value)} placeholder="Burner wallet (optional)" className="hidden w-64 rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs lg:block" />
+          <div className="hidden items-center gap-2 lg:flex">
+            <input value={buyerWallet} onChange={(e) => setBuyerWallet(e.target.value)} placeholder="Burner wallet (optional)" className="w-64 rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs" />
+            <button onClick={connectWallet} className="inline-flex items-center gap-1 rounded-xl border border-violet-300/30 bg-violet-500/20 px-2 py-2 text-xs text-violet-100"><Wallet className="h-3.5 w-3.5" /> Connect</button>
+          </div>
           <button onClick={createCartPayment} disabled={!canCheckout || busy || cartItems.length === 0} title={!canCheckout ? 'Checkout unavailable in fallback mode' : 'Create payment'} className="rounded-xl bg-amber-400 px-4 py-2 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50">Pay with SOL</button>
         </div>
       </aside>

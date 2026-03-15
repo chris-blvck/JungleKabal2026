@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 12,
   "currency": "SOL",
   "categories": [
     {
@@ -19,6 +19,24 @@
       "name": "Koaching",
       "description": "Private coaching.",
       "accent": "from-emerald-400/30 to-sky-400/20"
+    },
+    {
+      "id": "skins",
+      "name": "Skins",
+      "description": "Cosmetics for Die in the Jungle.",
+      "accent": "from-fuchsia-400/30 to-violet-500/20"
+    },
+    {
+      "id": "bundles",
+      "name": "Bundles",
+      "description": "Mixed cosmetic packs.",
+      "accent": "from-sky-400/30 to-cyan-500/20"
+    },
+    {
+      "id": "passes",
+      "name": "Passes",
+      "description": "Seasonal access and rewards.",
+      "accent": "from-violet-400/30 to-amber-500/20"
     }
   ],
   "roadmap": [
@@ -35,21 +53,23 @@
     {
       "id": "phase-2",
       "title": "Phase 2 \u00b7 Access and history inside mini app",
-      "status": "in_progress",
+      "status": "done",
       "items": [
-        "My Access panel",
-        "Purchase history endpoint",
-        "Owner-based filtering by wallet/telegram"
+        "My Access panel \u2705",
+        "Purchase history endpoint \u2705",
+        "Owner-based filtering by wallet/telegram \u2705",
+        "Die in the Jungle shop mode \u2705",
+        "Academy entitlement gating \u2705"
       ]
     },
     {
       "id": "phase-3",
       "title": "Phase 3 \u00b7 Launch hardening",
-      "status": "next",
+      "status": "in_progress",
       "items": [
-        "Auto-confirmation worker",
-        "Deep wallet integration",
-        "Telemetry and anti-fraud"
+        "Auto-confirmation worker \u2705",
+        "Deep wallet integration \u2705",
+        "Telemetry dashboard + anti-fraud \u2705"
       ]
     }
   ],
@@ -141,6 +161,76 @@
       "upsellProductIds": [
         "koaching-mindset-coming-soon"
       ]
+    },
+    {
+      "id": "ditj-skin-kabalian-shadow",
+      "type": "skin",
+      "categoryId": "skins",
+      "app": "diejungle",
+      "name": "KABALIAN \u00b7 SHADOW STALKER",
+      "description": "Legendary dark variant skin for Kabalian.",
+      "amountSol": 0.65,
+      "cover": "https://i.postimg.cc/jdH0StDF/Chat-GPT-Image-14-mars-2026-16-20-50.png",
+      "lessonsIncluded": [
+        "Custom avatar frame",
+        "Combat aura",
+        "Victory pose"
+      ],
+      "upsellProductIds": [
+        "ditj-bundle-jungle-hunter-pack"
+      ]
+    },
+    {
+      "id": "ditj-skin-kkm-solar-guard",
+      "type": "skin",
+      "categoryId": "skins",
+      "app": "diejungle",
+      "name": "KKM \u00b7 SOLAR GUARD",
+      "description": "Tank skin with solar shield visuals.",
+      "amountSol": 0.65,
+      "cover": "https://i.postimg.cc/jdH0StDF/Chat-GPT-Image-14-mars-2026-16-20-50.png",
+      "lessonsIncluded": [
+        "Solar shield FX",
+        "Golden idle animation",
+        "Exclusive badge"
+      ],
+      "upsellProductIds": [
+        "ditj-bundle-jungle-hunter-pack"
+      ]
+    },
+    {
+      "id": "ditj-bundle-jungle-hunter-pack",
+      "type": "bundle",
+      "categoryId": "bundles",
+      "app": "diejungle",
+      "name": "JUNGLE HUNTER PACK",
+      "description": "2 premium skins + dice cosmetic set.",
+      "amountSol": 1.35,
+      "cover": "https://i.postimg.cc/jdH0StDF/Chat-GPT-Image-14-mars-2026-16-20-50.png",
+      "lessonsIncluded": [
+        "Shadow Stalker skin",
+        "Solar Guard skin",
+        "Dice cosmetic V1"
+      ],
+      "upsellProductIds": [
+        "ditj-pass-founder-season-zero"
+      ]
+    },
+    {
+      "id": "ditj-pass-founder-season-zero",
+      "type": "pass",
+      "categoryId": "passes",
+      "app": "diejungle",
+      "name": "FOUNDER PASS \u00b7 SEASON ZERO",
+      "description": "Founding pass with future exclusive drops.",
+      "amountSol": 1.95,
+      "cover": "https://i.postimg.cc/jdH0StDF/Chat-GPT-Image-14-mars-2026-16-20-50.png",
+      "lessonsIncluded": [
+        "Founder badge",
+        "Priority skin drops",
+        "Season 0 chest"
+      ],
+      "upsellProductIds": []
     }
   ]
 }
