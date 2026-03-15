@@ -1534,6 +1534,10 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const [showArsenal, setShowArsenal] = useState(false);
   const [selectedStartWeapon, setSelectedStartWeapon] = useState<Weapon | null>(null);
   const [selectedStartCompanion, setSelectedStartCompanion] = useState<Companion | null>(null);
+  const [selectedStartCharacter, setSelectedStartCharacter] = useState<string | null>(null);
+  const [selectedStartRelics, setSelectedStartRelics] = useState<any[]>([]); // placeholder, user will add relic logic
+  const [weaponRarityFilter, setWeaponRarityFilter] = useState<string>('all');
+  const [weaponArchFilter, setWeaponArchFilter] = useState<string>('all');
   const [meta, setMeta] = useState<MetaProgressionState>(loadMeta);
   const [lastRunReward, setLastRunReward] = useState<RunReward | null>(null);
   const [leaderboard, setLeaderboard] = useState<Array<{ name: string; score: number; floor: number; date: string; seed: number }>>(() => {
@@ -2484,6 +2488,20 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     setGame(makeInitialState());
   }
 
+  // Welcome bonus: +50 gems on first ever launch
+  useEffect(() => {
+    const welcomed = localStorage.getItem('jk_welcomed');
+    if (!welcomed) {
+      setMeta((m) => {
+        const updated = { ...m, gems: m.gems + 50 };
+        saveMeta(updated);
+        return updated;
+      });
+      localStorage.setItem('jk_welcomed', '1');
+      setGame((g) => ({ ...g, actionFlash: { id: Date.now(), text: '🎁 Welcome! +50 gems', tone: 'amber' } }));
+    }
+  }, []);
+
   const notifiedRunRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -2948,6 +2966,14 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 );
               })
             ) : null}
+            {(game.phase === "roll" || game.phase === "place") && game.mapLayers && (
+              <Button
+                onClick={() => setGame(g => ({ ...g, phase: 'map' }))}
+                className="rounded-xl border border-amber-400/25 bg-amber-900/30 px-3 py-1.5 text-xs font-black text-amber-200 hover:bg-amber-900/50"
+              >
+                🗺️ MAP
+              </Button>
+            )}
             {(game.phase === "gameover" || game.phase === "victory") ? (
               <>
                 <Button onClick={shareRun} className="rounded-2xl bg-sky-500/35 px-4 py-2.5 text-sm font-black text-white hover:bg-sky-500/50">Share run</Button>
@@ -3154,77 +3180,168 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
             const showCompanionPick = hasCompanionSlot(charSelectMeta);
             const unlockedCompanionIds = getUnlockedCompanions(charSelectMeta);
             const availableCompanions = COMPANIONS.filter(c => unlockedCompanionIds.includes(c.id));
+            const ARCH_EMOJIS: Record<string, string> = { blade: '⚔️', staff: '🪄', shield: '🛡️', totem: '🪬', cannon: '💥', fang: '🐍' };
+            const filteredWeapons = STARTER_WEAPONS.filter(w => {
+              const rarityOk = weaponRarityFilter === 'all' || w.rarity === weaponRarityFilter;
+              const archOk = weaponArchFilter === 'all' || w.archetype === weaponArchFilter;
+              return rarityOk && archOk;
+            });
+            const selectedCharObj = selectedStartCharacter ? (PLAYER_CHARACTERS as any)[selectedStartCharacter] : null;
             return (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm overflow-y-auto">
-                <div className="w-full max-w-3xl rounded-[28px] border border-cyan-300/25 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
-                  <div className="mb-4 text-center">
-                    <div className="font-serif text-2xl italic text-amber-300">Choose your character</div>
-                    <div className="text-sm text-zinc-300">Choose your character before first fight. First artifact arrives after the first win.</div>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 p-4 backdrop-blur-sm overflow-y-auto">
+                <div className="w-full max-w-3xl rounded-[28px] border border-cyan-300/25 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)] max-h-[90vh] overflow-y-auto my-4">
+
+                  {/* STEP 1 — Character */}
+                  <div className="mb-5">
+                    <div className="mb-3 text-center">
+                      <div className="font-serif text-xl italic text-amber-300">Choose your character</div>
+                      <div className="text-xs text-zinc-400 mt-0.5">Select a character to reveal loadout options</div>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {Object.values(PLAYER_CHARACTERS).map((character: any) => {
+                        const isLocked = character.id === 'kkm' && !canPlayKKM(charSelectMeta);
+                        const isSelected = selectedStartCharacter === character.id;
+                        return (
+                          <button
+                            key={character.id}
+                            onClick={() => !isLocked && setSelectedStartCharacter(isSelected ? null : character.id)}
+                            disabled={isLocked}
+                            className={`rounded-2xl border p-3 text-left transition relative ${isLocked ? 'border-zinc-700/50 bg-black/30 opacity-60 cursor-not-allowed' : isSelected ? 'border-amber-300/70 bg-amber-950/30 shadow-[0_0_16px_rgba(252,211,77,0.18)]' : 'border-white/15 bg-black/45 hover:border-amber-300/40 hover:bg-black/70'}`}
+                          >
+                            <div className="relative">
+                              <img src={character.avatar} alt={character.name} className="mb-2 h-28 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
+                              {isLocked && <div className="absolute inset-0 flex items-center justify-center text-4xl">🔒</div>}
+                              {isSelected && (
+                                <div className="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-black text-xs font-black">✓</div>
+                              )}
+                            </div>
+                            <div className="font-black text-sm text-amber-200">{character.name} {isLocked ? '(Locked)' : ''}</div>
+                            <div className="text-[10px] text-zinc-300">{isLocked ? 'Defeat Zone 1 boss or spend 100 gems to unlock' : character.subtitle}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="grid gap-3 md:grid-cols-2 mb-4">
-                    {Object.values(PLAYER_CHARACTERS).map((character) => {
-                      const isLocked = character.id === 'kkm' && !canPlayKKM(charSelectMeta);
-                      return (
-                        <button
-                          key={character.id}
-                          onClick={() => !isLocked && pickCharacter(character.id)}
-                          disabled={isLocked}
-                          className={`rounded-2xl border p-3 text-left transition ${isLocked ? 'border-zinc-700/50 bg-black/30 opacity-60 cursor-not-allowed' : 'border-white/15 bg-black/45 hover:border-amber-300/60 hover:bg-black/70'}`}
-                        >
-                          <div className="relative">
-                            <img src={character.avatar} alt={character.name} className="mb-2 h-36 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
-                            {isLocked && <div className="absolute inset-0 flex items-center justify-center text-4xl">🔒</div>}
+
+                  {/* STEP 2 — Loadout (visible only after character selected) */}
+                  {selectedStartCharacter !== null && (
+                    <div className="space-y-4">
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300 border-t border-white/10 pt-4">⚙️ Loadout</div>
+
+                      {/* A) Weapon slot */}
+                      {showWeaponPick && (
+                        <div>
+                          <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">⚔️ Starter Weapon (optional)</div>
+                          {/* Filter bar */}
+                          <div className="mb-2 space-y-1">
+                            <div className="overflow-x-auto whitespace-nowrap">
+                              <div className="inline-flex gap-1">
+                                {['all', 'common', 'rare', 'epic', 'legendary'].map(r => (
+                                  <button
+                                    key={r}
+                                    onClick={() => setWeaponRarityFilter(r)}
+                                    className={`rounded-full px-2 py-0.5 text-[9px] font-black border transition ${weaponRarityFilter === r ? 'bg-amber-400/30 border-amber-400/60 text-amber-200' : 'border-white/15 bg-black/30 text-zinc-400 hover:border-white/30'}`}
+                                    style={r !== 'all' ? { color: (RARITY_COLORS as any)[r] } : {}}
+                                  >
+                                    {r === 'all' ? 'All' : r.charAt(0).toUpperCase() + r.slice(1)}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="overflow-x-auto whitespace-nowrap">
+                              <div className="inline-flex gap-1">
+                                {['all', 'blade', 'staff', 'shield', 'totem', 'cannon', 'fang'].map(a => (
+                                  <button
+                                    key={a}
+                                    onClick={() => setWeaponArchFilter(a)}
+                                    className={`rounded-full px-2 py-0.5 text-[9px] font-black border transition ${weaponArchFilter === a ? 'bg-cyan-400/20 border-cyan-400/50 text-cyan-200' : 'border-white/15 bg-black/30 text-zinc-400 hover:border-white/30'}`}
+                                  >
+                                    {a === 'all' ? 'All' : `${ARCH_EMOJIS[a] || ''} ${a}`}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           </div>
-                          <div className="font-black text-lg text-amber-200">{character.name} {isLocked ? '(Locked)' : ''}</div>
-                          <div className="text-xs text-zinc-300">{isLocked ? 'Defeat Zone 1 boss or spend 100 gems to unlock' : character.subtitle}</div>
-                        </button>
-                      );
-                    })}
+                          {/* Weapon grid */}
+                          <div className="max-h-48 overflow-y-auto pr-1">
+                            <div className="grid gap-1.5 grid-cols-2 md:grid-cols-3">
+                              {filteredWeapons.length === 0 && (
+                                <div className="col-span-3 text-center text-[10px] text-zinc-500 py-4">No weapons match this filter</div>
+                              )}
+                              {filteredWeapons.map((weapon) => {
+                                const isSelected = selectedStartWeapon?.id === weapon.id;
+                                return (
+                                  <button
+                                    key={weapon.id}
+                                    onClick={() => setSelectedStartWeapon(isSelected ? null : weapon)}
+                                    className={`rounded-xl border p-2 text-left transition ${isSelected ? 'border-amber-300/60 bg-amber-950/30' : 'border-white/10 bg-black/35 hover:border-white/25'}`}
+                                  >
+                                    <div className="flex items-center gap-1 mb-0.5">
+                                      <span className="text-[10px]">{ARCH_EMOJIS[weapon.archetype] || '⚔️'}</span>
+                                      <span className="text-[10px] font-black leading-tight" style={{ color: (RARITY_COLORS as any)[weapon.rarity] }}>{weapon.name}</span>
+                                    </div>
+                                    <div className="text-[9px] text-zinc-500 capitalize mb-0.5">{weapon.archetype} · {weapon.rarity}</div>
+                                    {weapon.passive?.desc && <div className="text-[9px] text-zinc-400 leading-tight mb-0.5">{weapon.passive.desc}</div>}
+                                    <div className="text-[9px] text-zinc-500 leading-tight">{weapon.special.name}</div>
+                                    {isSelected && <div className="mt-1 text-[9px] font-black text-amber-300">✓ Selected</div>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* B) Companion slot */}
+                      {showCompanionPick && availableCompanions.length > 0 && (
+                        <div>
+                          <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">🐾 Starter Companion (optional)</div>
+                          <div className="grid gap-1.5 grid-cols-2 md:grid-cols-3">
+                            {availableCompanions.map((companion) => {
+                              const isSelected = selectedStartCompanion?.id === companion.id;
+                              return (
+                                <button
+                                  key={companion.id}
+                                  onClick={() => setSelectedStartCompanion(isSelected ? null : companion)}
+                                  className={`rounded-xl border p-2 text-left transition ${isSelected ? 'border-emerald-300/60 bg-emerald-950/30' : 'border-white/10 bg-black/35 hover:border-white/25'}`}
+                                >
+                                  <div className="text-base">{companion.emoji}</div>
+                                  <div className="text-xs font-black text-white">{companion.name}</div>
+                                  <div className="text-[10px] text-zinc-400">{companion.active.name}</div>
+                                  {isSelected && <div className="mt-1 text-[10px] font-black text-emerald-300">✓ Selected</div>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* C) Relic slots (placeholder) */}
+                      <div>
+                        <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-violet-400">🔮 Relics — coming soon</div>
+                        <div className="flex gap-2">
+                          {[1, 2, 3].map(n => (
+                            <div key={n} className="flex-1 rounded-xl border border-white/10 bg-black/30 p-3 flex flex-col items-center gap-1 opacity-50">
+                              <div className="text-xl">🔒</div>
+                              <div className="text-[9px] text-zinc-500">Relic slot {n}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* START RUN button */}
+                  <div className="mt-5 pt-4 border-t border-white/10">
+                    <button
+                      onClick={() => selectedStartCharacter && pickCharacter(selectedStartCharacter)}
+                      disabled={!selectedStartCharacter}
+                      className={`w-full rounded-2xl py-3 text-sm font-black transition ${selectedStartCharacter ? 'bg-amber-400 text-black hover:bg-amber-300 shadow-[0_0_0_6px_rgba(252,211,77,0.18)]' : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'}`}
+                    >
+                      {selectedCharObj ? `Start as ${selectedCharObj.name} →` : 'Select a character to start'}
+                    </button>
                   </div>
-                  {showWeaponPick && (
-                    <div className="mb-4">
-                      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">⚔️ Starter Weapon (optional)</div>
-                      <div className="grid gap-2 grid-cols-2 md:grid-cols-3">
-                        {STARTER_WEAPONS.map((weapon) => {
-                          const isSelected = selectedStartWeapon?.id === weapon.id;
-                          return (
-                            <button
-                              key={weapon.id}
-                              onClick={() => setSelectedStartWeapon(isSelected ? null : weapon)}
-                              className={`rounded-xl border p-2.5 text-left transition ${isSelected ? 'border-amber-300/60 bg-amber-950/30' : 'border-white/10 bg-black/35 hover:border-white/25'}`}
-                            >
-                              <div className="text-xs font-black" style={{ color: RARITY_COLORS[weapon.rarity] }}>{weapon.name}</div>
-                              <div className="text-[10px] text-zinc-400 capitalize">{weapon.archetype} · {weapon.rarity}</div>
-                              <div className="text-[10px] text-zinc-300 mt-1">{weapon.special.name}: {weapon.special.desc}</div>
-                              {isSelected && <div className="mt-1 text-[10px] font-black text-amber-300">✓ Selected</div>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {showCompanionPick && availableCompanions.length > 0 && (
-                    <div className="mb-4">
-                      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">🐾 Starter Companion (optional)</div>
-                      <div className="grid gap-2 grid-cols-2 md:grid-cols-3">
-                        {availableCompanions.map((companion) => {
-                          const isSelected = selectedStartCompanion?.id === companion.id;
-                          return (
-                            <button
-                              key={companion.id}
-                              onClick={() => setSelectedStartCompanion(isSelected ? null : companion)}
-                              className={`rounded-xl border p-2.5 text-left transition ${isSelected ? 'border-emerald-300/60 bg-emerald-950/30' : 'border-white/10 bg-black/35 hover:border-white/25'}`}
-                            >
-                              <div className="text-lg">{companion.emoji}</div>
-                              <div className="text-xs font-black text-white">{companion.name}</div>
-                              <div className="text-[10px] text-zinc-400">{companion.active.name}</div>
-                              {isSelected && <div className="mt-1 text-[10px] font-black text-emerald-300">✓ Selected</div>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+
                 </div>
               </motion.div>
             );
@@ -3430,6 +3547,23 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                   <Button onClick={shareRun} className="rounded-xl bg-sky-500/35 px-4 py-2 text-white hover:bg-sky-500/50">Share run</Button>
                   <Button onClick={restart} className="rounded-xl bg-white px-4 py-2 text-black hover:bg-zinc-200">Play again</Button>
+                  <Button
+                    onClick={() => {
+                      const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+                      const refId = tgUser?.id || 'kabal';
+                      const inviteUrl = `https://t.me/JungleKabalBot?start=ref_${refId}`;
+                      const inviteText = `Je joue à DIE JUNGLE 🌴 — viens battre mon score de ${game.score}! ${inviteUrl}`;
+                      const tg = (window as any).Telegram?.WebApp;
+                      if (tg?.shareUrl) {
+                        tg.shareUrl(inviteUrl, inviteText);
+                      } else {
+                        window.open(`https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(inviteText)}`, '_blank');
+                      }
+                    }}
+                    className="rounded-xl bg-violet-500/30 px-4 py-2 text-white hover:bg-violet-500/50"
+                  >
+                    👥 Invite a friend (+150 💎)
+                  </Button>
                 </div>
               </div>
             </motion.div>

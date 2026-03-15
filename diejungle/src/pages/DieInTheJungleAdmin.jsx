@@ -90,6 +90,7 @@ const TABS = [
   { id: 'narrative', label: '📖 Narrative' },
   { id: 'advanced', label: '🔬 Advanced' },
   { id: 'roadmap', label: '🗺️ Roadmap' },
+  { id: 'contentqueue', label: '📅 Content Queue' },
 ];
 
 const GAME_LOGIC_GROUPS = {
@@ -147,6 +148,7 @@ const EMPTY_CONFIG = {
   monsters: { traitsCatalog: [], customMonsters: [] },
   artifacts: { customArtifacts: [] },
   assetsMeta: {},
+  contentQueue: [],
 };
 
 // ─── Roadmap ──────────────────────────────────────────────────────────────────
@@ -296,6 +298,7 @@ function withDefaults(raw = {}) {
     artifacts: { customArtifacts: Array.isArray(raw.artifacts?.customArtifacts) ? raw.artifacts.customArtifacts : [] },
     adminBacklog: Array.isArray(raw.adminBacklog) ? raw.adminBacklog : [],
     assetsMeta: raw.assetsMeta && typeof raw.assetsMeta === 'object' ? raw.assetsMeta : {},
+    contentQueue: Array.isArray(raw.contentQueue) ? raw.contentQueue : [],
   };
 }
 
@@ -348,6 +351,11 @@ export default function DieInTheJungleAdmin() {
   // Cheat mode
   const [cheatFloor, setCheatFloor] = useState(2);
   const [cheatHp, setCheatHp] = useState(20);
+  // Content queue
+  const [contentQueue, setContentQueue] = useState(() => {
+    try { const raw = localStorage.getItem('jk_content_queue_v1'); return raw ? JSON.parse(raw) : []; } catch { return []; }
+  });
+  const [cqForm, setCqForm] = useState({ date: '', type: 'Monster', name: '', rarity: 'Common', notes: '' });
 
   const availableSubcategories = ASSET_SCHEMA[category] || ['general'];
 
@@ -1108,6 +1116,182 @@ export default function DieInTheJungleAdmin() {
             </div>
           </div>
         )}
+
+        {/* ── CONTENT QUEUE ─────────────────────────────────────────────────────── */}
+        {activeTab === 'contentqueue' && (() => {
+          const CQ_KEY = 'jk_content_queue_v1';
+          const TYPE_COLORS = {
+            Monster: 'bg-rose-600/30 border-rose-500/50 text-rose-200',
+            Weapon: 'bg-amber-600/30 border-amber-500/50 text-amber-200',
+            Companion: 'bg-emerald-600/30 border-emerald-500/50 text-emerald-200',
+            Relic: 'bg-violet-600/30 border-violet-500/50 text-violet-200',
+            Artifact: 'bg-cyan-600/30 border-cyan-500/50 text-cyan-200',
+            Event: 'bg-orange-600/30 border-orange-500/50 text-orange-200',
+          };
+          const RARITY_BADGE = {
+            Common: 'bg-zinc-700 text-zinc-300',
+            Rare: 'bg-blue-700/50 text-blue-200',
+            Epic: 'bg-violet-700/50 text-violet-200',
+            Legendary: 'bg-amber-700/50 text-amber-200',
+          };
+
+          function saveQueue(next) {
+            localStorage.setItem(CQ_KEY, JSON.stringify(next));
+            setContentQueue(next);
+          }
+
+          function addEntry() {
+            if (!cqForm.date || !cqForm.name.trim()) return;
+            const entry = { id: Date.now(), ...cqForm, name: cqForm.name.trim() };
+            saveQueue([...contentQueue, entry].sort((a, b) => a.date.localeCompare(b.date)));
+            setCqForm({ date: '', type: 'Monster', name: '', rarity: 'Common', notes: '' });
+          }
+
+          function deleteEntry(id) {
+            saveQueue(contentQueue.filter(e => e.id !== id));
+          }
+
+          function exportQueue() {
+            const blob = new Blob([JSON.stringify(contentQueue, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `diejungle-content-queue-${Date.now()}.json`; a.click();
+          }
+
+          // Group by ISO week
+          function getWeekLabel(dateStr) {
+            const d = new Date(dateStr);
+            const jan4 = new Date(d.getFullYear(), 0, 4);
+            const startOfWeek = new Date(jan4);
+            startOfWeek.setDate(jan4.getDate() - jan4.getDay() + 1);
+            const weekNum = Math.ceil(((d - startOfWeek) / 86400000 + 1) / 7);
+            return `Week ${weekNum} · ${d.getFullYear()}`;
+          }
+
+          const grouped = contentQueue.reduce((acc, entry) => {
+            const wk = getWeekLabel(entry.date);
+            if (!acc[wk]) acc[wk] = [];
+            acc[wk].push(entry);
+            return acc;
+          }, {});
+
+          return (
+            <div className="space-y-6">
+              {/* Tutorial */}
+              <div className="rounded-xl border border-cyan-700/50 bg-cyan-900/20 p-4 text-sm text-cyan-200">
+                <div className="font-bold mb-1">📅 Content Release Queue</div>
+                <p className="text-xs text-cyan-300/80">Schedule content releases. Entries here are a planning tool — they don't automatically enable content in-game. Use this to pipeline a year of content releases and coordinate with your team.</p>
+              </div>
+
+              {/* Add form */}
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-4">
+                <h2 className="text-lg font-semibold">➕ Add Release</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">Date</label>
+                    <input
+                      type="date"
+                      value={cqForm.date}
+                      onChange={e => setCqForm(f => ({ ...f, date: e.target.value }))}
+                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">Type</label>
+                    <select
+                      value={cqForm.type}
+                      onChange={e => setCqForm(f => ({ ...f, type: e.target.value }))}
+                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none"
+                    >
+                      {['Monster', 'Weapon', 'Companion', 'Relic', 'Artifact', 'Event'].map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={cqForm.name}
+                      onChange={e => setCqForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="e.g. Void Serpent"
+                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">Rarity</label>
+                    <select
+                      value={cqForm.rarity}
+                      onChange={e => setCqForm(f => ({ ...f, rarity: e.target.value }))}
+                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none"
+                    >
+                      {['Common', 'Rare', 'Epic', 'Legendary'].map(r => <option key={r}>{r}</option>)}
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs text-zinc-400 mb-1">Notes (optional)</label>
+                    <textarea
+                      value={cqForm.notes}
+                      onChange={e => setCqForm(f => ({ ...f, notes: e.target.value }))}
+                      rows={2}
+                      placeholder="Design notes, dependencies, art status..."
+                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none resize-none"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={addEntry}
+                    disabled={!cqForm.date || !cqForm.name.trim()}
+                    className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-bold"
+                  >
+                    ➕ Add to Queue
+                  </button>
+                  <button onClick={exportQueue} className="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-sm font-medium">
+                    📤 Export JSON
+                  </button>
+                </div>
+              </div>
+
+              {/* Upcoming releases grouped by week */}
+              <div className="space-y-4">
+                {contentQueue.length === 0 ? (
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-8 text-center text-zinc-500 text-sm">
+                    No releases scheduled yet. Add your first entry above.
+                  </div>
+                ) : (
+                  Object.entries(grouped).map(([week, entries]) => (
+                    <div key={week} className="rounded-xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
+                      <div className="px-4 py-2 bg-zinc-800/60 text-xs font-bold text-zinc-300 border-b border-zinc-700">{week}</div>
+                      <div className="divide-y divide-zinc-800">
+                        {entries.map(entry => (
+                          <div key={entry.id} className="flex items-start gap-3 px-4 py-3">
+                            <div className="text-xs text-zinc-500 w-20 shrink-0 pt-0.5">{entry.date}</div>
+                            <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-bold ${TYPE_COLORS[entry.type] || 'bg-zinc-700 border-zinc-600 text-zinc-300'}`}>
+                              {entry.type}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-bold text-zinc-100">{entry.name}</span>
+                                <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${RARITY_BADGE[entry.rarity] || 'bg-zinc-700 text-zinc-300'}`}>
+                                  {entry.rarity}
+                                </span>
+                              </div>
+                              {entry.notes && <div className="text-xs text-zinc-500 mt-0.5 truncate">{entry.notes}</div>}
+                            </div>
+                            <button
+                              onClick={() => deleteEntry(entry.id)}
+                              className="shrink-0 rounded px-2 py-1 text-xs text-zinc-500 hover:bg-rose-900/40 hover:text-rose-400 transition"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
