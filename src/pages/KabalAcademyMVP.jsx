@@ -271,6 +271,46 @@ export default function KabalAcademyMVP() {
   const completionLabel = doneCount >= totalLessons ? "Pack terminé" : `${totalLessons - doneCount} leçons restantes`;
   const seasonTier = [...seasonPassTiers].reverse().find((tier) => xp >= tier.min) || seasonPassTiers[0];
 
+
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    const wallet = url.searchParams.get('wallet') || '';
+    const tg = url.searchParams.get('tgUserId') || '';
+    if (wallet) setAccessWallet(wallet);
+    if (tg) setAccessTelegramId(tg);
+  }, []);
+
+  async function refreshAcademyAccess(overrideWallet = accessWallet, overrideTelegramId = accessTelegramId) {
+    if (!API_BASE || (!overrideWallet && !overrideTelegramId)) {
+      setHasAcademyAccess(false);
+      return;
+    }
+    setAccessLoading(true);
+    try {
+      const query = new URLSearchParams();
+      if (overrideWallet) query.set('wallet', overrideWallet);
+      if (overrideTelegramId) query.set('telegramId', overrideTelegramId);
+      const response = await fetch(`${API_BASE}/api/access/list?${query.toString()}`);
+      const payload = await response.json();
+      const entitlements = payload.entitlements || [];
+      const unlocked = entitlements.some((entry) => {
+        const app = (entry?.product?.app || 'academy').toLowerCase();
+        return app === 'academy';
+      });
+      setHasAcademyAccess(unlocked);
+    } catch {
+      setHasAcademyAccess(false);
+    } finally {
+      setAccessLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refreshAcademyAccess();
+  }, [accessWallet, accessTelegramId]);
+
   const results = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return [];

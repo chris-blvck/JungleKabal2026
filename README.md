@@ -54,53 +54,62 @@ User route: `/academy`
 
 API endpoint used by admin/user pages: `GET/PUT /api/academy/content` (default `http://localhost:8787`).
 
+## Kabal Payment Processor (SOL) · Mini App first
 
-## Angel Ops mini-app (deploy-ready)
+Le flow de vente est maintenant **mini app first**:
+- depuis le site, l'utilisateur est redirigé vers Telegram Mini App
+- le catalogue, panier, upsell, création paiement et confirmation tx se font dans la mini app
+- Auto-refresh payment status every 4s with pending/confirmed/expired states
+- Auto-detect payment endpoint to reduce manual tx-signature paste friction
+- includes MEMECOINS COURSE (BEGINNER) as FREE starter with symbolic 0.00001 SOL activation
+- includes MEMECOINS COURSE (BEGINNER/INTERMEDIATE) at 20 SOL
+- includes Kourses / Kodex / Koaching sections with MINDSET and AI AUTOMATION & AGENT as coming soon
+- frontend includes a local fallback catalog if `/api/catalog` is unreachable (dev resilience)
+- une fois confirmé, le backend crée les entitlements (wallet/telegram) pour token gating
 
-### Local run (web + API)
+### Endpoints
+
+- `GET /api/catalog`
+- `POST /api/payments/create-cart`
+- `POST /api/payments/:id/confirm`
+- `POST /api/payments/:id/detect`
+- `POST /api/payments/auto-detect/run`
+- `POST /api/payments/link-telegram`
+- `GET /api/payments/history?telegramId=...&wallet=...`
+- `GET /api/access/list?telegramId=...&wallet=...`
+- `POST /api/waitlist/subscribe`
+- `GET /api/access/check?productId=...&wallet=...&telegramId=...`
+- `POST /api/telegram/webhook` (uniquement pour ouvrir la mini app / link)
+- `POST /api/analytics/event`
+- `GET /api/analytics/dashboard`
+
+### Variables d'environnement
 
 ```bash
-# terminal 1
-npm run api
+ACADEMY_API_PORT=8787
+SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+PAYMENT_WALLET_POOL=wallet1,wallet2,wallet3
+# ou PAYMENT_WALLET=wallet_unique
+PAYMENT_EXPIRY_MINUTES=15
+PAYMENT_AUTODETECT_INTERVAL_MS=15000
+API_RATE_LIMIT_PER_MINUTE=90
 
-# terminal 2
-npm run dev
+# Front redirect mini app
+VITE_TELEGRAM_MINI_APP_URL=https://t.me/ton_bot/ton_mini_app
+
+# Bot Telegram (optionnel, pour /start + bouton web_app)
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_MINI_APP_URL=https://ton-domaine/telegram-miniapp
 ```
 
-Mini-app route (team context):
-- `/telegram/angel-ops`
+### Route mini app
 
-### Environment variables
-
-Create `.env` from `.env.example` and set at least:
-
-- `VITE_ANGEL_OPS_API_BASE` (frontend -> API base URL)
-- `ANGEL_OPS_ADMIN_TOKEN` (server write protection)
-- `VITE_ANGEL_OPS_ADMIN_TOKEN` (optional client token for admin writes)
-
-### Angel Ops API endpoints
-
-- `GET /api/angel-ops/state`
-- `PUT /api/angel-ops/wallets` (protected if `ANGEL_OPS_ADMIN_TOKEN` is set)
-- `POST /api/angel-ops/snapshot` (protected if `ANGEL_OPS_ADMIN_TOKEN` is set)
-
-### Production deployment checklist
-
-1. Deploy frontend (Vite build) and backend (`server/index.mjs`) behind HTTPS.
-2. Set `VITE_ANGEL_OPS_API_BASE` to the public API URL.
-3. Set `ANGEL_OPS_ADMIN_TOKEN` on server and rotate regularly.
-4. If using client-side admin actions, set `VITE_ANGEL_OPS_ADMIN_TOKEN` in secure private env (avoid exposing broad-scope token).
-5. Persist `server/data/angel-ops.json` on durable storage (or migrate to Postgres/Supabase for scale).
-6. Add a cron/worker to refresh snapshots periodically without relying on open client tabs.
-7. Configure monitoring (API health, 4xx/5xx rates, stale snapshot alerts).
+- `/telegram-miniapp`
+- `/telegram-miniapp?shop=diejungle` (Die in the Jungle cosmetics shop mode)
 
 
-### Angel Ops deploy docs
-- Fast deploy runbook: `docs/ANGEL_OPS_DEPLOY_FAST.md`
-- Master remaining roadmap: `docs/ANGEL_OPS_ROADMAP_MASTER.md`
+### Roadmap
 
-
-Backend hardening vars (recommended in production):
-- `CORS_ALLOW_ORIGIN=https://your-frontend-domain`
-- `ANGEL_OPS_RATE_LIMIT_WINDOW_MS=60000`
-- `ANGEL_OPS_RATE_LIMIT_MAX=60`
+- Fichier roadmap produit mini app: `docs/KABAL_MINIAPP_ROADMAP.md`
+- Roadmap runtime utilisée par la mini app: `server/data/product-catalog.json` clé `roadmap`
+- Process recommandé: mettre à jour les deux à chaque sprint.

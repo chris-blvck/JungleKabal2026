@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
-import { readFile, writeFile, access, mkdir } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { readFile, writeFile, access } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -14,7 +15,19 @@ const dataFile = path.join(__dirname, 'data', 'academy-content.json');
 const leaderboardFile = path.join(__dirname, 'data', 'academy-leaderboard.json');
 const notificationsFile = path.join(__dirname, 'data', 'academy-notifications.json');
 const compactFile = path.join(__dirname, '..', 'src', 'docs', 'memecoin-trading-guide-compact.md');
-const angelOpsFile = path.join(__dirname, 'data', 'angel-ops.json');
+const paymentsFile = path.join(__dirname, 'data', 'payments.json');
+const catalogFile = path.join(__dirname, 'data', 'product-catalog.json');
+const waitlistFile = path.join(__dirname, 'data', 'waitlist.json');
+const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+const TELEGRAM_MINI_APP_URL = process.env.TELEGRAM_MINI_APP_URL || '';
+const PAYMENT_EXPIRY_MINUTES = Number(process.env.PAYMENT_EXPIRY_MINUTES || 15);
+const PAYMENT_AUTODETECT_INTERVAL_MS = Number(process.env.PAYMENT_AUTODETECT_INTERVAL_MS || 15000);
+const API_RATE_LIMIT_PER_MINUTE = Number(process.env.API_RATE_LIMIT_PER_MINUTE || 90);
+const paymentWalletPool = (process.env.PAYMENT_WALLET_POOL || process.env.PAYMENT_WALLET || '')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
 
 const defaultLeaderboard = [
   { rank: 1, name: 'Rex', points: 1420, streak: 12 },
@@ -214,6 +227,19 @@ async function getLeaderboard() {
   } catch {
     return defaultLeaderboard;
   }
+  entry.count += 1;
+  rateLimitStore.set(key, entry);
+  return entry.count > limit;
+}
+
+function send(res, status, payload) {
+  res.writeHead(status, {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,PUT,POST,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  });
+  res.end(JSON.stringify(payload));
 }
 
 async function getNotifications() {
@@ -254,97 +280,310 @@ function send(res, status, payload) {
 const server = createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 200, { ok: true });
 
-  const pathname = getPathname(req.url);
+  const pathName = parsePath(req.url);
+  const requestUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
 
-  if (pathname === '/api/angel-ops/state' && req.method === 'GET') {
-    const state = await getAngelOpsState();
-    return send(res, 200, state);
+  if (pathName === '/api/catalog' && req.method === 'GET') {
+    const catalog = await getCatalog();
+    return send(res, 200, { ok: true, ...catalog });
   }
 
-
-  if (pathname === '/api/angel-ops/health' && req.method === 'GET') {
-    const state = await getAngelOpsState();
-    return send(res, 200, {
-      ok: true,
-      service: 'angel-ops',
-      hasAdminToken: Boolean(process.env.ANGEL_OPS_ADMIN_TOKEN),
-      walletsConfigured: Object.values(state.wallets || {}).filter(Boolean).length,
-      snapshotsCount: Array.isArray(state.snapshots) ? state.snapshots.length : 0,
-      updatedAt: state.updatedAt,
-      now: new Date().toISOString(),
-      corsAllowOrigin: CORS_ALLOW_ORIGIN,
-      rateLimit: {
-        windowMs: WRITE_RATE_LIMIT_WINDOW_MS,
-        maxWrites: WRITE_RATE_LIMIT_MAX,
-      },
-    });
-  }
-
-  if (pathname === '/api/angel-ops/wallets' && req.method === 'PUT') {
-    if (!canWriteAngelOps(req)) return send(res, 401, { ok: false, error: 'Unauthorized' });
-    const limiter = checkWriteRateLimit(req);
-    if (limiter.limited) return send(res, 429, { ok: false, error: 'Rate limit exceeded', retryAt: new Date(limiter.resetAt).toISOString() });
-    try {
-      const parsed = await collectJsonBody(req);
-      const normalizedWallets = normalizeWalletPayload(parsed || {});
-      const current = await getAngelOpsState();
-      const next = await saveAngelOpsState({
-        ...current,
-        wallets: {
-          ...current.wallets,
-          ...normalizedWallets,
-        },
-      });
-      return send(res, 200, { ok: true, wallets: next.wallets, updatedAt: next.updatedAt });
-    } catch (error) {
-      return send(res, 400, { ok: false, error: (error && error.message) || 'Invalid JSON body' });
-    }
-  }
-
-  if (pathname === '/api/angel-ops/snapshot' && req.method === 'POST') {
-    if (!canWriteAngelOps(req)) return send(res, 401, { ok: false, error: 'Unauthorized' });
-    const limiter = checkWriteRateLimit(req);
-    if (limiter.limited) return send(res, 429, { ok: false, error: 'Rate limit exceeded', retryAt: new Date(limiter.resetAt).toISOString() });
-    try {
-      const parsed = await collectJsonBody(req);
-      const current = await getAngelOpsState();
-      const snapshot = normalizeSnapshotPayload(parsed || {});
-      const next = await saveAngelOpsState({
-        ...current,
-        snapshots: [snapshot, ...(Array.isArray(current.snapshots) ? current.snapshots : [])].slice(0, 500),
-      });
-      return send(res, 200, { ok: true, snapshot, count: next.snapshots.length, updatedAt: next.updatedAt });
-    } catch (error) {
-      return send(res, 400, { ok: false, error: (error && error.message) || 'Invalid JSON body' });
-    }
-  }
-
-
-  if (pathname === '/api/angel-ops/snapshots' && req.method === 'DELETE') {
-    if (!canWriteAngelOps(req)) return send(res, 401, { ok: false, error: 'Unauthorized' });
-    const limiter = checkWriteRateLimit(req);
-    if (limiter.limited) return send(res, 429, { ok: false, error: 'Rate limit exceeded', retryAt: new Date(limiter.resetAt).toISOString() });
-    const current = await getAngelOpsState();
-    const next = await saveAngelOpsState({
-      ...current,
-      snapshots: [],
-    });
-    return send(res, 200, { ok: true, count: next.snapshots.length, updatedAt: next.updatedAt });
-  }
-
-  if (pathname === '/api/academy/content' && req.method === 'GET') {
+  if (pathName === '/api/academy/content' && req.method === 'GET') {
     const content = await getContent();
     return send(res, 200, content);
   }
 
-  if (pathname === '/api/academy/content' && req.method === 'PUT') {
+  if (pathName === '/api/academy/content' && req.method === 'PUT') {
     try {
-      const parsed = await collectJsonBody(req, 2_000_000);
+      const parsed = await readJsonBody(req);
       parsed.updatedAt = new Date().toISOString();
       await writeFile(dataFile, JSON.stringify(parsed, null, 2));
       return send(res, 200, { ok: true });
     } catch (error) {
-      return send(res, 400, { ok: false, error: (error && error.message) || 'Invalid JSON body' });
+      return send(res, 400, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathName === '/api/payments/create-cart' && req.method === 'POST') {
+    try {
+      if (isRateLimited(req, 'payment-create')) {
+        const state = await getPaymentsState();
+        state.telemetry.fraud.rateLimited = Number(state.telemetry.fraud.rateLimited || 0) + 1;
+        await savePaymentsState(state);
+        return send(res, 429, { ok: false, error: 'Trop de requêtes. Réessaye dans 1 minute.' });
+      }
+      const body = await readJsonBody(req);
+      const cart = await resolveCartItems(body.productIds);
+
+      const state = await getPaymentsState();
+      const payment = {
+        id: randomUUID(),
+        productIds: cart.productIds,
+        lineItems: cart.lineItems,
+        amountSol: cart.amountSol,
+        receiverWallet: nextReceiverWallet(state),
+        reference: `kabal-${Date.now().toString(36)}`,
+        status: 'pending',
+        source: body.source || 'telegram-miniapp',
+        buyerWallet: body.buyerWallet || null,
+        telegramId: body.telegramId || null,
+        txSignature: null,
+        createdAt: new Date().toISOString(),
+        expiresAt: createExpiresAtIso(),
+      };
+
+      state.payments.push(payment);
+      trackEvent(state, 'paymentCreate');
+      await savePaymentsState(state);
+      return send(res, 200, { ok: true, payment: sanitizePayment(payment) });
+    } catch (error) {
+      return send(res, 400, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathName === '/api/payments/create' && req.method === 'POST') {
+    try {
+      if (isRateLimited(req, 'payment-create')) {
+        const state = await getPaymentsState();
+        state.telemetry.fraud.rateLimited = Number(state.telemetry.fraud.rateLimited || 0) + 1;
+        await savePaymentsState(state);
+        return send(res, 429, { ok: false, error: 'Trop de requêtes. Réessaye dans 1 minute.' });
+      }
+      const body = await readJsonBody(req);
+      const productIds = body.productId ? [body.productId] : body.productIds;
+      const cart = await resolveCartItems(productIds);
+
+      const state = await getPaymentsState();
+      const payment = {
+        id: randomUUID(),
+        productIds: cart.productIds,
+        lineItems: cart.lineItems,
+        amountSol: cart.amountSol,
+        receiverWallet: nextReceiverWallet(state),
+        reference: `kabal-${Date.now().toString(36)}`,
+        status: 'pending',
+        source: body.source || 'telegram-miniapp',
+        buyerWallet: body.buyerWallet || null,
+        telegramId: body.telegramId || null,
+        txSignature: null,
+        createdAt: new Date().toISOString(),
+        expiresAt: createExpiresAtIso(),
+      };
+
+      state.payments.push(payment);
+      trackEvent(state, 'paymentCreate');
+      await savePaymentsState(state);
+      return send(res, 200, { ok: true, payment: sanitizePayment(payment) });
+    } catch (error) {
+      return send(res, 400, { ok: false, error: error.message });
+    }
+  }
+
+  const paymentMatch = pathName.match(/^\/api\/payments\/([a-f0-9-]+)$/i);
+  if (paymentMatch && req.method === 'GET') {
+    const state = await getPaymentsState();
+    const payment = state.payments.find((entry) => entry.id === paymentMatch[1]);
+    if (!payment) return send(res, 404, { ok: false, error: 'Paiement introuvable.' });
+
+    const changed = normalizePaymentStatuses(state);
+    if (changed) await savePaymentsState(state);
+
+    return send(res, 200, { ok: true, payment: sanitizePayment(payment) });
+  }
+
+
+  if (pathName === '/api/payments/history' && req.method === 'GET') {
+    const state = await getPaymentsState();
+    const changed = normalizePaymentStatuses(state);
+    if (changed) await savePaymentsState(state);
+
+    const ownerKeys = readOwnerKeysFromQuery(requestUrl);
+    const limit = Math.min(Number(requestUrl.searchParams.get('limit') || 20), 100);
+    const entries = state.payments
+      .filter((payment) => paymentMatchesOwner(payment, ownerKeys))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, limit)
+      .map((payment) => sanitizePayment(payment));
+
+    return send(res, 200, { ok: true, payments: entries });
+  }
+
+  if (pathName === '/api/access/list' && req.method === 'GET') {
+    const ownerKeys = readOwnerKeysFromQuery(requestUrl);
+    if (!ownerKeys.length) return send(res, 400, { ok: false, error: 'wallet or telegramId required.' });
+
+    const state = await getPaymentsState();
+    const catalog = await getCatalog();
+    const productsById = new Map((catalog.products || []).map((p) => [p.id, p]));
+
+    const entitlements = state.entitlements
+      .filter((entry) => ownerKeys.includes(entry.ownerKey))
+      .map((entry) => ({
+        ...entry,
+        product: productsById.get(entry.productId) || null,
+      }))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return send(res, 200, { ok: true, entitlements });
+  }
+
+  const paymentConfirmMatch = pathName.match(/^\/api\/payments\/([a-f0-9-]+)\/confirm$/i);
+  if (paymentConfirmMatch && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      if (!body.signature) return send(res, 400, { ok: false, error: 'signature requise.' });
+
+      const state = await getPaymentsState();
+      const payment = state.payments.find((entry) => entry.id === paymentConfirmMatch[1]);
+      if (!payment) return send(res, 404, { ok: false, error: 'Paiement introuvable.' });
+      touchPaymentStatus(payment);
+      if (payment.status === 'confirmed') return send(res, 200, { ok: true, payment: sanitizePayment(payment) });
+      if (payment.status === 'expired') return send(res, 400, { ok: false, error: 'Paiement expiré. Crée un nouveau paiement.' });
+
+      await verifySolanaPayment(state, {
+        signature: body.signature,
+        receiverWallet: payment.receiverWallet,
+        amountSol: payment.amountSol,
+        buyerWallet: payment.buyerWallet,
+      });
+
+      finalizeConfirmedPayment(state, payment, body.signature);
+      trackEvent(state, 'paymentConfirm');
+      await savePaymentsState(state);
+
+      return send(res, 200, { ok: true, payment: sanitizePayment(payment) });
+    } catch (error) {
+      return send(res, 400, { ok: false, error: error.message });
+    }
+  }
+
+
+  const paymentDetectMatch = pathName.match(/^\/api\/payments\/([a-f0-9-]+)\/detect$/i);
+  if (paymentDetectMatch && req.method === 'POST') {
+    try {
+      const state = await getPaymentsState();
+      const payment = state.payments.find((entry) => entry.id === paymentDetectMatch[1]);
+      if (!payment) return send(res, 404, { ok: false, error: 'Paiement introuvable.' });
+
+      touchPaymentStatus(payment);
+      if (payment.status === 'confirmed') return send(res, 200, { ok: true, payment: sanitizePayment(payment), detected: true });
+      if (payment.status === 'expired') return send(res, 400, { ok: false, error: 'Paiement expiré. Crée un nouveau paiement.' });
+
+      const signature = await detectPaymentSignature(state, payment);
+      if (!signature) {
+        return send(res, 404, { ok: false, error: 'No matching on-chain payment detected yet.', detected: false });
+      }
+
+      finalizeConfirmedPayment(state, payment, signature);
+      trackEvent(state, 'paymentConfirm');
+      await savePaymentsState(state);
+      return send(res, 200, { ok: true, payment: sanitizePayment(payment), detected: true });
+    } catch (error) {
+      return send(res, 400, { ok: false, error: error.message });
+    }
+  }
+
+
+  if (pathName === '/api/payments/auto-detect/run' && req.method === 'POST') {
+    try {
+      const result = await runAutoDetectSweep();
+      return send(res, 200, { ok: true, ...result });
+    } catch (error) {
+      return send(res, 400, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathName === '/api/analytics/event' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const accepted = new Set(['catalogView', 'addToCart', 'paymentCreate', 'paymentConfirm']);
+      const eventName = String(body.event || '');
+      if (!accepted.has(eventName)) return send(res, 400, { ok: false, error: 'Unknown event.' });
+      const state = await getPaymentsState();
+      trackEvent(state, eventName);
+      await savePaymentsState(state);
+      return send(res, 200, { ok: true });
+    } catch (error) {
+      return send(res, 400, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathName === '/api/analytics/dashboard' && req.method === 'GET') {
+    const state = await getPaymentsState();
+    const payments = state.payments || [];
+    const created = payments.length;
+    const confirmed = payments.filter((entry) => entry.status === 'confirmed').length;
+    const pending = payments.filter((entry) => entry.status === 'pending').length;
+    const expired = payments.filter((entry) => entry.status === 'expired').length;
+    const funnel = {
+      views: Number(state.telemetry.events.catalogView || 0),
+      addToCart: Number(state.telemetry.events.addToCart || 0),
+      paymentCreate: Number(state.telemetry.events.paymentCreate || 0),
+      paymentConfirm: Number(state.telemetry.events.paymentConfirm || 0),
+    };
+
+    return send(res, 200, {
+      ok: true,
+      payments: { created, confirmed, pending, expired },
+      funnel,
+      rpc: state.telemetry.rpc,
+      fraud: state.telemetry.fraud,
+      updatedAt: state.updatedAt,
+    });
+  }
+
+  if (pathName === '/api/payments/link-telegram' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      if (!body.paymentId || !body.telegramId) {
+        return send(res, 400, { ok: false, error: 'paymentId et telegramId requis.' });
+      }
+      const state = await getPaymentsState();
+      const payment = state.payments.find((entry) => entry.id === body.paymentId);
+      if (!payment) return send(res, 404, { ok: false, error: 'Paiement introuvable.' });
+      payment.telegramId = String(body.telegramId);
+      if (payment.status === 'confirmed') grantEntitlement(state, payment);
+      await savePaymentsState(state);
+      return send(res, 200, { ok: true, payment: sanitizePayment(payment) });
+    } catch (error) {
+      return send(res, 400, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathName === '/api/telegram/webhook' && req.method === 'POST') {
+    try {
+      const update = await readJsonBody(req);
+      const text = (update.message?.text || '').trim();
+      const chatId = update.message?.chat?.id;
+
+      if (chatId && /^\/start/i.test(text)) {
+        const miniAppUrl = getMiniAppUrl();
+        const message = miniAppUrl
+          ? `Bienvenue dans Kabal Mini App ✅\nOuvre la mini app pour le catalogue et le paiement SOL: ${miniAppUrl}`
+          : 'Mini app non configurée (TELEGRAM_MINI_APP_URL).';
+
+        const replyMarkup = miniAppUrl
+          ? { inline_keyboard: [[{ text: '🛒 Ouvrir Kabal Mini App', web_app: { url: miniAppUrl } }]] }
+          : undefined;
+
+        await sendTelegramMessage(chatId, message, replyMarkup);
+      }
+
+      const linkMatch = text.match(/^\/start\s+link_([a-f0-9-]+)/i);
+      if (linkMatch && chatId) {
+        const state = await getPaymentsState();
+        const payment = state.payments.find((entry) => entry.id === linkMatch[1]);
+        if (payment) {
+          payment.telegramId = String(chatId);
+          if (payment.status === 'confirmed') grantEntitlement(state, payment);
+          await savePaymentsState(state);
+          await sendTelegramMessage(chatId, `Paiement ${payment.id} lié à ton compte Telegram ✅`);
+        }
+      }
+
+      return send(res, 200, { ok: true });
+    } catch (error) {
+      return send(res, 400, { ok: false, error: error.message });
     }
   }
 
@@ -391,4 +630,12 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`Academy API running on http://localhost:${PORT}`);
+
+  if (PAYMENT_AUTODETECT_INTERVAL_MS > 0) {
+    setInterval(() => {
+      runAutoDetectSweep().catch((error) => {
+        console.error('Auto-detect sweep failed:', error.message);
+      });
+    }, PAYMENT_AUTODETECT_INTERVAL_MS);
+  }
 });
