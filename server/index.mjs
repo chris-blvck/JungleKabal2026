@@ -23,6 +23,9 @@ const runsFile = path.join(__dirname, 'data', 'runs.json');
 const referralsFile = path.join(__dirname, 'data', 'referrals.json');
 const miniappTelemetryFile = path.join(__dirname, 'data', 'miniapp-telemetry.json');
 const miniappConfigFile = path.join(__dirname, 'data', 'miniapp-config.json');
+const sprintFile = path.join(__dirname, 'data', 'sprint.json');
+const crmFile = path.join(__dirname, 'data', 'crm.json');
+const academyProgressFile = path.join(__dirname, 'data', 'academy-progress.json');
 
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -1156,6 +1159,83 @@ const server = createServer(async (req, res) => {
       config.assets[category][subcategory] = [...config.assets[category][subcategory], ...uploaded];
       await writeFile(miniappConfigFile, JSON.stringify(config, null, 2));
       return send(res, 200, { ok: true, uploaded, config });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  // ── Sprint Board ──────────────────────────────────────────────────────────
+  if (pathname === '/api/sprint/goals' && req.method === 'GET') {
+    try {
+      let data = { goals: [] };
+      try { data = JSON.parse(await readFile(sprintFile, 'utf8')); } catch {}
+      return send(res, 200, { ok: true, goals: data.goals || [] });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathname === '/api/sprint/goals' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      if (!Array.isArray(body.goals)) return send(res, 400, { ok: false, error: 'goals must be an array' });
+      await writeFile(sprintFile, JSON.stringify({ goals: body.goals, updatedAt: new Date().toISOString() }, null, 2));
+      return send(res, 200, { ok: true });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  // ── CRM Angel ─────────────────────────────────────────────────────────────
+  if (pathname === '/api/crm/deals' && req.method === 'GET') {
+    try {
+      let data = { deals: [] };
+      try { data = JSON.parse(await readFile(crmFile, 'utf8')); } catch {}
+      return send(res, 200, { ok: true, deals: data.deals || [] });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathname === '/api/crm/deals' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      if (!Array.isArray(body.deals)) return send(res, 400, { ok: false, error: 'deals must be an array' });
+      await writeFile(crmFile, JSON.stringify({ deals: body.deals, updatedAt: new Date().toISOString() }, null, 2));
+      return send(res, 200, { ok: true });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  // ── Academy Progress (linked to Telegram ID) ─────────────────────────────
+  if (pathname === '/api/academy/progress' && req.method === 'GET') {
+    try {
+      const telegramId = requestUrl.searchParams.get('telegramId') || '';
+      if (!telegramId) return send(res, 400, { ok: false, error: 'telegramId required' });
+      let data = { progress: {} };
+      try { data = JSON.parse(await readFile(academyProgressFile, 'utf8')); } catch {}
+      const userProgress = data.progress[telegramId] || { doneByLesson: {}, lastLessonByPack: {} };
+      return send(res, 200, { ok: true, progress: userProgress });
+    } catch (error) {
+      return send(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  if (pathname === '/api/academy/progress' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      const { telegramId, doneByLesson, lastLessonByPack } = body;
+      if (!telegramId) return send(res, 400, { ok: false, error: 'telegramId required' });
+      let data = { progress: {} };
+      try { data = JSON.parse(await readFile(academyProgressFile, 'utf8')); } catch {}
+      data.progress[telegramId] = {
+        doneByLesson: doneByLesson || {},
+        lastLessonByPack: lastLessonByPack || {},
+        updatedAt: new Date().toISOString(),
+      };
+      await writeFile(academyProgressFile, JSON.stringify(data, null, 2));
+      return send(res, 200, { ok: true });
     } catch (error) {
       return send(res, 500, { ok: false, error: error.message });
     }
