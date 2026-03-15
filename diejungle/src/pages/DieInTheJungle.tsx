@@ -70,12 +70,12 @@ import {
   getStaffLegendaryHealBonus,
 } from "@/game/weapons";
 
-const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
+const BG_URL = "https://i.postimg.cc/hGqqmWDN/Chat-GPT-Image-15-mars-2026-00-24-52.png";
 
 // Button image URLs — replace with real assets when available
 // Can be overridden via config.visuals.buttonImages from admin panel
 const BTN_IMAGES: Record<string, string> = {
-  roll:    '',
+  roll:    'https://i.postimg.cc/9Q7ZFSQt/Chat-GPT-Image-14-mars-2026-23-43-10.png',
   reroll:  '',
   resolve: '',
   restart: '',
@@ -1565,6 +1565,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const [meta, setMeta] = useState<MetaProgressionState>(loadMeta);
   const [showXpPanel, setShowXpPanel] = useState(false);
   const [showPlayerDrawer, setShowPlayerDrawer] = useState(false);
+  const [showEnemyDrawer, setShowEnemyDrawer] = useState(false);
   const [lastRunReward, setLastRunReward] = useState<RunReward | null>(null);
   const [leaderboard, setLeaderboard] = useState<Array<{ name: string; score: number; floor: number; date: string; seed: number }>>(() => {
     try { const raw = localStorage.getItem('jungle_kabal_leaderboard_v1'); return raw ? JSON.parse(raw) : []; } catch { return []; }
@@ -2872,33 +2873,36 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
             <div className="flex items-center justify-between gap-1 h-full">
               {/* Enemy half */}
               <div className="flex flex-1 flex-col items-center gap-0.5 min-w-0">
-                <motion.img
-                  ref={enemyAnchorRef}
-                  src={game.enemy.image}
-                  alt={game.enemy.name}
-                  animate={game.enemyHitPulse ? { scale: [1, 1.12, 0.96, 1], filter: ["brightness(1)", "brightness(1.55)", "brightness(1)"] } : game.enemyAttackPulse ? { x: [0, -10, 10, -8, 8, 0], scale: [1, 1.06, 1] } : intent.type === "attack" ? { scale: [1, 1.03, 1], x: [0, -2, 2, 0] } : { scale: 1, x: 0 }}
-                  transition={{ duration: 0.45 }}
-                  className="h-16 w-full object-contain contrast-110 saturate-110 drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)]"
-                />
-                <div className="truncate text-[9px] font-black text-rose-100 leading-none">{game.enemy.emoji} {game.enemy.name}{game.enemy.elite ? ` ${"⭐".repeat(game.enemy.eliteStars || 1)}` : ""}</div>
+                <button onClick={() => setShowEnemyDrawer(v => !v)} className="relative h-16 w-full" aria-label="Enemy info">
+                  <motion.img
+                    ref={enemyAnchorRef}
+                    src={game.enemy.image}
+                    alt={game.enemy.name}
+                    animate={game.enemyHitPulse ? { scale: [1, 1.12, 0.96, 1], filter: ["brightness(1)", "brightness(1.55)", "brightness(1)"] } : game.enemyAttackPulse ? { x: [0, -10, 10, -8, 8, 0], scale: [1, 1.06, 1] } : intent.type === "attack" ? { scale: [1, 1.03, 1], x: [0, -2, 2, 0] } : { scale: 1, x: 0 }}
+                    transition={{ duration: 0.45 }}
+                    className="h-full w-full object-contain contrast-110 saturate-110 drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)]"
+                  />
+                  <span className="absolute bottom-0.5 left-0.5 rounded bg-black/60 px-1 text-[7px] text-zinc-300">tap &#x25BE;</span>
+                </button>
+                <div className="truncate text-[10px] font-black text-rose-100 leading-none">{game.enemy.emoji} {game.enemy.name}{game.enemy.elite ? ` ${"⭐".repeat(game.enemy.eliteStars || 1)}` : ""}</div>
                 <div className="flex w-full items-center gap-0.5">
                   <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
                     <div className="h-full rounded-full bg-rose-500 transition-all duration-300" style={{ width: `${Math.max(0, Math.min(100, (game.enemy.hp / game.enemy.maxHp) * 100))}%` }} />
                   </div>
-                  <span className="text-[8px] font-black text-rose-300 shrink-0">{game.enemy.hp}/{game.enemy.maxHp}</span>
+                  <span className="text-[9px] font-black text-rose-300 shrink-0">{game.enemy.hp}/{game.enemy.maxHp}</span>
                 </div>
                 <div className="flex items-center gap-0.5 flex-wrap justify-center">
-                  <span className={`rounded-full border px-1.5 py-0.5 text-[8px] font-black leading-none ${intentMeta(intent.type).color} border-current/30 bg-black/40`}>
+                  <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-black leading-none ${intentMeta(intent.type).color} border-current/30 bg-black/40`}>
                     {intentMeta(intent.type).emoji} {intent.type} {intent.value}
                   </span>
                   {(game.enemy.shield || 0) > 0 && (
-                    <span className="rounded-full border border-rose-400/30 bg-rose-900/40 px-1 py-0.5 text-[8px] text-rose-200">&#x1F6E1;{game.enemy.shield}</span>
+                    <span className="rounded-full border border-rose-400/30 bg-rose-900/40 px-1 py-0.5 text-[9px] text-rose-200">&#x1F6E1;{game.enemy.shield}</span>
                   )}
                   {(game.enemy.charge || 0) > 0 && (
                     <motion.span
                       animate={{ scale: [1, 1.1, 1], opacity: [0.85, 1, 0.85] }}
                       transition={{ duration: 0.9, repeat: Infinity }}
-                      className="rounded-full border border-amber-400/50 bg-amber-600/30 px-1 py-0.5 text-[8px] font-black text-amber-100"
+                      className="rounded-full border border-amber-400/50 bg-amber-600/30 px-1 py-0.5 text-[9px] font-black text-amber-100"
                     >
                       &#x26A1;+{game.enemy.charge}
                     </motion.span>
@@ -2928,24 +2932,88 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   />
                   <span className="absolute bottom-0.5 right-0.5 rounded bg-black/60 px-1 text-[7px] text-zinc-300">tap &#x25BE;</span>
                 </button>
-                <div className="truncate text-[9px] font-black text-cyan-100 leading-none">
+                <div className="truncate text-[10px] font-black text-cyan-100 leading-none">
                   {game.player.PLAYER_CHARACTERS?.[game.player.characterId]?.name ?? game.player.characterId}
                 </div>
                 <div className="flex w-full items-center gap-0.5">
                   <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
                     <div className="h-full rounded-full bg-cyan-500 transition-all duration-300" style={{ width: `${Math.max(0, Math.min(100, (game.player.hp / game.player.maxHp) * 100))}%` }} />
                   </div>
-                  <span className="text-[8px] font-black text-cyan-300 shrink-0">{game.player.hp}/{game.player.maxHp}</span>
+                  <span className="text-[9px] font-black text-cyan-300 shrink-0">{game.player.hp}/{game.player.maxHp}</span>
                 </div>
                 <div className="flex items-center gap-0.5 flex-wrap justify-center">
                   {(game.player.shield || 0) > 0 && (
-                    <span className="rounded-full border border-cyan-400/30 bg-cyan-900/40 px-1.5 py-0.5 text-[8px] font-black text-cyan-200">&#x1F6E1;&#xFE0F;{game.player.shield}</span>
+                    <span className="rounded-full border border-cyan-400/30 bg-cyan-900/40 px-1.5 py-0.5 text-[9px] font-black text-cyan-200">&#x1F6E1;&#xFE0F;{game.player.shield}</span>
                   )}
-                  <span className="rounded-full border border-amber-400/20 bg-amber-900/20 px-1.5 py-0.5 text-[8px] text-amber-300">&#x1F501;{game.player.rerollsLeft}</span>
+                  <span className="rounded-full border border-amber-400/20 bg-amber-900/20 px-1.5 py-0.5 text-[9px] text-amber-300">&#x1F501;{game.player.rerollsLeft}</span>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* ── Enemy Drawer ─────────────────────────────────────── */}
+          <AnimatePresence>
+            {showEnemyDrawer && game.enemy && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="shrink-0 overflow-hidden rounded-[14px] border border-rose-400/20 bg-rose-950/40"
+              >
+                <div className="px-2 py-1.5">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-rose-300">
+                      {game.enemy.emoji} {game.enemy.name} — Détails
+                    </span>
+                    <button onClick={() => setShowEnemyDrawer(false)} className="text-[10px] text-zinc-400 hover:text-white">&#x2715;</button>
+                  </div>
+                  <div className="flex flex-wrap gap-1 text-[9px]">
+                    <span className="rounded-full border border-white/10 bg-black/40 px-2 py-0.5 text-zinc-200">
+                      {game.enemy.tier === "boss" ? "👑 Boss" : game.enemy.tier === "medium" ? "⚔️ Champion" : "💀 Mob"}
+                    </span>
+                    <span className="rounded-full border border-rose-400/20 bg-rose-900/20 px-2 py-0.5 text-rose-300">
+                      ❤️ {game.enemy.hp}/{game.enemy.maxHp} HP
+                    </span>
+                    {(game.enemy.atk || game.enemy.atkMin) ? (
+                      <span className="rounded-full border border-rose-400/20 bg-rose-900/20 px-2 py-0.5 text-rose-300">
+                        ⚔️ {game.enemy.atkMin ?? game.enemy.atk}–{game.enemy.atkMax ?? game.enemy.atk} ATK
+                      </span>
+                    ) : null}
+                    {(game.enemy.shield || 0) > 0 && (
+                      <span className="rounded-full border border-cyan-400/20 bg-cyan-900/20 px-2 py-0.5 text-cyan-300">
+                        🛡️ {game.enemy.shield} shield
+                      </span>
+                    )}
+                    {(game.enemy.charge || 0) > 0 && (
+                      <span className="rounded-full border border-amber-400/20 bg-amber-900/20 px-2 py-0.5 text-amber-300">
+                        ⚡ +{game.enemy.charge} charge
+                      </span>
+                    )}
+                    {game.enemy.modifier && game.enemy.modifier !== "none" && (() => {
+                      const mod = MODIFIERS[game.enemy.modifier] || null;
+                      return mod ? (
+                        <span className="rounded-full border border-violet-400/30 bg-violet-900/30 px-2 py-0.5 text-violet-300">
+                          ✨ {mod.name} — {mod.desc}
+                        </span>
+                      ) : null;
+                    })()}
+                    {game.enemy.elite && (
+                      <span className="rounded-full border border-amber-400/40 bg-amber-800/30 px-2 py-0.5 text-amber-200 font-black">
+                        {"⭐".repeat(game.enemy.eliteStars || 1)} Élite
+                      </span>
+                    )}
+                  </div>
+                  {/* Next intent preview */}
+                  <div className="mt-1 flex items-center gap-1 rounded-[10px] border border-rose-400/15 bg-black/30 px-2 py-1 text-[9px]">
+                    <span className="text-zinc-400">Prochain intent :</span>
+                    <span className={`font-black ${intentMeta(intent.type).color}`}>
+                      {intentMeta(intent.type).emoji} {intent.type} {intent.value}
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* ── Player Drawer (slide-up sheet) ───────────────────── */}
           <AnimatePresence>
