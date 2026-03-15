@@ -1365,7 +1365,7 @@ function loadLeaderboard() {
 
 function SectionCard({ title, children, right, className = "" }) {
   return (
-    <div className={`rounded-[20px] border border-white/15 bg-black/45 p-1.5 shadow-[0_14px_30px_rgba(0,0,0,0.28)] backdrop-blur-md md:p-2.5 ${className}`}>
+    <div className={`rounded-[20px] border border-white/15 bg-black/65 p-1.5 shadow-[0_14px_30px_rgba(0,0,0,0.55)] backdrop-blur-md md:p-2.5 ${className}`}>
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="font-serif text-[11px] italic uppercase tracking-[0.22em] text-amber-300">{title}</div>
         {right ? <div>{right}</div> : null}
@@ -2420,8 +2420,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
     : null;
 
   return (
-    <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.78)), url(${BG_URL})` }}>
-      <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-1.5 pb-3 md:gap-2">
+    <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.84), rgba(0,0,0,.94)), url(${BG_URL})` }}>
+      <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-1.5 pb-3 md:gap-2 bg-black/30 rounded-[28px]">
         <div className="rounded-[22px] border border-amber-300/20 bg-black/35 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md md:p-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -2706,7 +2706,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                       className={`relative h-[72px] w-[72px] overflow-hidden rounded-[10px] border text-white transition md:h-[84px] md:w-[84px] ${canPlace ? "border-amber-300/80 ring-2 ring-amber-300/30" : "border-white/20"}`}
                     >
                       {canPlace && <span className="pointer-events-none absolute inset-0 rounded-[10px] border-2 border-amber-300/70 animate-ping" />}
-                      <img src={LANE_IMAGES[y]} className="absolute inset-0 h-full w-full object-contain" />
+                      <img src={LANE_IMAGES[y]} className="absolute inset-0 h-full w-full object-contain opacity-30" />
                       {cell !== null ? (
                         <>
                           <div className="absolute inset-0 bg-black/10" />
