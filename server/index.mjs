@@ -26,7 +26,10 @@ const miniappConfigFile = path.join(__dirname, 'data', 'miniapp-config.json');
 const sprintFile = path.join(__dirname, 'data', 'sprint.json');
 const crmFile = path.join(__dirname, 'data', 'crm.json');
 const academyProgressFile = path.join(__dirname, 'data', 'academy-progress.json');
-const narrativeFile = path.join(__dirname, 'data', 'narrative.json');
+const narrativeFile  = path.join(__dirname, 'data', 'narrative.json');
+const signalsFile    = path.join(__dirname, 'data', 'signals.json');
+const coinFactoryFile = path.join(__dirname, 'data', 'coin-factory.json');
+const kkmFile        = path.join(__dirname, 'data', 'kkm.json');
 
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -1263,6 +1266,56 @@ const server = createServer(async (req, res) => {
     } catch (error) {
       return send(res, 500, { ok: false, error: error.message });
     }
+  }
+
+  // ── Signal Board ──────────────────────────────────────────────────────────
+  if (pathname === '/api/signals' && req.method === 'GET') {
+    try {
+      let data = { signals: [] };
+      try { data = JSON.parse(await readFile(signalsFile, 'utf8')); } catch {}
+      return send(res, 200, { ok: true, signals: data.signals || [] });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+  if (pathname === '/api/signals' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      if (!Array.isArray(body.signals)) return send(res, 400, { ok: false, error: 'signals must be array' });
+      await writeFile(signalsFile, JSON.stringify({ signals: body.signals, updatedAt: new Date().toISOString() }, null, 2));
+      return send(res, 200, { ok: true });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+
+  // ── Coin Factory ──────────────────────────────────────────────────────────
+  if (pathname === '/api/coin-factory' && req.method === 'GET') {
+    try {
+      let data = { coins: [] };
+      try { data = JSON.parse(await readFile(coinFactoryFile, 'utf8')); } catch {}
+      return send(res, 200, { ok: true, coins: data.coins || [] });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+  if (pathname === '/api/coin-factory' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      if (!Array.isArray(body.coins)) return send(res, 400, { ok: false, error: 'coins must be array' });
+      await writeFile(coinFactoryFile, JSON.stringify({ coins: body.coins, updatedAt: new Date().toISOString() }, null, 2));
+      return send(res, 200, { ok: true });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+
+  // ── KKM Dashboard ─────────────────────────────────────────────────────────
+  if (pathname === '/api/kkm' && req.method === 'GET') {
+    try {
+      let data = { metrics: {}, signals: [] };
+      try { data = JSON.parse(await readFile(kkmFile, 'utf8')); } catch {}
+      return send(res, 200, { ok: true, metrics: data.metrics || {}, signals: data.signals || [] });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+  if (pathname === '/api/kkm' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      await writeFile(kkmFile, JSON.stringify({ metrics: body.metrics || {}, signals: body.signals || [], updatedAt: new Date().toISOString() }, null, 2));
+      return send(res, 200, { ok: true });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
   }
 
   if (req.url === '/health') return send(res, 200, { ok: true });

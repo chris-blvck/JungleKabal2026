@@ -133,6 +133,8 @@ export default function SprintBoard() {
   }
 
   function deleteGoal(id) {
+    const goal = goals.find(g => g.id === id);
+    if (!window.confirm(`Supprimer "${goal?.title}" ?`)) return;
     setGoals(prev => prev.filter(g => g.id !== id));
   }
 

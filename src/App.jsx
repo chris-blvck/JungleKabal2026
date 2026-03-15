@@ -21,6 +21,9 @@ import TrophyRoom from './pages/TrophyRoom';
 import KabalCheckout from './pages/KabalCheckout';
 import TelegramMiniApp from './pages/TelegramMiniApp';
 import AngelOpsDashboard from './pages/AngelOpsDashboard';
+import CoinFactory from './pages/CoinFactory';
+import SignalBoard from './pages/SignalBoard';
+import KKMDashboard from './pages/KKMDashboard';
 
 const isTeamContext =
   typeof window !== 'undefined' &&
@@ -56,6 +59,9 @@ export default function App() {
 
           {/* INTERNAL */}
           <Route path="/sprint-board"             element={<SprintBoard />} />
+          <Route path="/coin-factory"             element={<CoinFactory />} />
+          <Route path="/signal-board"             element={<SignalBoard />} />
+          <Route path="/kkm-dashboard"            element={<KKMDashboard />} />
 
           {/* ARSENAL */}
           <Route path="/arsenal"                  element={<Arsenal />} />

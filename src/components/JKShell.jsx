@@ -211,6 +211,9 @@ const NAV_ITEMS = [
   { label: "CRM",       path: "/crm-angel",            icon: "👼" },
   { label: "Arsenal",   path: "/arsenal",              icon: "🛠" },
   { label: "Academy",   path: "/academy",              icon: "🎓" },
+  { label: "Factory",   path: "/coin-factory",         icon: "🪙" },
+  { label: "Signals",   path: "/signal-board",         icon: "📡" },
+  { label: "KKM",       path: "/kkm-dashboard",        icon: "💎" },
 ];
 
 export function JKTopNav() {

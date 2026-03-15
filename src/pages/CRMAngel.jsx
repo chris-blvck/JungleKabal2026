@@ -112,6 +112,8 @@ export default function CRMAngel() {
   }
 
   function deleteDeal(id) {
+    const deal = deals.find(d => d.id === id);
+    if (!window.confirm(`Supprimer le deal "${deal?.name}" ?`)) return;
     setDeals(prev => prev.filter(d => d.id !== id));
   }
 
