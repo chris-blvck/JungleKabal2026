@@ -30,6 +30,7 @@ const narrativeFile  = path.join(__dirname, 'data', 'narrative.json');
 const signalsFile    = path.join(__dirname, 'data', 'signals.json');
 const coinFactoryFile = path.join(__dirname, 'data', 'coin-factory.json');
 const kkmFile        = path.join(__dirname, 'data', 'kkm.json');
+const opsBoardFile   = path.join(__dirname, 'data', 'ops-board.json');
 
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -1314,6 +1315,23 @@ const server = createServer(async (req, res) => {
     try {
       const body = await readJsonBody(req);
       await writeFile(kkmFile, JSON.stringify({ metrics: body.metrics || {}, signals: body.signals || [], updatedAt: new Date().toISOString() }, null, 2));
+      return send(res, 200, { ok: true });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+
+  // ── Ops Board ──────────────────────────────────────────────────────────────
+  if (pathname === '/api/ops-board' && req.method === 'GET') {
+    try {
+      let data = { cards: [] };
+      try { data = JSON.parse(await readFile(opsBoardFile, 'utf8')); } catch {}
+      return send(res, 200, { ok: true, cards: data.cards || [] });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+  if (pathname === '/api/ops-board' && req.method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      if (!Array.isArray(body.cards)) return send(res, 400, { ok: false, error: 'cards must be array' });
+      await writeFile(opsBoardFile, JSON.stringify({ cards: body.cards, updatedAt: new Date().toISOString() }, null, 2));
       return send(res, 200, { ok: true });
     } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
   }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Shell, { JK, Card, StatBox, Badge, Divider, SectionTitle } from "../components/JKShell";
+import { usePriceAlerts } from "../hooks/usePriceAlerts";
 
 const SECTIONS = [
   {
@@ -293,6 +294,9 @@ function normalizeAgent(raw, index = 0) {
 }
 
 export default function TeamHome() {
+  const { notifications, unreadCount, markAllRead } = usePriceAlerts();
+  const unreadNotifications = notifications.filter((n) => !n.read);
+
   const [solPrice, setSolPrice] = useState(null);
   const [sprintGoals, setSprintGoals] = useState([]);
   const [crmPipeline, setCrmPipeline] = useState(0);
@@ -471,6 +475,86 @@ export default function TeamHome() {
           ))}
         </div>
       </div>
+
+      {/* ── Alert Inbox ────────────────────────────────────────── */}
+      {unreadCount > 0 && (
+        <>
+          <style>{`
+            @keyframes jk-inbox-pulse {
+              0%, 100% { box-shadow: 0 0 0 0 rgba(245,166,35,0.0), inset 0 0 0 0 rgba(245,166,35,0.0); }
+              50% { box-shadow: 0 0 18px 2px rgba(245,166,35,0.22), inset 0 0 12px 0 rgba(245,166,35,0.06); }
+            }
+          `}</style>
+          <div
+            style={{
+              borderLeft: `3px solid ${JK.gold}`,
+              background: "rgba(245,166,35,0.05)",
+              border: `1px solid ${JK.border2}`,
+              borderLeftWidth: 3,
+              borderLeftColor: JK.gold,
+              borderRadius: 10,
+              marginBottom: 16,
+              padding: "12px 16px",
+              animation: "jk-inbox-pulse 2.2s ease-in-out infinite",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: "'Cinzel', serif", fontSize: 10, letterSpacing: 2, color: JK.gold, fontWeight: 700 }}>
+                🔔 PRICE ALERTS
+              </span>
+              <span style={{ fontSize: 10, background: JK.red, color: "#fff", borderRadius: 99, padding: "1px 7px", fontWeight: 700 }}>
+                {unreadCount}
+              </span>
+              <button
+                type="button"
+                onClick={markAllRead}
+                style={{ marginLeft: "auto", background: "rgba(245,166,35,0.15)", border: `1px solid ${JK.border2}`, color: JK.gold, borderRadius: 7, padding: "4px 11px", fontSize: 10, fontWeight: 700, letterSpacing: 1, cursor: "pointer" }}
+              >
+                MARK ALL READ
+              </button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {unreadNotifications.slice(0, 5).map((notif) => {
+                const priceStr = notif.triggeredPrice >= 1000
+                  ? `$${notif.triggeredPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : notif.triggeredPrice >= 1
+                    ? `$${notif.triggeredPrice.toFixed(4)}`
+                    : `$${notif.triggeredPrice.toFixed(8)}`;
+                const targetStr = notif.targetPrice >= 1000
+                  ? `$${notif.targetPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : notif.targetPrice >= 1
+                    ? `$${notif.targetPrice.toFixed(4)}`
+                    : `$${notif.targetPrice.toFixed(8)}`;
+                let ts = "";
+                try { ts = new Date(notif.triggeredAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }); } catch { ts = ""; }
+                return (
+                  <div
+                    key={notif.id}
+                    style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#E5E7EB", flexWrap: "wrap" }}
+                  >
+                    <span style={{ fontSize: 14 }}>🔔</span>
+                    <span>
+                      <span style={{ color: JK.gold, fontWeight: 700 }}>{notif.name}</span>
+                      {" crossed "}
+                      <span style={{ color: notif.condition === "above" ? JK.green : JK.red, fontWeight: 700 }}>
+                        {notif.condition} {targetStr}
+                      </span>
+                      {" — triggered at "}
+                      <span style={{ fontWeight: 700, color: "#fff" }}>{priceStr}</span>
+                    </span>
+                    {ts && <span style={{ fontSize: 10, color: "#6B7280", marginLeft: "auto" }}>{ts}</span>}
+                  </div>
+                );
+              })}
+              {unreadNotifications.length > 5 && (
+                <div style={{ fontSize: 11, color: JK.muted, paddingTop: 2 }}>
+                  +{unreadNotifications.length - 5} more — <a href="/price-alerts" style={{ color: JK.gold }}>view all</a>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 16 }}>
         <StatBox value="100K$" label="Sprint target / month" color="green" />

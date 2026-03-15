@@ -214,6 +214,9 @@ const NAV_ITEMS = [
   { label: "Factory",   path: "/coin-factory",         icon: "🪙" },
   { label: "Signals",   path: "/signal-board",         icon: "📡" },
   { label: "KKM",       path: "/kkm-dashboard",        icon: "💎" },
+  { label: "Ops",       path: "/ops-board",            icon: "📋" },
+  { label: "Report",    path: "/weekly-report",        icon: "📊" },
+  { label: "Alerts",    path: "/price-alerts",         icon: "🔔" },
 ];
 
 export function JKTopNav() {
