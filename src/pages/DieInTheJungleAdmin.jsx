@@ -90,6 +90,7 @@ const TABS = [
   { id: 'assets', label: '🖼️ Assets' },
   { id: 'avatars', label: '🎭 Avatars' },
   { id: 'narrative', label: '📖 Narrative' },
+  { id: 'events', label: '🎲 Events' },
   { id: 'sound', label: '🎵 Sound' },
   { id: 'brandkit', label: '🎨 Brand Kit' },
   { id: 'sprint', label: '🏃 Sprint' },
@@ -153,7 +154,6 @@ const EMPTY_CONFIG = {
     hashtags: '#DieInTheJungle #JungleKabal #TelegramGame #Roguelite',
   },
   sprintItems: [],
-  randomEvents: [],
   visuals: {
     backgroundUrl: '',
     logoUrl: '',
@@ -167,6 +167,15 @@ const EMPTY_CONFIG = {
   monsters: { traitsCatalog: [], customMonsters: [] },
   artifacts: { customArtifacts: [] },
   assetsMeta: {},
+  randomEvents: [],
+  narrativeArcs: [
+    { id: 'arc1', title: 'The Descent', imageUrl: '', lines: [] },
+    { id: 'arc2', title: 'The Jungle Speaks', imageUrl: '', lines: [] },
+    { id: 'arc3', title: 'Shadows of the Old Kingdom', imageUrl: '', lines: [] },
+    { id: 'arc4', title: 'The Ritual', imageUrl: '', lines: [] },
+    { id: 'arc5', title: 'Ka\'s Wrath', imageUrl: '', lines: [] },
+    { id: 'arc6', title: 'Ascension or Death', imageUrl: '', lines: [] },
+  ],
 };
 
 // ─── Roadmap ──────────────────────────────────────────────────────────────────
@@ -327,6 +336,10 @@ function withDefaults(raw = {}) {
     artifacts: { customArtifacts: Array.isArray(raw.artifacts?.customArtifacts) ? raw.artifacts.customArtifacts : [] },
     adminBacklog: Array.isArray(raw.adminBacklog) ? raw.adminBacklog : [],
     assetsMeta: raw.assetsMeta && typeof raw.assetsMeta === 'object' ? raw.assetsMeta : {},
+    randomEvents: Array.isArray(raw.randomEvents) ? raw.randomEvents : [],
+    narrativeArcs: Array.isArray(raw.narrativeArcs) && raw.narrativeArcs.length
+      ? raw.narrativeArcs
+      : EMPTY_CONFIG.narrativeArcs,
   };
 }
 
@@ -1417,15 +1430,302 @@ export default function DieInTheJungleAdmin() {
         )}
 
         {/* ── NARRATIVE ────────────────────────────────────────────────────────────── */}
-        {activeTab === 'narrative' && (
-          <section className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-4">
-            <h2 className="text-xl font-semibold">📖 Narrative Sequences</h2>
-            <p className="text-zinc-400 text-sm">Kabalian and KKM story fragments shown between zones. Array of strings.</p>
-            <JsonEditor label="narrative.kabalian" value={config.narrative.kabalian} onSave={(value) => setConfig((p) => ({ ...p, narrative: { ...p.narrative, kabalian: value } }))} rows={14} />
-            <JsonEditor label="narrative.kkm" value={config.narrative.kkm} onSave={(value) => setConfig((p) => ({ ...p, narrative: { ...p.narrative, kkm: value } }))} rows={14} />
-            <button onClick={() => saveConfig(config)} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Save to server</button>
-          </section>
-        )}
+        {activeTab === 'narrative' && (() => {
+          const [openArc, setOpenArc] = React.useState(null);
+          const [arcUrl, setArcUrl] = React.useState({});
+          const [arcLine, setArcLine] = React.useState({});
+
+          function updateArc(idx, patch) {
+            setConfig((p) => {
+              const arcs = [...(p.narrativeArcs || EMPTY_CONFIG.narrativeArcs)];
+              arcs[idx] = { ...arcs[idx], ...patch };
+              return { ...p, narrativeArcs: arcs };
+            });
+          }
+          function addLine(idx) {
+            const val = (arcLine[idx] || '').trim();
+            if (!val) return;
+            const lines = [...(config.narrativeArcs?.[idx]?.lines || []), val];
+            updateArc(idx, { lines });
+            setArcLine((p) => ({ ...p, [idx]: '' }));
+          }
+          function removeLine(arcIdx, lineIdx) {
+            const lines = [...(config.narrativeArcs?.[arcIdx]?.lines || [])];
+            lines.splice(lineIdx, 1);
+            updateArc(arcIdx, { lines });
+          }
+          const arcs = config.narrativeArcs || EMPTY_CONFIG.narrativeArcs;
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold">📖 Narrative Arcs</h2>
+                <button onClick={() => saveConfig(config)} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Save</button>
+              </div>
+              <p className="text-zinc-400 text-sm">6 arcs × image + story lines shown between zones. Each arc unlocks as the player progresses through the jungle.</p>
+              {/* Legacy quick-edit */}
+              <details className="rounded-lg border border-zinc-700 bg-zinc-900/50">
+                <summary className="cursor-pointer px-4 py-2 text-sm text-zinc-400 select-none">🔧 Legacy JSON editor (kabalian / kkm lines)</summary>
+                <div className="px-4 pb-4 pt-2 space-y-3">
+                  <JsonEditor label="narrative.kabalian" value={config.narrative.kabalian} onSave={(value) => setConfig((p) => ({ ...p, narrative: { ...p.narrative, kabalian: value } }))} rows={8} />
+                  <JsonEditor label="narrative.kkm" value={config.narrative.kkm} onSave={(value) => setConfig((p) => ({ ...p, narrative: { ...p.narrative, kkm: value } }))} rows={8} />
+                </div>
+              </details>
+              {/* 6 Arcs */}
+              {arcs.map((arc, idx) => (
+                <div key={arc.id} className="rounded-xl border border-zinc-700 bg-zinc-900/70 overflow-hidden">
+                  {/* Arc Header */}
+                  <button
+                    onClick={() => setOpenArc(openArc === idx ? null : idx)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-zinc-800/50 transition-colors"
+                  >
+                    <span className="text-amber-400 font-bold text-sm w-16 shrink-0">Arc {idx + 1}</span>
+                    <span className="flex-1 font-semibold text-zinc-200">{arc.title}</span>
+                    <span className="text-xs text-zinc-500">{arc.lines?.length || 0} lines</span>
+                    {arc.imageUrl && <span className="text-xs text-emerald-400">🖼️ img</span>}
+                    <span className="text-zinc-500 text-xs">{openArc === idx ? '▲' : '▼'}</span>
+                  </button>
+                  {openArc === idx && (
+                    <div className="border-t border-zinc-700 px-4 py-4 space-y-4">
+                      {/* Title */}
+                      <div>
+                        <label className="text-xs text-zinc-400 block mb-1">Arc Title</label>
+                        <input
+                          value={arc.title}
+                          onChange={(e) => updateArc(idx, { title: e.target.value })}
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none"
+                        />
+                      </div>
+                      {/* Image URL */}
+                      <div>
+                        <label className="text-xs text-zinc-400 block mb-1">Arc Image URL</label>
+                        <div className="flex gap-2">
+                          <input
+                            placeholder="https://i.postimg.cc/..."
+                            value={arcUrl[idx] !== undefined ? arcUrl[idx] : (arc.imageUrl || '')}
+                            onChange={(e) => setArcUrl((p) => ({ ...p, [idx]: e.target.value }))}
+                            onBlur={() => { if (arcUrl[idx] !== undefined) { updateArc(idx, { imageUrl: arcUrl[idx] }); setArcUrl((p) => { const n = {...p}; delete n[idx]; return n; }); }}}
+                            className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none"
+                          />
+                          {arc.imageUrl && <img src={arc.imageUrl} alt="arc" className="h-9 w-9 rounded object-cover border border-zinc-600" />}
+                        </div>
+                      </div>
+                      {/* Lines */}
+                      <div>
+                        <label className="text-xs text-zinc-400 block mb-2">Story Lines ({arc.lines?.length || 0}/33 target)</label>
+                        <div className="space-y-1 max-h-64 overflow-y-auto mb-2">
+                          {(arc.lines || []).map((line, li) => (
+                            <div key={li} className="flex items-start gap-2 group">
+                              <span className="text-[10px] text-zinc-600 w-5 shrink-0 mt-1">{li + 1}.</span>
+                              <span className="flex-1 text-xs text-zinc-300 bg-zinc-800/60 rounded px-2 py-1">{line}</span>
+                              <button onClick={() => removeLine(idx, li)} className="opacity-0 group-hover:opacity-100 text-[10px] text-red-400 hover:text-red-300 shrink-0">✕</button>
+                            </div>
+                          ))}
+                          {(!arc.lines || arc.lines.length === 0) && <div className="text-xs text-zinc-600 italic">No lines yet. Add some below.</div>}
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            placeholder='Add narrative line... "The jungle watches you."'
+                            value={arcLine[idx] || ''}
+                            onChange={(e) => setArcLine((p) => ({ ...p, [idx]: e.target.value }))}
+                            onKeyDown={(e) => { if (e.key === 'Enter') addLine(idx); }}
+                            className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none"
+                          />
+                          <button onClick={() => addLine(idx)} className="px-3 py-2 rounded bg-amber-600 hover:bg-amber-500 text-sm font-bold text-white">+ Add</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+              <button onClick={() => saveConfig(config)} className="w-full px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Save Narrative to Server</button>
+            </div>
+          );
+        })()}
+
+        {/* ── EVENTS ────────────────────────────────────────────────────────────────── */}
+        {activeTab === 'events' && (() => {
+          const [showForm, setShowForm] = React.useState(false);
+          const [editIdx, setEditIdx] = React.useState(null);
+          const [form, setForm] = React.useState({ id: '', title: '', description: '', imageUrl: '', type: 'choice', choices: [], autoReward: '', tags: '' });
+          const [newChoice, setNewChoice] = React.useState({ label: '', effect: '', icon: '' });
+
+          const events = config.randomEvents || [];
+
+          function resetForm() {
+            setForm({ id: '', title: '', description: '', imageUrl: '', type: 'choice', choices: [], autoReward: '', tags: '' });
+            setNewChoice({ label: '', effect: '', icon: '' });
+            setEditIdx(null);
+            setShowForm(false);
+          }
+
+          function openNew() {
+            resetForm();
+            setShowForm(true);
+          }
+
+          function openEdit(idx) {
+            const ev = events[idx];
+            setForm({ ...ev, choices: ev.choices ? [...ev.choices] : [], tags: (ev.tags || []).join(', ') });
+            setEditIdx(idx);
+            setShowForm(true);
+          }
+
+          function deleteEvent(idx) {
+            const next = events.filter((_, i) => i !== idx);
+            setConfig((p) => ({ ...p, randomEvents: next }));
+          }
+
+          function addChoice() {
+            if (!newChoice.label.trim()) return;
+            setForm((p) => ({ ...p, choices: [...p.choices, { ...newChoice }] }));
+            setNewChoice({ label: '', effect: '', icon: '' });
+          }
+
+          function removeChoice(ci) {
+            setForm((p) => ({ ...p, choices: p.choices.filter((_, i) => i !== ci) }));
+          }
+
+          function saveEvent() {
+            if (!form.title.trim()) return;
+            const ev = {
+              ...form,
+              id: form.id || `evt_${Date.now()}`,
+              tags: form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+            };
+            const next = editIdx !== null
+              ? events.map((e, i) => i === editIdx ? ev : e)
+              : [...events, ev];
+            setConfig((p) => ({ ...p, randomEvents: next }));
+            resetForm();
+          }
+
+          const typeColors = { choice: 'border-violet-700 bg-violet-900/20', auto: 'border-emerald-700 bg-emerald-900/20', npc: 'border-amber-700 bg-amber-900/20', rest: 'border-blue-700 bg-blue-900/20' };
+          const typeIcons = { choice: '🎲', auto: '⚡', npc: '🧙', rest: '🏕️' };
+
+          return (
+            <div className="space-y-5">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold">🎲 Random Events</h2>
+                  <p className="text-zinc-400 text-sm mt-0.5">{events.length} events · shown on event nodes on the map</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => saveConfig(config)} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Save</button>
+                  <button onClick={openNew} className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-sm font-bold">+ New Event</button>
+                </div>
+              </div>
+
+              {/* Event form */}
+              {showForm && (
+                <div className="rounded-xl border border-amber-400/30 bg-zinc-900/90 p-5 space-y-4">
+                  <h3 className="font-bold text-amber-300">{editIdx !== null ? '✏️ Edit Event' : '✨ New Event'}</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-zinc-400 block mb-1">Title *</label>
+                      <input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} placeholder='e.g. "The Old Shaman"' className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-zinc-400 block mb-1">Type</label>
+                      <select value={form.type} onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))} className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none">
+                        <option value="choice">🎲 Choice (player picks option)</option>
+                        <option value="auto">⚡ Auto reward (no choice)</option>
+                        <option value="npc">🧙 NPC Encounter</option>
+                        <option value="rest">🏕️ Rest Camp</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-400 block mb-1">Description / Lore Text</label>
+                    <textarea value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} placeholder="Atmospheric lore text shown to player..." rows={3} className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none" />
+                  </div>
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="text-xs text-zinc-400 block mb-1">Image URL</label>
+                      <input value={form.imageUrl} onChange={(e) => setForm((p) => ({ ...p, imageUrl: e.target.value }))} placeholder="https://i.postimg.cc/..." className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none" />
+                    </div>
+                    {form.imageUrl && <img src={form.imageUrl} alt="preview" className="h-10 w-10 rounded object-cover border border-zinc-600 shrink-0" />}
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-400 block mb-1">Tags (comma-separated)</label>
+                    <input value={form.tags} onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))} placeholder="jungle, npc, lore, reward..." className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none" />
+                  </div>
+                  {form.type === 'auto' && (
+                    <div>
+                      <label className="text-xs text-zinc-400 block mb-1">Auto Reward (e.g. "+2 HP, +1 Gold")</label>
+                      <input value={form.autoReward} onChange={(e) => setForm((p) => ({ ...p, autoReward: e.target.value }))} placeholder="+2 HP" className="w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-amber-500 focus:outline-none" />
+                    </div>
+                  )}
+                  {(form.type === 'choice' || form.type === 'npc') && (
+                    <div className="space-y-2">
+                      <label className="text-xs text-zinc-400 block">Choices ({form.choices.length})</label>
+                      {form.choices.map((c, ci) => (
+                        <div key={ci} className="flex items-center gap-2 rounded-lg bg-zinc-800/60 px-3 py-2">
+                          <span className="text-base">{c.icon || '🎲'}</span>
+                          <span className="flex-1 text-sm text-zinc-200">{c.label}</span>
+                          <span className="text-xs text-zinc-500">{c.effect}</span>
+                          <button onClick={() => removeChoice(ci)} className="text-xs text-red-400 hover:text-red-300">✕</button>
+                        </div>
+                      ))}
+                      <div className="flex gap-2">
+                        <input value={newChoice.icon} onChange={(e) => setNewChoice((p) => ({ ...p, icon: e.target.value }))} placeholder="🗡️" className="w-10 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 text-center" />
+                        <input value={newChoice.label} onChange={(e) => setNewChoice((p) => ({ ...p, label: e.target.value }))} placeholder="Choice label" className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100" />
+                        <input value={newChoice.effect} onChange={(e) => setNewChoice((p) => ({ ...p, effect: e.target.value }))} placeholder="Effect: +3 HP" className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100" />
+                        <button onClick={addChoice} className="px-3 py-1.5 rounded bg-violet-600 hover:bg-violet-500 text-sm font-bold text-white">+</button>
+                      </div>
+                    </div>
+                  )}
+                  {form.type === 'rest' && (
+                    <div className="rounded-lg border border-blue-700/40 bg-blue-900/10 px-4 py-3 text-sm text-blue-300">
+                      🏕️ Rest camp auto-heals the player. You can configure the heal amount in the choices as "heal:X" effects.
+                    </div>
+                  )}
+                  <div className="flex gap-2 pt-2">
+                    <button onClick={saveEvent} className="px-5 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-sm font-bold text-white">✅ {editIdx !== null ? 'Update' : 'Add'} Event</button>
+                    <button onClick={resetForm} className="px-4 py-2 rounded bg-zinc-700 hover:bg-zinc-600 text-sm text-zinc-300">Cancel</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Events list */}
+              {events.length === 0 && !showForm && (
+                <div className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/40 p-8 text-center">
+                  <div className="text-4xl mb-3">🎲</div>
+                  <div className="text-zinc-400 text-sm">No random events yet. Create your first event to add flavor to the map nodes.</div>
+                </div>
+              )}
+              <div className="space-y-3">
+                {events.map((ev, idx) => (
+                  <div key={ev.id || idx} className={`rounded-xl border ${typeColors[ev.type] || 'border-zinc-700 bg-zinc-900/40'} overflow-hidden`}>
+                    <div className="flex items-start gap-3 p-4">
+                      {ev.imageUrl && <img src={ev.imageUrl} alt={ev.title} className="h-14 w-14 rounded-lg object-cover border border-zinc-600 shrink-0" />}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-base">{typeIcons[ev.type] || '🎲'}</span>
+                          <span className="font-semibold text-zinc-100">{ev.title}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-400">{ev.type}</span>
+                          {(ev.tags || []).map((t) => <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500">{t}</span>)}
+                        </div>
+                        <p className="text-xs text-zinc-400 line-clamp-2">{ev.description}</p>
+                        {ev.choices?.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {ev.choices.map((c, ci) => <span key={ci} className="text-[10px] px-2 py-0.5 rounded-full bg-violet-900/50 text-violet-300 border border-violet-700/30">{c.icon} {c.label}</span>)}
+                          </div>
+                        )}
+                        {ev.autoReward && <div className="text-xs text-emerald-400 mt-1">⚡ {ev.autoReward}</div>}
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button onClick={() => openEdit(idx)} className="text-xs px-2 py-1.5 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-300">✏️</button>
+                        <button onClick={() => deleteEvent(idx)} className="text-xs px-2 py-1.5 rounded bg-red-900/60 hover:bg-red-800 text-red-300">🗑️</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {events.length > 0 && <button onClick={() => saveConfig(config)} className="w-full px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-medium">💾 Save Events to Server</button>}
+            </div>
+          );
+        })()}
 
         {/* ── ADVANCED ─────────────────────────────────────────────────────────────── */}
         {activeTab === 'advanced' && (
@@ -1442,64 +1742,96 @@ export default function DieInTheJungleAdmin() {
         )}
 
         {/* ── ROADMAP ──────────────────────────────────────────────────────────────── */}
-        {activeTab === 'roadmap' && (
-          <div className="space-y-6">
-            {/* Bugs & fixes tracker */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 space-y-3">
-              <h2 className="text-xl font-semibold">🐛 Known Issues & Fixes</h2>
-              <div className="space-y-2">
-                {KNOWN_ISSUES.map((issue, i) => (
-                  <div key={i} className={`flex items-start gap-3 rounded-lg border px-3 py-2 ${issue.status === 'fixed' ? 'border-emerald-700/50 bg-emerald-900/20' : 'border-zinc-700 bg-zinc-800/40'}`}>
-                    <span className="text-base shrink-0">{issue.status === 'fixed' ? '✅' : '🔴'}</span>
-                    <div>
-                      <div className={`text-sm ${issue.status === 'fixed' ? 'text-zinc-400 line-through' : 'text-zinc-200'}`}>{issue.label}</div>
-                      <div className="text-[11px] text-zinc-500">{issue.date}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+        {activeTab === 'roadmap' && (() => {
+          const [openSections, setOpenSections] = React.useState({ 0: true }); // "Done" collapsed by default, others open
+          const [issuesOpen, setIssuesOpen] = React.useState(false);
+          const [showFixed, setShowFixed] = React.useState(false);
 
-            {/* Roadmap sections */}
-            {ROADMAP.map((section) => {
-              const borderColor = section.color === 'emerald' ? 'border-emerald-800' : section.color === 'amber' ? 'border-amber-800' : 'border-zinc-800';
-              const headerColor = section.color === 'emerald' ? 'text-emerald-300' : section.color === 'amber' ? 'text-amber-300' : 'text-zinc-400';
-              return (
-                <div key={section.section} className={`rounded-xl border ${borderColor} bg-zinc-900/70 p-5 space-y-3`}>
-                  <h3 className={`text-lg font-bold ${headerColor}`}>{section.section}</h3>
-                  <div className="space-y-1.5">
-                    {section.items.map((item) => (
-                      <div key={item.label} className="flex items-start gap-2.5 py-1">
-                        <span className="text-base mt-0.5 shrink-0">{item.done ? '✅' : '⬜'}</span>
-                        <span className={`text-sm ${item.done ? 'text-zinc-400' : 'text-zinc-300'}`}>{item.label}</span>
+          function toggleSection(idx) {
+            setOpenSections((p) => ({ ...p, [idx]: !p[idx] }));
+          }
+
+          const all = ROADMAP.flatMap((s) => s.items);
+          const done = all.filter((i) => i.done).length;
+          const pct = Math.round((done / all.length) * 100);
+
+          const colorMap = {
+            emerald: { border: 'border-emerald-800', header: 'text-emerald-300', badge: 'bg-emerald-900/40 text-emerald-300' },
+            amber: { border: 'border-amber-800', header: 'text-amber-300', badge: 'bg-amber-900/40 text-amber-300' },
+            violet: { border: 'border-violet-800', header: 'text-violet-300', badge: 'bg-violet-900/40 text-violet-300' },
+            zinc: { border: 'border-zinc-700', header: 'text-zinc-400', badge: 'bg-zinc-800 text-zinc-400' },
+          };
+
+          const filteredIssues = showFixed ? KNOWN_ISSUES : KNOWN_ISSUES.filter((i) => i.status !== 'fixed');
+          const openCount = KNOWN_ISSUES.filter((i) => i.status !== 'fixed').length;
+
+          return (
+            <div className="space-y-4">
+              {/* Progress bar at top */}
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-5 py-4">
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="text-zinc-300 font-semibold">Overall Progress</span>
+                  <span className="text-zinc-400">{done} / {all.length} features — <span className="text-emerald-400 font-bold">{pct}%</span></span>
+                </div>
+                <div className="h-3 rounded-full bg-zinc-800 overflow-hidden">
+                  <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+
+              {/* Bugs & Issues collapsible */}
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
+                <button onClick={() => setIssuesOpen((p) => !p)} className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-zinc-800/40 transition-colors">
+                  <h2 className="text-lg font-semibold flex-1">🐛 Known Issues & Fixes</h2>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-900/50 text-red-300 border border-red-700/40">{openCount} open</span>
+                  <span className="text-zinc-500 text-sm">{issuesOpen ? '▲' : '▼'}</span>
+                </button>
+                {issuesOpen && (
+                  <div className="border-t border-zinc-800 px-5 py-4 space-y-2">
+                    <label className="flex items-center gap-2 text-xs text-zinc-500 cursor-pointer select-none">
+                      <input type="checkbox" checked={showFixed} onChange={(e) => setShowFixed(e.target.checked)} className="rounded" />
+                      Show fixed issues
+                    </label>
+                    {filteredIssues.map((issue, i) => (
+                      <div key={i} className={`flex items-start gap-3 rounded-lg border px-3 py-2 ${issue.status === 'fixed' ? 'border-emerald-700/50 bg-emerald-900/20' : 'border-zinc-700 bg-zinc-800/40'}`}>
+                        <span className="text-base shrink-0">{issue.status === 'fixed' ? '✅' : '🔴'}</span>
+                        <div>
+                          <div className={`text-sm ${issue.status === 'fixed' ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>{issue.label}</div>
+                          <div className="text-[11px] text-zinc-600">{issue.date}</div>
+                        </div>
                       </div>
                     ))}
                   </div>
-                </div>
-              );
-            })}
+                )}
+              </div>
 
-            {/* Progress bar */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
-              {(() => {
-                const all = ROADMAP.flatMap((s) => s.items);
-                const done = all.filter((i) => i.done).length;
-                const pct = Math.round((done / all.length) * 100);
+              {/* Roadmap sections — each collapsible */}
+              {ROADMAP.map((section, idx) => {
+                const c = colorMap[section.color] || colorMap.zinc;
+                const isOpen = openSections[idx] !== false; // default open except "Done" (idx 0 starts closed)
+                const doneInSection = section.items.filter((i) => i.done).length;
                 return (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-zinc-300 font-medium">Overall Progress</span>
-                      <span className="text-zinc-300">{done} / {all.length} features ({pct}%)</span>
-                    </div>
-                    <div className="h-3 rounded-full bg-zinc-800 overflow-hidden">
-                      <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all" style={{ width: `${pct}%` }} />
-                    </div>
+                  <div key={section.section} className={`rounded-xl border ${c.border} bg-zinc-900/70 overflow-hidden`}>
+                    <button onClick={() => toggleSection(idx)} className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-zinc-800/40 transition-colors">
+                      <h3 className={`text-base font-bold flex-1 ${c.header}`}>{section.section}</h3>
+                      <span className={`text-[11px] px-2 py-0.5 rounded-full ${c.badge}`}>{doneInSection}/{section.items.length}</span>
+                      <span className="text-zinc-500 text-sm">{isOpen ? '▲' : '▼'}</span>
+                    </button>
+                    {isOpen && (
+                      <div className="border-t border-zinc-800/60 px-5 py-3 space-y-1">
+                        {section.items.map((item) => (
+                          <div key={item.label} className="flex items-start gap-2.5 py-1">
+                            <span className="text-base mt-0.5 shrink-0">{item.done ? '✅' : '⬜'}</span>
+                            <span className={`text-sm ${item.done ? 'text-zinc-500' : 'text-zinc-300'}`}>{item.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
-              })()}
+              })}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── DIFFICULTY TAB ─────────────────────────────────────────────────── */}
         {activeTab === 'difficulty' && (
