@@ -502,7 +502,7 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "relic",
     tags: ["survival"],
-    image: "https://i.postimg.cc/0jTsM1zb/Chat-GPT-Image-Mar-12-2026-03-01-43-PM.png",
+    image: "https://i.postimg.cc/g24QGmGB/golden-spirit-lantern.png",
     effectText: "🧬 +6 Max HP · ❤️ Heal 6.",
     apply: (player) => ({ ...player, maxHp: player.maxHp + 6, hp: Math.min(player.maxHp + 6, player.hp + 6) }),
   },
@@ -522,7 +522,7 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "idol",
     tags: ["heal"],
-    image: "https://i.postimg.cc/vTRq5Yt6/Chat-GPT-Image-Mar-12-2026-02-58-04-PM.png",
+    image: "https://i.postimg.cc/JzKvRMRK/golden-light-pods.png",
     effectText: "❤️ Heal dice restore +1 extra heal.",
     apply: (player) => ({ ...player, healBonus: player.healBonus + 1 }),
   },
@@ -532,7 +532,7 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "totem",
     tags: ["shield"],
-    image: "https://i.postimg.cc/prwZnRKp/Chat-GPT-Image-Mar-12-2026-03-09-00-PM.png",
+    image: "https://i.postimg.cc/mD1539C6/golden-verdant-totem.png",
     effectText: "🛡️ Start each combat with 4 shield.",
     apply: (player) => ({ ...player, combatStartShield: player.combatStartShield + 4 }),
   },
@@ -552,7 +552,7 @@ const ARTIFACT_POOL = [
     rarity: "gray",
     category: "fang",
     tags: ["attack", "curse"],
-    image: "https://i.postimg.cc/MpxGd1Gc/Chat-GPT-Image-Mar-12-2026-03-04-39-PM.png",
+    image: "https://i.postimg.cc/ZRvMPNpM/golden-venom-serpent.png",
     effectText: "⚔️ +2 attack damage · ☠️ lose 3 max HP.",
     apply: (player) => {
       const nextMaxHp = Math.max(8, player.maxHp - 3);
@@ -565,7 +565,7 @@ const ARTIFACT_POOL = [
     rarity: "gray",
     category: "totem",
     tags: ["shield", "curse"],
-    image: "https://i.postimg.cc/d1RHmMNs/Chat-GPT-Image-Mar-12-2026-03-05-52-PM.png",
+    image: "https://i.postimg.cc/jSvmRtRF/golden-toxic-totem.png",
     effectText: "🛡️ Start with 3 shield · ☠️ cooldown base +1.",
     apply: (player) => ({ ...player, combatStartShield: player.combatStartShield + 3, cooldownBase: player.cooldownBase + 1 }),
   },
@@ -575,7 +575,7 @@ const ARTIFACT_POOL = [
     rarity: "gray",
     category: "charm",
     tags: ["attack", "curse"],
-    image: "https://i.postimg.cc/HsyHBYRw/Chat-GPT-Image-Mar-12-2026-03-25-24-PM.png",
+    image: "https://i.postimg.cc/JnH23XZg/verdant-bone-wreath.png",
     effectText: "⚔️ Attack dice +1 value · ☠️ lose 1 HP at turn start.",
     apply: (player) => ({ ...player, attackDieValueBonus: player.attackDieValueBonus + 1, selfBleed: player.selfBleed + 1 }),
   },
@@ -625,7 +625,7 @@ const ARTIFACT_POOL = [
     rarity: "chrome",
     category: "sigil",
     tags: ["survival"],
-    image: "https://i.postimg.cc/Dy4GtQFd/Chat-GPT-Image-Mar-12-2026-03-09-46-PM.png",
+    image: "https://i.postimg.cc/2SCgpVNZ/golden-jungle-watcher.png",
     effectText: "✨ Gain one revive per zone (revive at 40% HP).",
     apply: (player) => ({ ...player, reviveOnce: true }),
   },
@@ -635,7 +635,7 @@ const ARTIFACT_POOL = [
     rarity: "gold",
     category: "coin",
     tags: ["survival", "tempo"],
-    image: "https://i.postimg.cc/0jTsM1zb/Chat-GPT-Image-Mar-12-2026-03-01-43-PM.png",
+    image: "https://i.postimg.cc/PxWkXdgx/Chat-GPT-Image-14-mars-2026-22-02-48.png",
     effectText: "🧬 +3 max HP · 🔁 +1 reroll per turn.",
     apply: (player) => ({ ...player, maxHp: player.maxHp + 3, hp: player.hp + 3, rerollsPerTurn: player.rerollsPerTurn + 1, rerollsLeft: player.rerollsLeft + 1 }),
   },
@@ -658,6 +658,60 @@ const ARTIFACT_POOL = [
     image: "https://i.postimg.cc/bJ5c9WTX/Chat-GPT-Image-Mar-12-2026-04-15-09-PM.png",
     effectText: "❤️ +2 heal bonus · 🔁 +1 reroll each turn.",
     apply: (player) => ({ ...player, healBonus: player.healBonus + 2, rerollsPerTurn: player.rerollsPerTurn + 1, rerollsLeft: player.rerollsLeft + 1 }),
+  },
+  // ── Weapon artifacts (blades) ─────────────────────────────────────────────
+  {
+    id: "jungle-blade",
+    name: "Jungle Blade",
+    rarity: "gray",
+    category: "weapon",
+    tags: ["attack"],
+    image: "https://i.postimg.cc/bwdH2hxw/Chat-GPT-Image-Mar-15-2026-01-07-26-AM.png",
+    effectText: "⚔️ +1 attack bonus · attack dice min value 2.",
+    apply: (player) => ({ ...player, attackBonus: player.attackBonus + 1, attackDieValueBonus: (player.attackDieValueBonus || 0) + 1 }),
+  },
+  {
+    id: "venomfang-dagger",
+    name: "Venomfang Dagger",
+    rarity: "gray",
+    category: "weapon",
+    tags: ["attack", "curse"],
+    image: "https://i.postimg.cc/XYhKfzLq/Chat-GPT-Image-Mar-15-2026-01-07-27-AM.png",
+    effectText: "⚔️ +2 attack bonus · ☠️ lose 2 max HP.",
+    apply: (player) => {
+      const nextMaxHp = Math.max(8, player.maxHp - 2);
+      return { ...player, attackBonus: player.attackBonus + 2, maxHp: nextMaxHp, hp: Math.min(nextMaxHp, player.hp) };
+    },
+  },
+  {
+    id: "kabal-machete",
+    name: "Kabal Machete",
+    rarity: "gold",
+    category: "weapon",
+    tags: ["attack"],
+    image: "https://i.postimg.cc/C1CjVLg4/Chat-GPT-Image-Mar-15-2026-01-07-30-AM.png",
+    effectText: "⚔️ +2 attack bonus · attack dice deal +1 damage.",
+    apply: (player) => ({ ...player, attackBonus: player.attackBonus + 2, attackDieValueBonus: (player.attackDieValueBonus || 0) + 1 }),
+  },
+  {
+    id: "spirit-cleaver",
+    name: "Spirit Cleaver",
+    rarity: "chrome",
+    category: "weapon",
+    tags: ["attack", "tempo"],
+    image: "https://i.postimg.cc/Fz90F5rp/Chat-GPT-Image-Mar-15-2026-01-07-35-AM.png",
+    effectText: "⚔️ +3 attack bonus · top row multiplier +1.",
+    apply: (player) => ({ ...player, attackBonus: player.attackBonus + 3, topRowBonus: player.topRowBonus + 1 }),
+  },
+  {
+    id: "twilight-fang",
+    name: "Twilight Fang",
+    rarity: "chrome",
+    category: "weapon",
+    tags: ["attack", "survival"],
+    image: "https://i.postimg.cc/fywYWnzv/Chat-GPT-Image-Mar-15-2026-01-17-23-AM.png",
+    effectText: "⚔️ +2 attack bonus · 🧬 +4 max HP.",
+    apply: (player) => ({ ...player, attackBonus: player.attackBonus + 2, maxHp: player.maxHp + 4, hp: player.hp + 4 }),
   },
 
 ];
@@ -1361,6 +1415,7 @@ function makeInitialState() {
     combatRewardPending: false,
     startRewardPending: true,
     characterSelectPending: true,
+    companionSelectPending: false,
     score: 0,
     noHitTurns: 0,
     runSeed,
@@ -1422,6 +1477,7 @@ function hydrateGameState(rawState) {
   safe.noHitTurns = Number.isFinite(safe.noHitTurns) ? safe.noHitTurns : 0;
   safe.runSeed = safe.runSeed || generateRunSeed();
   safe.characterSelectPending = Boolean(safe.characterSelectPending);
+  safe.companionSelectPending = Boolean(safe.companionSelectPending);
   safe.mapLayers = safe.mapLayers ?? null;
   safe.currentMapNodeId = safe.currentMapNodeId ?? null;
   safe.pendingEvent = safe.pendingEvent ?? null;
@@ -1714,12 +1770,41 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         ...g,
         player: nextPlayer,
         characterSelectPending: false,
+        companionSelectPending: true,
         phase: "map",
         mapLayers,
         currentMapNodeId: null,
         avatarMood: "focus",
-        actionFlash: { id: Date.now(), text: `🧭 ${selected.name} — choose your path`, tone: "sky" },
-        log: [`🧭 Character selected: ${selected.name}`, `🗺️ Zone ${g.floor} map generated`, ...g.log].slice(0, 40),
+        actionFlash: { id: Date.now(), text: `🧭 ${selected.name} — now pick your companion`, tone: "sky" },
+        log: [`🧭 Character selected: ${selected.name}`, ...g.log].slice(0, 40),
+      };
+    });
+  }
+
+  function pickCompanion(companionId: string) {
+    const chosen = COMPANIONS.find(c => c.id === companionId);
+    if (!chosen) return;
+    setGame((g) => {
+      const companion = { ...chosen, cooldownRemaining: 0 };
+      // Apply passive bonuses to player stats
+      const player = { ...g.player };
+      if (companion.passive.attackBonus) player.attackBonus = (player.attackBonus || 0) + companion.passive.attackBonus;
+      if (companion.passive.healBonus) player.healBonus = (player.healBonus || 0) + companion.passive.healBonus;
+      if (companion.passive.shieldBonus) {
+        player.combatStartShield = (player.combatStartShield || 0) + companion.passive.shieldBonus;
+        player.shield = (player.shield || 0) + companion.passive.shieldBonus;
+      }
+      if (companion.passive.rerollBonus) {
+        player.rerollsPerTurn = (player.rerollsPerTurn || 1) + companion.passive.rerollBonus;
+        player.rerollsLeft = (player.rerollsLeft || 0) + companion.passive.rerollBonus;
+      }
+      player.companion = companion;
+      return {
+        ...g,
+        player,
+        companionSelectPending: false,
+        actionFlash: { id: Date.now(), text: `${companion.emoji} ${companion.name} joins you!`, tone: 'emerald' },
+        log: [`${companion.emoji} Companion: ${companion.name} — ${companion.passive.desc}`, `🗺️ Zone ${g.floor} map generated`, ...g.log].slice(0, 40),
       };
     });
   }
@@ -2394,11 +2479,24 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
 
       if (companion.active.type === 'skip_intent') {
         player.companionHypnosisActive = true;
-        log.unshift(`🦎 Hypnose — enemy will skip their next intent!`);
+        log.unshift(`${companion.active.abilityEmoji ?? '😴'} ${companion.active.name} — enemy will skip their next intent!`);
       } else if (companion.active.type === 'flat_damage') {
         const dmg = companion.active.value ?? 8;
         enemy.hp -= dmg;
-        log.unshift(`🐊 Leap — ${dmg} flat damage, ignores shield!`);
+        log.unshift(`${companion.active.abilityEmoji ?? '💥'} ${companion.active.name} — ${dmg} flat damage, ignores shield!`);
+      } else if (companion.active.type === 'instant_heal') {
+        const heal = companion.active.value ?? 6;
+        player.hp = Math.min(player.maxHp, player.hp + heal);
+        log.unshift(`${companion.active.abilityEmoji ?? '🌿'} ${companion.active.name} — healed ${heal} HP!`);
+      } else if (companion.active.type === 'instant_shield') {
+        const shield = companion.active.value ?? 6;
+        player.shield = (player.shield || 0) + shield;
+        log.unshift(`${companion.active.abilityEmoji ?? '🛡️'} ${companion.active.name} — gained ${shield} shield!`);
+      } else if (companion.active.type === 'restore_reroll') {
+        const heal = companion.active.value ?? 4;
+        player.rerollsLeft = Math.min(player.rerollsLeft + 1, player.rerollsPerTurn + 1);
+        player.hp = Math.min(player.maxHp, player.hp + heal);
+        log.unshift(`${companion.active.abilityEmoji ?? '👻'} ${companion.active.name} — +1 reroll & healed ${heal} HP!`);
       } else if (companion.active.type === 'free_reroll_choice') {
         // Free reroll all current dice
         const meta = loadMeta();
@@ -2574,7 +2672,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const xpPct = xpInfo.needed > 0 ? Math.min(100, (xpInfo.current / xpInfo.needed) * 100) : 100;
 
   return (
-    <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.78)), url(${effectiveBg})` }}>
+    <div className="min-h-screen overflow-y-auto bg-cover bg-center bg-no-repeat p-2 text-white" style={{ backgroundImage: `radial-gradient(ellipse at center, rgba(0,0,0,.55) 0%, rgba(0,0,0,.10) 70%), linear-gradient(rgba(0,0,0,.74), rgba(0,0,0,.88)), url(${effectiveBg})` }}>
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-1.5 pb-3 md:gap-2">
         <div className="rounded-[22px] border border-amber-300/20 bg-black/35 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md md:p-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2847,7 +2945,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                   className={`flex items-center gap-1 rounded-xl border px-2.5 py-1 text-sm transition disabled:opacity-35 ${game.player.companion.cooldownRemaining === 0 ? 'border-emerald-400/40 bg-emerald-900/40 hover:bg-emerald-800/50' : 'border-zinc-700/40 bg-zinc-800/50'}`}
                   title={`${game.player.companion.active.name}${game.player.companion.cooldownRemaining > 0 ? ` — CD ${game.player.companion.cooldownRemaining}` : ' — READY'}`}
                 >
-                  <span>{game.player.companion.emoji}</span>
+                  <span>{game.player.companion.active.abilityEmoji ?? game.player.companion.emoji}</span>
                   {game.player.companion.cooldownRemaining > 0
                     ? <span className="text-[10px] font-black text-zinc-400">{game.player.companion.cooldownRemaining}</span>
                     : <span className="text-[10px] font-black text-emerald-300">✓</span>}
@@ -3099,8 +3197,49 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         </AnimatePresence>
 
         {/* ── Map overlay ──────────────────────────────────────────────────── */}
+        {/* ── Companion selection modal ──────────────────────────────────── */}
         <AnimatePresence>
-          {game.phase === "map" && game.mapLayers && !game.characterSelectPending ? (() => {
+          {game.companionSelectPending ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-3xl rounded-[28px] border border-emerald-400/20 bg-zinc-950/97 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.6)]">
+                <div className="mb-4 text-center">
+                  <div className="font-serif text-2xl italic text-emerald-300">Choose your companion</div>
+                  <div className="text-sm text-zinc-400">Your companion fights alongside you — passive always active, ability on cooldown.</div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {COMPANIONS.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => pickCompanion(c.id)}
+                      className="rounded-2xl border border-white/10 bg-black/50 p-3 text-left transition hover:border-emerald-400/50 hover:bg-black/75"
+                    >
+                      {c.image ? (
+                        <img src={c.image} alt={c.name} className="mb-2 h-28 w-full rounded-xl border border-white/10 bg-black/40 object-contain" />
+                      ) : (
+                        <div className="mb-2 flex h-28 items-center justify-center text-5xl">{c.emoji}</div>
+                      )}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base">{c.emoji}</span>
+                        <span className="font-black text-sm text-amber-200">{c.name}</span>
+                        <span className="ml-auto rounded-full bg-zinc-800 px-1.5 py-0.5 text-[9px] font-bold uppercase text-zinc-400">{c.archetype}</span>
+                      </div>
+                      <div className="mt-1 text-[10px] text-zinc-400">{c.passive.desc}</div>
+                      <div className="mt-1.5 flex items-center gap-1 rounded-lg border border-zinc-700/40 bg-zinc-900/60 px-2 py-1">
+                        <span className="text-sm">{c.active.abilityEmoji}</span>
+                        <span className="text-[10px] font-bold text-zinc-300">{c.active.name}</span>
+                        <span className="ml-auto text-[9px] text-zinc-500">CD {c.active.cooldown}</span>
+                      </div>
+                      <div className="mt-0.5 text-[9px] text-zinc-500 italic">{c.active.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {game.phase === "map" && game.mapLayers && !game.characterSelectPending && !game.companionSelectPending ? (() => {
             const available = getAvailableNodes(game.mapLayers, game.currentMapNodeId);
             return (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm">
