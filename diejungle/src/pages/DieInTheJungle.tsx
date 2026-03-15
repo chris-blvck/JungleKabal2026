@@ -134,7 +134,7 @@ const PLAYER_EMOTION_URLS = {
   victory: PLAYER_AVATAR_URL,
 };
 
-const KREX_AVATAR_URL = "https://i.postimg.cc/Kv8zygVk/KKM-Mascot-2.png"; // placeholder — replace with real K-REX asset
+const KREX_AVATAR_URL = "https://i.postimg.cc/0Q3R0ZLZ/K-Rex.png";
 
 const PLAYER_CHARACTERS = {
   kabalian: {
