@@ -6,6 +6,8 @@ const BG_URL = "https://i.postimg.cc/YSmfqq2c/Background-desktop.png";
 const LOGO_URL = "https://i.postimg.cc/rwdjP9rb/logo-jaune.png";
 const PLAYER_AVATAR_URL = "https://i.postimg.cc/B6rBLmBt/Kabalian-Face.png";
 const KKM_AVATAR_URL = "https://i.postimg.cc/Kv8zygVk/KKM-Mascot-2.png";
+const KREX_AVATAR_URL = "https://i.postimg.cc/B6rBLmBt/Kabalian-Face.png";
+const SHOPKEEPER_URL = "https://i.postimg.cc/Kv8zygVk/KKM-Mascot-2.png";
 const STORY_FRAGMENT_IMAGE_URL = "https://i.postimg.cc/DwMdGXHm/Kabalian-or-KKM.png";
 const PLAYER_EMOTION_URLS = {
   focus: "https://i.postimg.cc/K8xhZnpB/Chat-GPT-Image-Mar-12-2026-03-09-30-PM.png",
@@ -32,6 +34,13 @@ const PLAYER_CHARACTERS = {
     avatar: KKM_AVATAR_URL,
     subtitle: "Tank · 34 HP · +4 start shield",
     stats: { maxHp: 34, attackBonus: 0, rerollsPerTurn: 1, combatStartShield: 4 },
+  },
+  krex: {
+    id: "krex",
+    name: "K REX",
+    avatar: KREX_AVATAR_URL,
+    subtitle: "Hybrid · 28 HP · +1 ATK · +1 shield start · 2 rerolls",
+    stats: { maxHp: 28, attackBonus: 1, rerollsPerTurn: 2, combatStartShield: 1 },
   },
 };
 
@@ -671,20 +680,52 @@ function buildPathChoices(nextIndex, floor = 1) {
 
 function buildMapChoices(nextIndex, floor = 1) {
   const lanes = shuffle(["left", "mid", "right"]);
-  return buildPathChoices(nextIndex, floor).map((enemy, i) => {
+  const nextType = ROUTE_TEMPLATE[Math.max(0, Math.min(ROUTE_TEMPLATE.length - 1, nextIndex))] || "mob";
+  const poolKey = nextType === "elite" ? "medium" : nextType;
+  let picked = pickUnique(ENEMY_POOLS[poolKey] || ENEMY_POOLS.mob, 3);
+  if (picked.length < 3) {
+    const fallback = shuffle(ENEMY_POOLS[poolKey] || ENEMY_POOLS.mob);
+    while (picked.length < 3 && fallback.length) picked.push(fallback[picked.length % fallback.length]);
+  }
+
+  return picked.map((source, i) => {
+    const enemy = cloneEnemy(source);
+    const scale = floor - 1;
+    const hpScale = nextType === "boss" ? 8 : nextType === "elite" ? 5 : 3;
+    const dmgScale = nextType === "boss" ? 2 : 1;
+    enemy.hp += scale * hpScale;
+    enemy.maxHp = enemy.hp;
+    enemy.damage += scale * dmgScale;
+    if (nextType === "elite") {
+      enemy.elite = true;
+      enemy.eliteStars = getEliteStarCount(floor);
+      enemy.hp = Math.round(enemy.hp * (1.25 + (enemy.eliteStars - 1) * 0.1));
+      enemy.maxHp = enemy.hp;
+      enemy.damage += 2 + (enemy.eliteStars - 1);
+      enemy.tier = "medium";
+      enemy.name = `${"⭐".repeat(enemy.eliteStars)} ${enemy.name}`;
+    }
+    const mod = randFrom(source.modifierPool || ["none"]);
+    enemy.modifier = mod || "none";
+    if (enemy.modifier === "stoneSkin") enemy.firstHitIgnored = true;
+
     const nodeType = randFrom(["combat", "combat", "combat", "shop", "rest"]);
+    const finalNodeType = randFrom([nodeType, "event"]);
     const hint = nodeType === "shop"
       ? "🏪 Shop stop"
       : nodeType === "rest"
         ? "🏕️ Rest stop"
+        : finalNodeType === "event"
+          ? "❓ Random event"
         : randFrom(["💰 Bonus score", "🛡️ Safer fight", "⚡ Fast route", "🎁 Better drop chance"]);
     return ({
-    id: `${Date.now()}-${i}-${enemy.name}`,
-    lane: lanes[i] || "mid",
-    nodeType,
-    rewardHint: hint,
-    enemy,
-  })});
+      id: `${Date.now()}-${i}-${enemy.name}`,
+      lane: lanes[i] || "mid",
+      nodeType: finalNodeType,
+      rewardHint: hint,
+      enemy,
+    });
+  });
 }
 
 function buildShopInventory() {
@@ -2004,6 +2045,30 @@ export default function DieInTheJungleUpgraded() {
 
   function pickMapCard(card) {
     if (!card?.enemy) return;
+
+    if (card.nodeType === "event") {
+      setGame((g) => {
+        if (g.phase !== "path") return g;
+        const roll = Math.random();
+        let next = { ...g };
+        if (roll < 0.33) {
+          next.coins = g.coins + 35;
+          next.actionFlash = { id: Date.now(), text: "❓ Event: hidden cache +35🪙", tone: "amber" };
+        } else if (roll < 0.66) {
+          const heal = Math.min(g.player.maxHp - g.player.hp, 7);
+          next.player = { ...g.player, hp: g.player.hp + heal };
+          next.actionFlash = { id: Date.now(), text: `❓ Event: jungle spring +${heal}HP`, tone: "emerald" };
+        } else {
+          next.coins = Math.max(0, g.coins - 20);
+          next.actionFlash = { id: Date.now(), text: "❓ Event: ambush -20🪙", tone: "rose" };
+        }
+        next.log = ["❓ Random event resolved", ...g.log].slice(0, 40);
+        return next;
+      });
+      pickPathEnemy(card.enemy);
+      return;
+    }
+
     if (card.nodeType === "rest") {
       setGame((g) => {
         if (g.phase !== "path") return g;
@@ -2181,7 +2246,9 @@ export default function DieInTheJungleUpgraded() {
   }, [game.lastOutcome]);
 
   const totalArtifacts = game.player.artifacts.length;
-  const avatarUrl = game.player.characterId === "kkm" ? game.player.avatar : (PLAYER_EMOTION_URLS[game.avatarMood] || game.player.avatar || PLAYER_AVATAR_URL);
+  const avatarUrl = game.player.characterId === "kabalian"
+    ? (PLAYER_EMOTION_URLS[game.avatarMood] || game.player.avatar || PLAYER_AVATAR_URL)
+    : (game.player.avatar || PLAYER_AVATAR_URL);
   const avatarRing = game.avatarMood === "hurt"
     ? "ring-2 ring-rose-400/70"
     : game.avatarMood === "almostDead"
@@ -2718,7 +2785,7 @@ export default function DieInTheJungleUpgraded() {
                     <button key={`${card.id}-${pathEnemy.name}-${pathEnemy.modifier}-${pathEnemy.hp}`} onClick={() => pickMapCard(card)} className="rounded-2xl border border-sky-300/30 bg-sky-950/20 p-3 text-left transition hover:-translate-y-0.5 hover:bg-sky-900/25">
                       <div className="mb-2 flex items-start justify-between gap-2">
                         <div>
-                          <div className="text-[10px] uppercase tracking-[0.16em] text-sky-200">{card.lane} path · map card</div>
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-sky-200">{card.lane} path · {card.nodeType}</div>
                           <div className="text-sm font-black text-zinc-100">{pathEnemy.emoji} {pathEnemy.name}</div>
                         </div>
                         <div className="rounded-lg border border-white/15 bg-black/35 px-2 py-1 text-[10px] text-zinc-200">{getTierLabel(pathEnemy)}</div>
@@ -2743,9 +2810,12 @@ export default function DieInTheJungleUpgraded() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
               <div className="w-full max-w-4xl rounded-[28px] border border-amber-300/25 bg-zinc-950/95 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="font-serif text-xl italic text-amber-300 md:text-2xl">Jungle Shop</div>
-                    <div className="text-sm text-zinc-300">Dépense tes coins pour renforcer ton run. Les armes du shop sont aléatoires selon leur rareté.</div>
+                  <div className="flex items-center gap-3">
+                    <img src={SHOPKEEPER_URL} alt="Shopkeeper" className="h-14 w-14 rounded-2xl border border-amber-300/35 bg-black/35 object-cover" />
+                    <div>
+                      <div className="font-serif text-xl italic text-amber-300 md:text-2xl">Jungle Shop</div>
+                      <div className="text-sm text-zinc-300">Dépense tes coins pour renforcer ton run. Les armes du shop sont aléatoires selon leur rareté.</div>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 text-xs">
                     <div className="rounded-xl border border-amber-300/25 bg-amber-500/20 px-3 py-2 text-amber-100">🪙 {game.coins}</div>
