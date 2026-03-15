@@ -2698,6 +2698,13 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Score</div>
                 <div className="text-xs font-black text-violet-300 md:text-sm">{game.score}</div>
               </div>
+              <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-black/40 px-2 py-1.5">
+                <span className="text-sm">💎</span>
+                <span className="text-xs font-black text-cyan-200">{meta.gems ?? 0}</span>
+                <span className="mx-0.5 text-zinc-600">·</span>
+                <span className="text-sm">🪙</span>
+                <span className="text-xs font-black text-amber-300">{game.player.coins || 0}</span>
+              </div>
               <div className="rounded-xl border border-white/10 bg-black/40 px-2 py-1.5 text-right">
                 <div className="text-[8px] uppercase tracking-[0.2em] text-zinc-300">Phase</div>
                 <div className="text-xs font-black uppercase text-amber-300 md:text-sm">{game.phase}</div>
@@ -2798,19 +2805,15 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                     </div>
                   </div>
                 ) : null}
-                <div className="col-span-2 rounded-[12px] border border-white/10 bg-black/45 p-2">
-                  <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">Owned artifacts</div>
-                  {game.player.artifacts.length ? (
-                    <div className="flex max-h-20 flex-wrap gap-1 overflow-auto pr-1">
-                      {game.player.artifacts.map((artifact) => (
-                        <div key={`owned-${artifact.id}`} className="flex items-center gap-1 rounded-full border border-white/20 bg-black/40 px-2 py-1 text-[9px]">
-                          {artifact.image ? <img src={artifact.image} alt={artifact.name} className="h-4 w-4 rounded-full object-cover" /> : <span>✨</span>}
-                          <span>{artifact.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : <div className="text-[10px] text-zinc-300">No artifacts yet.</div>}
-                </div>
+                {game.player.artifacts.length > 0 ? (
+                  <div className="col-span-2 flex flex-wrap gap-1">
+                    {game.player.artifacts.map((artifact) => (
+                      <div key={`owned-${artifact.id}`} title={artifact.name} className="flex items-center justify-center rounded-lg border border-white/15 bg-black/40 p-1">
+                        {artifact.image ? <img src={artifact.image} alt={artifact.name} className="h-5 w-5 rounded object-cover" /> : <span className="text-xs">✨</span>}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
           </SectionCard>
@@ -2845,7 +2848,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
         <SectionCard title="Dice + Action" className="order-2" right={<div className="text-[9px] text-zinc-300">Tap die, then slot</div>}>
           <div className="mb-1 flex flex-wrap justify-center gap-1 text-[9px] md:text-[10px]">
             <div className="rounded-xl border border-zinc-300/30 bg-zinc-900/70 px-2 py-1">⚔️ Attack die 1-6 (black)</div>
-            <div className="rounded-xl border border-pink-200/35 bg-pink-500/20 px-2 py-1">❤️ Dé Health 1-6</div>
+            <div className="rounded-xl border border-pink-200/35 bg-pink-500/20 px-2 py-1">❤️ Heal die 1-6</div>
             <div className="rounded-xl border border-white/50 bg-white/15 px-2 py-1">🛡️ Shield die 1-6 (white)</div>
             <div className="rounded-xl border border-white/10 bg-black/35 px-2 py-1">🔥 Combo = 3 attack dice</div>
           </div>
