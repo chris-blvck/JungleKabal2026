@@ -2853,7 +2853,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                           {isLocked && <div className="absolute inset-0 flex items-center justify-center text-4xl">🔒</div>}
                         </div>
                         <div className="font-black text-lg text-amber-200">{character.name} {isLocked ? '(Locked)' : ''}</div>
-                        <div className="text-xs text-zinc-300">{isLocked ? 'Defeat Zone 1 boss or spend 100 gems to unlock' : character.subtitle}</div>
+                        <div className="text-xs text-zinc-300">{isLocked ? 'Reach Level 3 · Defeat Zone 1 boss or spend 100 gems' : character.subtitle}</div>
                       </button>
                     );
                   })}

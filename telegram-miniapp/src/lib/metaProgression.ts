@@ -256,7 +256,7 @@ export function recordRunEnd(
 // ── Feature gating helpers ────────────────────────────────────────────────────
 
 export function canPlayKKM(meta: MetaProgressionState): boolean {
-  return isUnlocked(meta, 'character_kkm');
+  return computeLevel(meta.xp) >= 3 && isUnlocked(meta, 'character_kkm');
 }
 
 export function hasWeaponSlot(meta: MetaProgressionState): boolean {
