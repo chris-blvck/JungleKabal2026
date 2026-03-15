@@ -1671,7 +1671,8 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
   const latestLogs = game.log.slice(0, 3);
   const latestAction = game.log[0] || "No action yet. Press ROLL.";
   const intent = getIntentPreview(game.enemy);
-  const intentTimeline = getIntentTimeline(game.enemy, 3);
+  const oeilActive = game.player.companion?.passive?.revealExtraIntents === true;
+  const intentTimeline = getIntentTimeline(game.enemy, oeilActive ? 5 : 3);
   const expectedOutcome = estimatePlayerOutcome(game.grid, game.player, game.turnLaneBonuses);
   const streakMultiplier = getNoHitMultiplier(game.noHitTurns);
   const enemyAnchorRef = useRef(null);
@@ -2145,6 +2146,9 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           combatRewardPending = true;
           artifactsOffered = buildArtifactChoices(player);
           phase = "reward";
+          // Boss drops 5 coins
+          player.coins = (player.coins || 0) + 5;
+          log.unshift(`👑 Boss loot · +5🪙`);
         } else {
           // Go to map to choose next node
           phase = "map";
@@ -2152,7 +2156,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           player.shield = 0;
           const coinsEarned = g.enemy.tier === "medium" ? 2 : 1;
           player.coins = (player.coins || 0) + coinsEarned;
-          log.unshift(`🗺️ Choose your next path · +${coinsEarned} coin${coinsEarned > 1 ? 's' : ''}`);
+          log.unshift(`🗺️ Choose your next path · +${coinsEarned}🪙`);
           avatarMood = "victory";
         }
       }
@@ -2685,7 +2689,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
             </div>
             <div className="flex items-center gap-1.5 md:gap-2">
               {/* XP bar */}
-              <div className="hidden md:flex flex-col items-end gap-0.5">
+              <div className="flex flex-col items-end gap-0.5">
                 <div className="flex items-center gap-1 text-[9px] text-amber-300">
                   <span>Lv.{xpInfo.level}</span>
                   <span className="text-zinc-400">{xpInfo.current}/{xpInfo.needed || '∞'} XP</span>
@@ -2758,12 +2762,16 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 <div className="mt-1 text-xs font-black text-cyan-100">{game.lastOutcome || "—"}</div>
               </div>
               <div className="col-span-2 rounded-[12px] border border-white/10 bg-black/40 p-2">
-                <div className="mb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-300">Intent timeline</div>
+                <div className="mb-1 flex items-center gap-1 text-[9px] uppercase tracking-[0.16em] text-zinc-300">
+                  <span>Intent timeline</span>
+                  {oeilActive && <span className="text-violet-400">👁️ +2</span>}
+                </div>
                 <div className="space-y-1 text-[11px]">
                   {intentTimeline.map((entry, idx) => (
-                    <div key={`${entry.type}-${idx}-${entry.value}`} className={`rounded-lg border border-white/10 px-2 py-1 ${idx === 0 ? "bg-white/10" : "bg-black/35"}`}>
+                    <div key={`${entry.type}-${idx}-${entry.value}`} className={`rounded-lg border border-white/10 px-2 py-1 ${idx === 0 ? "bg-white/10" : oeilActive && idx >= 3 ? "bg-violet-950/30 border-violet-400/20" : "bg-black/35"}`}>
                       <span className={intentMeta(entry.type).color}>{intentMeta(entry.type).emoji} {entry.label}</span>
                       <span className="ml-1 text-zinc-200">{entry.value}</span>
+                      {oeilActive && idx >= 3 && <span className="ml-1 text-[9px] text-violet-400">👁️</span>}
                     </div>
                   ))}
                 </div>
@@ -2933,7 +2941,7 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
           </div>
 
           {/* ── Small inline action buttons: REROLL + companion ────────────── */}
-          {game.phase === "place" ? (
+          {(game.phase === "place" || game.phase === "roll") ? (
             <div className="mt-1.5 flex items-center justify-center gap-2">
               <button
                 onClick={rerollActiveDie}
@@ -3600,6 +3608,21 @@ export default function DieInTheJungleUpgraded({ onRunEnded, onBeforeRestart }: 
                 <div className="mb-3 flex items-center justify-between">
                   <div className="font-serif text-lg italic text-amber-300">Run Complete</div>
                   <Button onClick={() => setLastRunReward(null)} className="rounded-xl bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20">✕</Button>
+                </div>
+                {/* Run stats */}
+                <div className="mb-3 grid grid-cols-3 gap-1.5 text-center">
+                  <div className="rounded-xl border border-white/10 bg-black/35 px-2 py-2">
+                    <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-400">Score</div>
+                    <div className="text-sm font-black text-violet-300">{game.score.toLocaleString()}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-black/35 px-2 py-2">
+                    <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-400">Zone</div>
+                    <div className="text-sm font-black text-amber-300">{game.floor}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-black/35 px-2 py-2">
+                    <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-400">Kills</div>
+                    <div className="text-sm font-black text-rose-300">{game.winStreak}</div>
+                  </div>
                 </div>
                 {/* XP gain */}
                 <div className="mb-3 rounded-xl border border-amber-300/20 bg-amber-950/25 p-3">

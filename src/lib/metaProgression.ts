@@ -194,10 +194,13 @@ export function xpToNextLevel(xp: number): { current: number; needed: number; le
 
 const META_KEY = 'jk_meta_progression_v1';
 
+// These unlocks are available from run 1 — no grind required
+const DEFAULT_UNLOCKS: UnlockId[] = ['dice_specials', 'lane_bonuses', 'weapon_slot_1', 'companion_gecko'];
+
 const DEFAULT_STATE: MetaProgressionState = {
   xp: 0,
   gems: 0,
-  unlockedIds: [],
+  unlockedIds: [...DEFAULT_UNLOCKS],
   achievements: [],
   totalRuns: 0,
   totalKills: 0,
@@ -210,10 +213,13 @@ export function loadMeta(): MetaProgressionState {
     const raw = localStorage.getItem(META_KEY);
     if (!raw) return { ...DEFAULT_STATE };
     const parsed = JSON.parse(raw) as Partial<MetaProgressionState>;
+    const loadedIds = Array.isArray(parsed.unlockedIds) ? parsed.unlockedIds : [];
+    // Merge default unlocks so existing players also get them
+    const mergedIds = [...new Set([...DEFAULT_UNLOCKS, ...loadedIds])] as UnlockId[];
     return {
       xp: parsed.xp ?? 0,
       gems: parsed.gems ?? 0,
-      unlockedIds: Array.isArray(parsed.unlockedIds) ? parsed.unlockedIds : [],
+      unlockedIds: mergedIds,
       achievements: Array.isArray(parsed.achievements) ? parsed.achievements : [],
       totalRuns: parsed.totalRuns ?? 0,
       totalKills: parsed.totalKills ?? 0,
